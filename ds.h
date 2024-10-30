@@ -197,6 +197,7 @@ DSHDEF int ds_string_slice_trim_left(ds_string_slice *ss, char chr);
 DSHDEF int ds_string_slice_trim_right(ds_string_slice *ss, char chr);
 DSHDEF int ds_string_slice_trim(ds_string_slice *ss, char chr);
 DSHDEF int ds_string_slice_to_owned(ds_string_slice *ss, char **str);
+DSHDEF bool ds_string_slice_equals(ds_string_slice *ss, ds_string_slice *so);
 DSHDEF bool ds_string_slice_starts_with(ds_string_slice *ss, ds_string_slice *prefix);
 DSHDEF bool ds_string_slice_starts_with_pred(ds_string_slice *ss, bool (*predicate)(char));
 DSHDEF int ds_string_slice_step(ds_string_slice *ss, int count);
@@ -1629,7 +1630,14 @@ defer:
     return result;
 }
 
-// Check if the string slice starts with a specific string given as a char*
+// Check if the string slice is equal to a specific string
+//
+// Returns 1 in case the string slice equals str. Returns 0 otherwise
+DSHDEF bool ds_string_slice_equals(ds_string_slice *ss, ds_string_slice *so) {
+    return ss->len == so->len && DS_MEMCMP(ss->str, so->str, ss->len) == 0;
+}
+
+// Check if the string slice starts with a specific string
 //
 // Returns 1 in case the string slice starts with str. Returns 0 otherwise
 DSHDEF bool ds_string_slice_starts_with(ds_string_slice *ss, ds_string_slice *prefix) {

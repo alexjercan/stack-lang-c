@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=-Wall -Wextra -Werror -Wno-unused-parameter -Wno-unused-variable -g
+CFLAGS=-Wall -Wextra -Werror -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -g
 
 build:
 	$(CC) $(CFLAGS) -o main main.c
