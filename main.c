@@ -292,11 +292,11 @@ static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
 
     token = stack_parser_peek(parser);
     if (token.kind == STACK_TOKEN_RPAREN) {
-        token = stack_parser_read(parser);
+        stack_parser_read(parser);
         return_defer(0);
     }
 
-    while (true) {
+    do {
         stack_ast_data_field field = {0};
         stack_parser_parse_data_field(parser, &field);
         ds_dynamic_array_append(&data->fields, &field);
@@ -304,13 +304,13 @@ static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
         token = stack_parser_read(parser);
         if (token.kind == STACK_TOKEN_RPAREN) {
             break;
-        }
-
-        if (token.kind != STACK_TOKEN_COMMA) {
+        } else if (token.kind == STACK_TOKEN_COMMA) {
+            continue;
+        } else {
             DS_PANIC("PARSER: expected `,` or `)` found %s", stack_token_kind_to_string(token.kind));
             return_defer(1);
         }
-    }
+    } while (true);
 
 defer:
     return result;
