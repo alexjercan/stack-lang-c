@@ -27,6 +27,7 @@
 
           nativeBuildInputs = with pkgs; [
             clang
+            fasm
           ];
         };
     })
