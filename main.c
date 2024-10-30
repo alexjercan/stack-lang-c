@@ -190,15 +190,15 @@ int stack_lexer_next(stack_lexer *lexer, stack_token *token) {
     unsigned int position = lexer->pos;
     if (lexer->ch == EOF) {
         stack_lexer_read(lexer);
-        *token = (stack_token){.kind = STACK_TOKEN_EOF, .value = 0, .pos = position };
+        *token = (stack_token){.kind = STACK_TOKEN_EOF, .value = {0}, .pos = position };
         return_defer(0);
     } else if (lexer->ch == SYMBOL_PLUS) {
         stack_lexer_read(lexer);
-        *token = (stack_token){.kind = STACK_TOKEN_PLUS, .value = 0, .pos = position };
+        *token = (stack_token){.kind = STACK_TOKEN_PLUS, .value = {0}, .pos = position };
         return_defer(0);
     } else if (lexer->ch == SYMBOL_MINUS && !isdigit(stack_lexer_peek(lexer))) {
         stack_lexer_read(lexer);
-        *token = (stack_token){.kind = STACK_TOKEN_MINUS, .value = 0, .pos = position };
+        *token = (stack_token){.kind = STACK_TOKEN_MINUS, .value = {0}, .pos = position };
         return_defer(0);
     } else if (isdigit(lexer->ch) || lexer->ch == SYMBOL_MINUS) {
         return_defer(stack_lexer_tokenize_number(lexer, token));
