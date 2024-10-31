@@ -50,7 +50,6 @@ The `int` data type is implemented by default by the language.
 We can look at an example of implementing the `ivec2` data structure.
 
 ```stack
--- data int
 data ivec2 (int x, int y)
 ```
 

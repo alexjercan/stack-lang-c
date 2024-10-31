@@ -9,5 +9,6 @@ func ivec2.dot ivec2 ivec2 -> int in
 end
 
 func main in
-    69
+    42 27 ivec2
+    dup ivec2.x swp ivec.y +
 end
