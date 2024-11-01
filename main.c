@@ -958,30 +958,38 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
 
 #define STACK_KEYWORD_DUP "dup"
 #define STACK_KEYWORD_SWP "swp"
+#define STACK_KEYWORD_ROT "rot"
+#define STACK_KEYWORD_POP "pop"
 #define STACK_KEYWORD_PLUS "+"
 #define STACK_KEYWORD_STAR "*"
 
-#define EXPR_NAME_DUP "func.dup"
-#define EXPR_NAME_SWP "func.swp"
-#define EXPR_NAME_INT "func.int"
-#define EXPR_NAME_PLUS "func.int.plus"
-#define EXPR_NAME_STAR "func.int.mul"
+#define STACK_EXPR_NAME_DUP "func." STACK_KEYWORD_DUP
+#define STACK_EXPR_NAME_SWP "func." STACK_KEYWORD_SWP
+#define STACK_EXPR_NAME_ROT "func." STACK_KEYWORD_ROT
+#define STACK_EXPR_NAME_POP "func." STACK_KEYWORD_POP
+#define STACK_EXPR_NAME_INT "func.int"
+#define STACK_EXPR_NAME_PLUS "func.int.plus"
+#define STACK_EXPR_NAME_STAR "func.int.mul"
 
-static const char *expr_name_map(char *name) {
+static const char *stack_expr_name_map(char *name) {
     if (strcmp(STACK_KEYWORD_DUP, name) == 0) {
-        return EXPR_NAME_DUP;
+        return STACK_EXPR_NAME_DUP;
     } else if (strcmp(STACK_KEYWORD_SWP, name) == 0) {
-        return EXPR_NAME_SWP;
+        return STACK_EXPR_NAME_SWP;
+    } else if (strcmp(STACK_KEYWORD_ROT, name) == 0) {
+        return STACK_EXPR_NAME_ROT;
+    } else if (strcmp(STACK_KEYWORD_POP, name) == 0) {
+        return STACK_EXPR_NAME_POP;
     } else if (strcmp(STACK_KEYWORD_PLUS, name) == 0) {
-        return EXPR_NAME_PLUS;
+        return STACK_EXPR_NAME_PLUS;
     } else if (strcmp(STACK_KEYWORD_STAR, name) == 0) {
-        return EXPR_NAME_STAR;
+        return STACK_EXPR_NAME_STAR;
     } else {
         return NULL;
     }
 }
 
-void stack_assembler_emit_stdlib(stack_assembler *assembler) {
+void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("section '.text' executable");
     EMIT("");
     // DUP
@@ -991,7 +999,7 @@ void stack_assembler_emit_stdlib(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", EXPR_NAME_DUP);
+    EMIT("%s:", STACK_EXPR_NAME_DUP);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1011,7 +1019,7 @@ void stack_assembler_emit_stdlib(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", EXPR_NAME_SWP);
+    EMIT("%s:", STACK_EXPR_NAME_SWP);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1036,6 +1044,67 @@ void stack_assembler_emit_stdlib(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
+    // ROT
+    EMIT(";");
+    EMIT(";");
+    EMIT("; rot");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("%s:", STACK_EXPR_NAME_ROT);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 32                    ; allocate 4 local variables");
+    EMIT("");
+    EMIT("    ; (C B A) -> (B A C)");
+    EMIT("");
+    EMIT("    ; t0 <- A");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     qword [rbp - loc_0], rax");
+    EMIT("");
+    EMIT("    ; t1 <- B");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     qword [rbp - loc_1], rax");
+    EMIT("");
+    EMIT("    ; t2 <- C");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     qword [rbp - loc_2], rax");
+    EMIT("");
+    EMIT("    ; push B");
+    EMIT("    mov     rdi, [rbp - loc_1]");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    ; push A");
+    EMIT("    mov     rdi, [rbp - loc_0]");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    ; push C");
+    EMIT("    mov     rdi, [rbp - loc_2]");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 32                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // POP
+    EMIT(";");
+    EMIT(";");
+    EMIT("; pop");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("%s:", STACK_EXPR_NAME_POP);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    EMIT("");
     // INT
     EMIT(";");
     EMIT(";");
@@ -1043,7 +1112,7 @@ void stack_assembler_emit_stdlib(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: rdi is the int value");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", EXPR_NAME_INT);
+    EMIT("%s:", STACK_EXPR_NAME_INT);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1076,7 +1145,7 @@ void stack_assembler_emit_stdlib(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", EXPR_NAME_PLUS);
+    EMIT("%s:", STACK_EXPR_NAME_PLUS);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1090,7 +1159,7 @@ void stack_assembler_emit_stdlib(stack_assembler *assembler) {
     EMIT("    pop     rdi");
     EMIT("");
     EMIT("    add     rdi, rax");
-    EMIT("    call    %s", EXPR_NAME_INT);
+    EMIT("    call    %s", STACK_EXPR_NAME_INT);
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -1105,7 +1174,7 @@ void stack_assembler_emit_expr_number(stack_assembler *assembler, stack_ast_node
     char *number = NULL;
     ds_string_slice_to_owned(&node->value, &number);
     EMIT("    mov     rdi, %s", number);
-    EMIT("    call    %s", EXPR_NAME_INT);
+    EMIT("    call    %s", STACK_EXPR_NAME_INT);
 
     DS_FREE(NULL, number);
 }
@@ -1113,7 +1182,7 @@ void stack_assembler_emit_expr_number(stack_assembler *assembler, stack_ast_node
 void stack_assembler_emit_expr_name(stack_assembler *assembler, stack_ast_node *node) {
     char *name = NULL;
     ds_string_slice_to_owned(&node->value, &name);
-    const char *func = expr_name_map(name);
+    const char *func = stack_expr_name_map(name);
 
     if (func == NULL) {
         EMIT("    call    func.%s", name);
@@ -1161,7 +1230,7 @@ void stack_assembler_emit(stack_assembler *assembler, stack_ast_prog *prog) {
     EMIT("");
     stack_assembler_emit_allocator(assembler);
     stack_assembler_emit_entry(assembler);
-    stack_assembler_emit_stdlib(assembler);
+    stack_assembler_emit_keywords(assembler);
 
     EMIT("section '.text' executable");
     EMIT("");
@@ -1180,7 +1249,7 @@ void stack_assembler_emit(stack_assembler *assembler, stack_ast_prog *prog) {
 }
 
 void stack_assembler_free(stack_assembler *assembler) {
-
+    assembler->stdout = NULL;
 }
 
 typedef struct {
