@@ -700,6 +700,7 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
             fprintf(stdout, "%*s%s\n", indent * 2, "", name);
             DS_FREE(NULL, name);
         }
+        fprintf(stdout, "\n");
     }
 }
 
@@ -717,6 +718,469 @@ void stack_ast_free(stack_ast_prog *prog) {
         stack_ast_func_free(func);
     }
     ds_dynamic_array_free(&prog->funcs);
+}
+
+typedef struct {
+    FILE *stdout;
+} stack_assembler;
+
+void stack_assembler_init(stack_assembler *assembler, FILE *stdout) {
+    assembler->stdout = stdout;
+}
+
+static void stack_assembler_emit_format(stack_assembler *assembler, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    vfprintf(assembler->stdout, format, args);
+    va_end(args);
+
+    fprintf(assembler->stdout, "\n");
+}
+
+#define EMIT(format, ...) stack_assembler_emit_format(assembler, format, ##__VA_ARGS__)
+
+static void stack_assembler_emit_entry(stack_assembler *assembler) {
+    EMIT("section '.data' writeable");
+    EMIT("");
+    EMIT("; Define some constants");
+    EMIT("stack_sz = 8");
+    EMIT("");
+    EMIT("loc_0 = 8");
+    EMIT("loc_1 = 16");
+    EMIT("loc_2 = 24");
+    EMIT("loc_3 = 32");
+    EMIT("loc_4 = 40");
+    EMIT("loc_5 = 48");
+    EMIT("loc_6 = 56");
+    EMIT("loc_7 = 64");
+    EMIT("");
+    EMIT("arg_0 = 16");
+    EMIT("arg_1 = 24");
+    EMIT("arg_2 = 32");
+    EMIT("arg_3 = 40");
+    EMIT("arg_4 = 48");
+    EMIT("arg_5 = 56");
+    EMIT("arg_6 = 64");
+    EMIT("arg_7 = 72");
+    EMIT("");
+    EMIT("; Define entry point");
+    EMIT("section '.text' executable");
+    EMIT("public _start");
+    EMIT("_start:");
+    EMIT("    ; Initialize the memory");
+    EMIT("    call allocator_init");
+    EMIT("");
+    EMIT("    ; Call the main method");
+    EMIT("    call   func.main");
+    EMIT("");
+    EMIT("    ; Exit the program");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rdi, qword [rax]");
+    EMIT("    mov     rax, 60");
+    EMIT("    syscall");
+    EMIT("");
+}
+
+static void stack_assembler_emit_allocator(stack_assembler *assembler) {
+    EMIT("section '.data' writeable");
+    EMIT("");
+    EMIT("; memory layout");
+    EMIT("stack_pos dq 0");
+    EMIT("stack_end dq 0");
+    EMIT("heap_pos dq 0");
+    EMIT("heap_end dq 0");
+    EMIT("");
+    EMIT("section '.text' executable");
+    EMIT("");
+    EMIT(";");
+    EMIT(";");
+    EMIT("; allocator_init");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("allocator_init:");
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    ; allocate the stack 64K");
+    EMIT("    mov     rax, 12                    ; brk");
+    EMIT("    mov     rdi, 0                     ; increment = 0");
+    EMIT("    syscall");
+    EMIT("    mov     [stack_pos], rax           ; save the current position of the stack");
+    EMIT("    mov     [stack_end], rax           ; save the end of the stack");
+    EMIT("");
+    EMIT("    mov     rax, 12                    ; brk");
+    EMIT("    mov     rdi, 0x10000               ; 64K bytes (larger obj. will fail)");
+    EMIT("    add     rdi, [stack_end]           ; new end of the stack");
+    EMIT("    syscall");
+    EMIT("");
+    EMIT("    ; initialize the heap");
+    EMIT("    mov     rax, 12                    ; brk");
+    EMIT("    mov     rdi, 0                     ; increment = 0");
+    EMIT("    syscall");
+    EMIT("    mov     [heap_pos], rax            ; save the current position of the heap");
+    EMIT("    mov     [heap_end], rax            ; save the end of the heap");
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    EMIT(";");
+    EMIT(";");
+    EMIT("; stack push");
+    EMIT(";");
+    EMIT(";   INPUT: rdi contains the int64 (pointer) that we add to the stack");
+    EMIT(";   OUTPUT: nothing");
+    EMIT(";");
+    EMIT("stack_push:");
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    mov     rsi, qword [stack_pos]");
+    EMIT("    mov     qword [rsi], rdi");
+    EMIT("    add     qword [stack_pos], stack_sz");
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    EMIT(";");
+    EMIT(";");
+    EMIT("; stack peek");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack");
+    EMIT(";");
+    EMIT("stack_peek:");
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    mov     rax, qword [stack_pos]");
+    EMIT("    mov     rax, qword [rax - stack_sz]");
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    EMIT(";");
+    EMIT(";");
+    EMIT("; stack pop");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack");
+    EMIT(";");
+    EMIT("stack_pop:");
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    mov     rax, qword [stack_pos]");
+    EMIT("    mov     rax, qword [rax - stack_sz]");
+    EMIT("    sub     qword [stack_pos], stack_sz");
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    EMIT(";");
+    EMIT(";");
+    EMIT("; allocate");
+    EMIT(";");
+    EMIT(";   INPUT: rdi contains the size in bytes");
+    EMIT(";   OUTPUT: rax points to the newly allocated memory");
+    EMIT(";");
+    EMIT("allocate:");
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    ; t0 <- heap_pos");
+    EMIT("    mov     rax, qword [heap_pos]");
+    EMIT("    mov     qword [rbp - loc_0], rax");
+    EMIT("");
+    EMIT("    ; t1 <- t0 + rdi");
+    EMIT("    mov     rax, qword [rbp - loc_0]");
+    EMIT("    add     rax, rdi");
+    EMIT("    mov     qword [rbp - loc_1], rax");
+    EMIT("");
+    EMIT("    ; cmp t1 <= heap_end");
+    EMIT("    mov     rax, qword [rbp - loc_1]");
+    EMIT("    cmp     rax, qword [heap_end]");
+    EMIT("    jle     .alloc_ok");
+    EMIT("");
+    EMIT("    mov     rax, 12                    ; brk");
+    EMIT("    mov     rdi, 0x10000               ; 64K bytes (larger obj. will fail)");
+    EMIT("    add     rdi, [heap_end]            ; new end of the heap");
+    EMIT("    syscall");
+    EMIT("");
+    EMIT("    mov     [heap_end], rax            ; save the new end of the heap");
+    EMIT("");
+    EMIT(".alloc_ok:");
+    EMIT("");
+    EMIT("    ; heap_pos <- t1");
+    EMIT("    mov     rax, qword [rbp - loc_1]");
+    EMIT("    mov     qword [heap_pos], rax");
+    EMIT("");
+    EMIT("    ; return t0");
+    EMIT("    mov     rax, qword [rbp - loc_0]");
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    EMIT(";");
+    EMIT(";");
+    EMIT("; memcpy");
+    EMIT(";   INPUT:");
+    EMIT(";       rdi points to destination");
+    EMIT(";       rsi points to source");
+    EMIT(";       rdx contains the number of bytes to copy");
+    EMIT(";   STACK: empty");
+    EMIT(";   OUTPUT: nothing");
+    EMIT(";");
+    EMIT("memcpy:");
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT(".next_byte:");
+    EMIT("    cmp     rdx, 0                     ; check if done");
+    EMIT("    jle     .done");
+    EMIT("");
+    EMIT("    mov     al, byte [rsi]             ; get byte from self");
+    EMIT("    mov     byte [rdi], al             ; copy byte to new object");
+    EMIT("");
+    EMIT("    inc     rdi                        ; increment destination");
+    EMIT("    inc     rsi                        ; increment source");
+    EMIT("    dec     rdx                        ; decrement count");
+    EMIT("");
+    EMIT("    jmp .next_byte");
+    EMIT(".done:");
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+}
+
+#define STACK_KEYWORD_DUP "dup"
+#define STACK_KEYWORD_SWP "swp"
+#define STACK_KEYWORD_PLUS "+"
+#define STACK_KEYWORD_STAR "*"
+
+#define EXPR_NAME_DUP "func.dup"
+#define EXPR_NAME_SWP "func.swp"
+#define EXPR_NAME_INT "func.int"
+#define EXPR_NAME_PLUS "func.int.plus"
+#define EXPR_NAME_STAR "func.int.mul"
+
+static const char *expr_name_map(char *name) {
+    if (strcmp(STACK_KEYWORD_DUP, name) == 0) {
+        return EXPR_NAME_DUP;
+    } else if (strcmp(STACK_KEYWORD_SWP, name) == 0) {
+        return EXPR_NAME_SWP;
+    } else if (strcmp(STACK_KEYWORD_PLUS, name) == 0) {
+        return EXPR_NAME_PLUS;
+    } else if (strcmp(STACK_KEYWORD_STAR, name) == 0) {
+        return EXPR_NAME_STAR;
+    } else {
+        return NULL;
+    }
+}
+
+void stack_assembler_emit_stdlib(stack_assembler *assembler) {
+    EMIT("section '.text' executable");
+    EMIT("");
+    // DUP
+    EMIT(";");
+    EMIT(";");
+    EMIT("; dup");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("%s:", EXPR_NAME_DUP);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_peek");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // SWAP
+    EMIT(";");
+    EMIT(";");
+    EMIT("; swp");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("%s:", EXPR_NAME_SWP);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    ; t0 <- A");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     qword [rbp - loc_0], rax");
+    EMIT("");
+    EMIT("    ; t1 <- B");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     qword [rbp - loc_1], rax");
+    EMIT("");
+    EMIT("    ; push A");
+    EMIT("    mov     rdi, [rbp - loc_0]");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    ; push B");
+    EMIT("    mov     rdi, [rbp - loc_1]");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // INT
+    EMIT(";");
+    EMIT(";");
+    EMIT("; int constructor");
+    EMIT(";");
+    EMIT(";   INPUT: rdi is the int value");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("%s:", EXPR_NAME_INT);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    ; t1 <- rdi");
+    EMIT("    mov     qword [rbp - loc_1], rdi");
+    EMIT("");
+    EMIT("    ; t0 <- allocate(8)");
+    EMIT("    mov     rdi, 8");
+    EMIT("    call    allocate");
+    EMIT("    mov     qword [rbp - loc_0], rax");
+    EMIT("");
+    EMIT("    ; *t0 <- t1");
+    EMIT("    mov     rax, [rbp - loc_1]");
+    EMIT("    mov     rdi, [rbp - loc_0]");
+    EMIT("    mov     qword [rdi], rax");
+    EMIT("");
+    EMIT("    ; push t0");
+    EMIT("    mov     rdi, [rbp - loc_0]");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // PLUS
+    EMIT(";");
+    EMIT(";");
+    EMIT("; plus");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("%s:", EXPR_NAME_PLUS);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    push    rax");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    pop     rdi");
+    EMIT("");
+    EMIT("    add     rdi, rax");
+    EMIT("    call    %s", EXPR_NAME_INT);
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+}
+
+void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data *data) {
+}
+
+void stack_assembler_emit_expr_number(stack_assembler *assembler, stack_ast_node *node) {
+    char *number = NULL;
+    ds_string_slice_to_owned(&node->value, &number);
+    EMIT("    mov     rdi, %s", number);
+    EMIT("    call    %s", EXPR_NAME_INT);
+
+    DS_FREE(NULL, number);
+}
+
+void stack_assembler_emit_expr_name(stack_assembler *assembler, stack_ast_node *node) {
+    char *name = NULL;
+    ds_string_slice_to_owned(&node->value, &name);
+    const char *func = expr_name_map(name);
+
+    if (func == NULL) {
+        EMIT("    call    func.%s", name);
+    } else {
+        EMIT("    call    %s", func);
+    }
+
+    DS_FREE(NULL, name);
+}
+
+void stack_assembler_emit_expr(stack_assembler *assembler, stack_ast_expr *expr) {
+    switch (expr->kind) {
+    case STACK_AST_EXPR_NUMBER:
+        stack_assembler_emit_expr_number(assembler, &expr->number);
+        break;
+    case STACK_AST_EXPR_NAME:
+        stack_assembler_emit_expr_name(assembler, &expr->name);
+        break;
+    }
+}
+
+void stack_assembler_emit_func(stack_assembler *assembler, stack_ast_func *func) {
+    char *name = NULL;
+    ds_string_slice_to_owned(&func->name.value, &name);
+
+    EMIT("func.%s:", name);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+
+    for (unsigned int i = 0; i < func->body.count; i++) {
+        stack_ast_expr expr = {0};
+        ds_dynamic_array_get(&func->body, i, &expr);
+        stack_assembler_emit_expr(assembler, &expr);
+    }
+
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+
+    DS_FREE(NULL, name);
+}
+
+void stack_assembler_emit(stack_assembler *assembler, stack_ast_prog *prog) {
+    EMIT("format ELF64");
+    EMIT("");
+    stack_assembler_emit_allocator(assembler);
+    stack_assembler_emit_entry(assembler);
+    stack_assembler_emit_stdlib(assembler);
+
+    EMIT("section '.text' executable");
+    EMIT("");
+
+    for (unsigned int i = 0; i < prog->datas.count; i++) {
+        stack_ast_data data = {0};
+        ds_dynamic_array_get(&prog->datas, i, &data);
+        stack_assembler_emit_data(assembler, &data);
+    }
+
+    for (unsigned int i = 0; i < prog->funcs.count; i++) {
+        stack_ast_func func = {0};
+        ds_dynamic_array_get(&prog->funcs, i, &func);
+        stack_assembler_emit_func(assembler, &func);
+    }
+}
+
+void stack_assembler_free(stack_assembler *assembler) {
+
 }
 
 typedef struct {
@@ -759,6 +1223,7 @@ int main(int argc, char **argv) {
     stack_lexer lexer = {0};
     stack_parser parser = {0};
     stack_ast_prog prog = {0};
+    stack_assembler assembler = {0};
     int result = 0;
 
     if (argparse(argc, argv, &args) != 0) {
@@ -774,13 +1239,15 @@ int main(int argc, char **argv) {
 
     stack_lexer_init(&lexer, buffer, buffer_len);
     stack_parser_init(&parser, lexer);
+    stack_assembler_init(&assembler, stdout);
 
     if (stack_parser_parse_prog(&parser, &prog) != 0) {
         return_defer(1);
     }
 
-    stack_ast_dump(&prog, stdout);
-    stack_lexer_dump(&lexer);
+    stack_assembler_emit(&assembler, &prog);
+    // stack_ast_dump(&prog, stdout);
+    // stack_lexer_dump(&lexer);
 
 defer:
     if (buffer != NULL) DS_FREE(NULL, buffer);

@@ -400,6 +400,20 @@ DSHDEF int json_object_free(json_object *object);
 #define NULL 0
 #endif
 
+#define DS_MIN(a, b)                                                           \
+  ({                                                                           \
+    __typeof__(a) _a = (a);                                                    \
+    __typeof__(b) _b = (b);                                                    \
+    _a < _b ? _a : _b;                                                         \
+  })
+
+#define DS_MAX(a, b)                                                           \
+  ({                                                                           \
+    __typeof__(a) _a = (a);                                                    \
+    __typeof__(b) _b = (b);                                                    \
+    _a > _b ? _a : _b;                                                         \
+  })
+
 #if defined(DS_MEMCPY)
 // ok
 #elif !defined(DS_MEMCPY) && !defined(DS_NO_STDLIB)

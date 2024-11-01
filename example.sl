@@ -10,5 +10,5 @@ end
 
 func main () (int) in
     42 27 ivec2
-    dup ivec2.x swp ivec.y +
+    dup ivec2.x swp ivec2.y +
 end
