@@ -193,6 +193,39 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
     }
 }
 
+void stack_lexer_dump(stack_lexer *lexer) {
+    stack_token token = {0};
+
+    do {
+        token = stack_lexer_next(lexer);
+        char *value = stack_token_to_string(token);
+        DS_LOG_INFO("%s", value);
+        DS_FREE(NULL, value);
+    } while (token.kind != STACK_TOKEN_EOF);
+}
+
+int lexer_pos_to_lc(stack_lexer *lexer, unsigned int pos, unsigned int *line, unsigned int *col) {
+    int result = 0;
+    if (pos >= lexer->buffer_len) {
+        return_defer(1);
+    }
+
+    *line = 1;
+    *col = 1;
+
+    for (unsigned int i = 0; i < pos; i++) {
+        if (lexer->buffer[i] == '\n') {
+            *line += 1;
+            *col = 1;
+        } else {
+            *col += 1;
+        }
+    }
+
+defer:
+    return result;
+}
+
 void stack_lexer_free(stack_lexer *lexer) {
     lexer->buffer = NULL;
     lexer->buffer_len = 0;
@@ -229,38 +262,106 @@ int stack_parser_init(stack_parser *parser, stack_lexer lexer) {
     return 0;
 }
 
+void stack_parser_show_errorf(stack_parser *parser, const char *format, ...) {
+    unsigned int line = 0;
+    unsigned int col = 0;
+    lexer_pos_to_lc(&parser->lexer, parser->tok.pos, &line, &col);
+
+    fprintf(stderr, ":%d:%d, ", line, col);
+    if (parser->tok.kind == STACK_TOKEN_ILLEGAL) {
+        fprintf(stderr, "Lexical error: ILLEGAL TOKEN");
+
+        if (parser->tok.value.str != NULL) {
+            char *value = NULL;
+            ds_string_slice_to_owned(&parser->tok.value, &value);
+            fprintf(stderr, ": %s", value);
+            DS_FREE(NULL, value);
+        }
+
+        fprintf(stderr, "\n");
+    } else {
+        fprintf(stderr, "Syntax error: ");
+
+        va_list args;
+        va_start(args, format);
+        vfprintf(stderr, format, args);
+        va_end(args);
+
+        fprintf(stderr, "\n");
+    }
+}
+
+#define stack_parser_show_expected(parser, expected, got)                      \
+  stack_parser_show_errorf(parser, "expected %s got %s",                       \
+                           stack_token_kind_to_string(expected),               \
+                           stack_token_kind_to_string(got))
+
+#define stack_parser_show_expected_2(parser, expected1, expected2, got)        \
+  stack_parser_show_errorf(parser, "expected %s or %s, got %s",                \
+                           stack_token_kind_to_string(expected1),              \
+                           stack_token_kind_to_string(expected2),              \
+                           stack_token_kind_to_string(got))
+
+#define stack_parser_show_expected_3(parser, expected1, expected2, expected3,  \
+                                     got)                                      \
+  stack_parser_show_errorf(parser, "expected %s, %s or %s, got %s",            \
+                           stack_token_kind_to_string(expected1),              \
+                           stack_token_kind_to_string(expected2),              \
+                           stack_token_kind_to_string(expected3),              \
+                           stack_token_kind_to_string(got))
+
+void stack_parser_free(stack_parser *parser) {
+    stack_lexer_free(&parser->lexer);
+    parser->tok = (stack_token){0};
+    parser->next_tok = (stack_token){0};
+}
+
 typedef struct {
-    ds_string_slice type;
-    ds_string_slice name;
+    ds_string_slice value;
+    unsigned int pos;
+} stack_ast_node;
+
+void stack_ast_node_free(stack_ast_node *node) {
+    ds_string_slice_free(&node->value);
+}
+
+typedef struct {
+    stack_ast_node type;
+    stack_ast_node name;
 } stack_ast_data_field;
 
 static int stack_parser_parse_data_field(stack_parser *parser, stack_ast_data_field *field) {
     stack_token token = {0};
     int result = 0;
 
-    field->type = (ds_string_slice){0};
-    field->name = (ds_string_slice){0};
+    field->type = (stack_ast_node){0};
+    field->name = (stack_ast_node){0};
 
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_NAME) {
-        DS_PANIC("PARSER: expected a NAME found %s", stack_token_kind_to_string(token.kind));
+        stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
         return_defer(1);
     }
-    field->type = token.value;
+    field->type = (stack_ast_node){.value = token.value, .pos = token.pos };
 
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_NAME) {
-        DS_PANIC("PARSER: expected a NAME found %s", stack_token_kind_to_string(token.kind));
+        stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
         return_defer(1);
     }
-    field->name = token.value;
+    field->name = (stack_ast_node){.value = token.value, .pos = token.pos };
 
 defer:
     return result;
 }
 
+void stack_ast_data_field_free(stack_ast_data_field *field) {
+    stack_ast_node_free(&field->name);
+    stack_ast_node_free(&field->type);
+}
+
 typedef struct {
-    ds_string_slice name;
+    stack_ast_node name;
     ds_dynamic_array fields; // stack_ast_data_field
 } stack_ast_data;
 
@@ -268,25 +369,25 @@ static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
     stack_token token = {0};
     int result = 0;
 
-    data->name = (ds_string_slice){0};
+    data->name = (stack_ast_node){0};
     ds_dynamic_array_init(&data->fields, sizeof(stack_ast_data_field));
 
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_DATA) {
-        DS_PANIC("PARSER: expected `data` found %s", stack_token_kind_to_string(token.kind));
+        stack_parser_show_expected(parser, STACK_TOKEN_DATA, token.kind);
         return_defer(1);
     }
 
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_NAME) {
-        DS_PANIC("PARSER: expected a NAME found %s", stack_token_kind_to_string(token.kind));
+        stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
         return_defer(1);
     }
-    data->name = token.value;
+    data->name = (stack_ast_node){.value = token.value, .pos = token.pos};
 
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_LPAREN) {
-        DS_PANIC("PARSER: expected `(` found %s", stack_token_kind_to_string(token.kind));
+        stack_parser_show_expected(parser, STACK_TOKEN_LPAREN, token.kind);
         return_defer(1);
     }
 
@@ -307,13 +408,321 @@ static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
         } else if (token.kind == STACK_TOKEN_COMMA) {
             continue;
         } else {
-            DS_PANIC("PARSER: expected `,` or `)` found %s", stack_token_kind_to_string(token.kind));
+            stack_parser_show_expected_2(parser, STACK_TOKEN_COMMA, STACK_TOKEN_RPAREN, token.kind);
             return_defer(1);
         }
     } while (true);
 
 defer:
     return result;
+}
+
+void stack_ast_data_free(stack_ast_data *data) {
+    stack_ast_node_free(&data->name);
+    for (unsigned int i = 0; i < data->fields.count; i++) {
+        stack_ast_data_field *field = NULL;
+        ds_dynamic_array_get_ref(&data->fields, i, (void **)&field);
+        stack_ast_data_field_free(field);
+    }
+    ds_dynamic_array_free(&data->fields);
+}
+
+typedef enum {
+    STACK_AST_EXPR_NUMBER,
+    STACK_AST_EXPR_NAME,
+} stack_ast_expr_kind;
+
+typedef struct {
+    stack_ast_expr_kind kind;
+    union {
+        stack_ast_node number;
+        stack_ast_node name;
+    };
+} stack_ast_expr;
+
+void stack_ast_expr_free(stack_ast_expr *expr) {
+    switch (expr->kind) {
+    case STACK_AST_EXPR_NUMBER:
+        stack_ast_node_free(&expr->number);
+        break;
+    case STACK_AST_EXPR_NAME:
+        stack_ast_node_free(&expr->name);
+        break;
+    }
+}
+
+typedef struct {
+    stack_ast_node name;
+    ds_dynamic_array args; // stack_ast_node
+    ds_dynamic_array rets; // stack_ast_node
+    ds_dynamic_array body; // stack_ast_expr
+} stack_ast_func;
+
+static int stack_parser_parse_func_nodes(stack_parser *parser, ds_dynamic_array *nodes /* stack_ast_node */) {
+    stack_token token = {0};
+    int result = 0;
+
+    token = stack_parser_read(parser);
+    if (token.kind != STACK_TOKEN_LPAREN) {
+        stack_parser_show_expected(parser, STACK_TOKEN_LPAREN, token.kind);
+        return_defer(1);
+    }
+
+    token = stack_parser_peek(parser);
+    if (token.kind == STACK_TOKEN_RPAREN) {
+        stack_parser_read(parser);
+        return_defer(0);
+    }
+
+    do {
+        token = stack_parser_read(parser);
+        if (token.kind != STACK_TOKEN_NAME) {
+            stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
+            return_defer(1);
+        }
+        ds_dynamic_array_append(nodes, &(stack_ast_node){.value = token.value, .pos = token.pos});
+
+        token = stack_parser_read(parser);
+        if (token.kind == STACK_TOKEN_RPAREN) {
+            break;
+        } else if (token.kind == STACK_TOKEN_COMMA) {
+            continue;
+        } else {
+            stack_parser_show_expected_2(parser, STACK_TOKEN_COMMA, STACK_TOKEN_RPAREN, token.kind);
+            return_defer(1);
+        }
+    } while (true);
+
+defer:
+    return result;
+}
+
+static int stack_parser_parse_func_body(stack_parser *parser, ds_dynamic_array *exprs /* stack_ast_expr */) {
+    int result = 0;
+
+    while (true) {
+        stack_token token = stack_parser_peek(parser);
+        switch (token.kind) {
+        case STACK_TOKEN_NAME:
+            stack_parser_read(parser);
+            ds_dynamic_array_append(
+                exprs,
+                &(stack_ast_expr){.kind = STACK_AST_EXPR_NAME,
+                                  .name = (stack_ast_node){.value = token.value,
+                                                           .pos = token.pos}});
+            break;
+        case STACK_TOKEN_NUMBER:
+            stack_parser_read(parser);
+            ds_dynamic_array_append(
+                exprs,
+                &(stack_ast_expr){.kind = STACK_AST_EXPR_NUMBER,
+                                  .number = (stack_ast_node){
+                                      .value = token.value, .pos = token.pos}});
+            break;
+        default:
+            return_defer(0);
+        }
+    }
+
+defer:
+    return result;
+}
+
+static int stack_parser_parse_func(stack_parser *parser, stack_ast_func *func) {
+    stack_token token = {0};
+    int result = 0;
+
+    func->name = (stack_ast_node){0};
+    ds_dynamic_array_init(&func->args, sizeof(stack_ast_node));
+    ds_dynamic_array_init(&func->rets, sizeof(stack_ast_node));
+    ds_dynamic_array_init(&func->body, sizeof(stack_ast_expr));
+
+    token = stack_parser_read(parser);
+    if (token.kind != STACK_TOKEN_FUNC) {
+        stack_parser_show_expected(parser, STACK_TOKEN_FUNC, token.kind);
+        return_defer(1);
+    }
+
+    token = stack_parser_read(parser);
+    if (token.kind != STACK_TOKEN_NAME) {
+        stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
+        return_defer(1);
+    }
+    func->name = (stack_ast_node){.value = token.value, .pos = token.pos};
+
+    stack_parser_parse_func_nodes(parser, &func->args);
+    stack_parser_parse_func_nodes(parser, &func->rets);
+
+    token = stack_parser_read(parser);
+    if (token.kind != STACK_TOKEN_IN) {
+        stack_parser_show_expected(parser, STACK_TOKEN_IN, token.kind);
+        return_defer(1);
+    }
+
+    stack_parser_parse_func_body(parser, &func->body);
+
+    token = stack_parser_read(parser);
+    if (token.kind != STACK_TOKEN_END) {
+        stack_parser_show_expected(parser, STACK_TOKEN_END, token.kind);
+        return_defer(1);
+    }
+
+defer:
+    return result;
+}
+
+void stack_ast_func_free(stack_ast_func *func) {
+    stack_ast_node_free(&func->name);
+    for (unsigned int i = 0; i < func->args.count; i++) {
+        stack_ast_node *arg = NULL;
+        ds_dynamic_array_get_ref(&func->args, i, (void **)&arg);
+        stack_ast_node_free(arg);
+    }
+    ds_dynamic_array_free(&func->args);
+
+    for (unsigned int i = 0; i < func->rets.count; i++) {
+        stack_ast_node *ret = NULL;
+        ds_dynamic_array_get_ref(&func->rets, i, (void **)&ret);
+        stack_ast_node_free(ret);
+    }
+    ds_dynamic_array_free(&func->rets);
+
+    for (unsigned int i = 0; i < func->body.count; i++) {
+        stack_ast_expr *expr = NULL;
+        ds_dynamic_array_get_ref(&func->body, i, (void **)&expr);
+        stack_ast_expr_free(expr);
+    }
+    ds_dynamic_array_free(&func->body);
+}
+
+typedef struct {
+    ds_dynamic_array datas; // stack_ast_data
+    ds_dynamic_array funcs; // stack_ast_func
+} stack_ast_prog;
+
+static int stack_parser_parse_prog(stack_parser *parser, stack_ast_prog *prog) {
+    int result = 0;
+
+    ds_dynamic_array_init(&prog->datas, sizeof(stack_ast_data));
+    ds_dynamic_array_init(&prog->funcs, sizeof(stack_ast_func));
+
+    while (true) {
+        stack_token token = stack_parser_peek(parser);
+        if (token.kind == STACK_TOKEN_DATA) {
+            stack_ast_data data = {0};
+            stack_parser_parse_data(parser, &data);
+            ds_dynamic_array_append(&prog->datas, &data);
+        } else if (token.kind == STACK_TOKEN_FUNC) {
+            stack_ast_func func = {0};
+            stack_parser_parse_func(parser, &func);
+            ds_dynamic_array_append(&prog->funcs, &func);
+        } else if (token.kind == STACK_TOKEN_EOF) {
+            break;
+        } else {
+            stack_parser_show_expected_3(parser, STACK_TOKEN_DATA, STACK_TOKEN_FUNC, STACK_TOKEN_EOF, token.kind);
+            return_defer(1);
+        }
+    }
+
+defer:
+    return result;
+}
+
+void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
+    const int indent = 2;
+
+    for (unsigned int i = 0; i < prog->datas.count; i++) {
+        char *name = NULL;
+
+        stack_ast_data data = {0};
+        ds_dynamic_array_get(&prog->datas, i, &data);
+
+        ds_string_slice_to_owned(&data.name.value, &name);
+        fprintf(stdout, "data %s\n", name);
+        DS_FREE(NULL, name);
+
+        for (unsigned int i = 0; i < data.fields.count; i++) {
+            char *name = NULL;
+            char *type = NULL;
+
+            stack_ast_data_field field = {0};
+            ds_dynamic_array_get(&data.fields, i, &field);
+
+            ds_string_slice_to_owned(&field.type.value, &type);
+            ds_string_slice_to_owned(&field.name.value, &name);
+            fprintf(stdout, "%*s%s: %s\n", indent, "", name, type);
+            DS_FREE(NULL, name);
+            DS_FREE(NULL, type);
+        }
+        fprintf(stdout, "\n");
+    }
+
+    for (unsigned int i = 0; i < prog->funcs.count; i++) {
+        char *name = NULL;
+
+        stack_ast_func func = {0};
+        ds_dynamic_array_get(&prog->funcs, i, &func);
+
+        ds_string_slice_to_owned(&func.name.value, &name);
+        fprintf(stdout, "func %s\n", name);
+        DS_FREE(NULL, name);
+
+        for (unsigned int j = 0; j < func.args.count; j++) {
+            char *name = NULL;
+
+            stack_ast_node arg = {0};
+            ds_dynamic_array_get(&func.args, j, &arg);
+
+            ds_string_slice_to_owned(&arg.value, &name);
+            fprintf(stdout, "%*sarg%d: %s\n", indent, "", j, name);
+            DS_FREE(NULL, name);
+        }
+        for (unsigned int j = 0; j < func.rets.count; j++) {
+            char *name = NULL;
+
+            stack_ast_node ret = {0};
+            ds_dynamic_array_get(&func.rets, j, &ret);
+
+            ds_string_slice_to_owned(&ret.value, &name);
+            fprintf(stdout, "%*sret%d: %s\n", indent, "", j, name);
+            DS_FREE(NULL, name);
+        }
+
+        fprintf(stdout, "%*sbody:\n", indent, "");
+        for (unsigned int j = 0; j < func.body.count; j++) {
+            char *name = NULL;
+
+            stack_ast_expr expr = {0};
+            ds_dynamic_array_get(&func.body, j, &expr);
+
+            switch (expr.kind) {
+            case STACK_AST_EXPR_NUMBER:
+                ds_string_slice_to_owned(&expr.number.value, &name);
+              break;
+            case STACK_AST_EXPR_NAME:
+                ds_string_slice_to_owned(&expr.name.value, &name);
+              break;
+            }
+            fprintf(stdout, "%*s%s\n", indent * 2, "", name);
+            DS_FREE(NULL, name);
+        }
+    }
+}
+
+void stack_ast_free(stack_ast_prog *prog) {
+    for (unsigned int i = 0; i < prog->datas.count; i++) {
+        stack_ast_data *data = NULL;
+        ds_dynamic_array_get_ref(&prog->datas, i, (void **)&data);
+        stack_ast_data_free(data);
+    }
+    ds_dynamic_array_free(&prog->datas);
+
+    for (unsigned int i = 0; i < prog->funcs.count; i++) {
+        stack_ast_func *func = NULL;
+        ds_dynamic_array_get_ref(&prog->funcs, i, (void **)&func);
+        stack_ast_func_free(func);
+    }
+    ds_dynamic_array_free(&prog->funcs);
 }
 
 typedef struct {
@@ -350,10 +759,13 @@ defer:
 }
 
 int main(int argc, char **argv) {
-    int result = 0;
     char *buffer = NULL;
     unsigned int buffer_len = 0;
     t_args args = {0};
+    stack_lexer lexer = {0};
+    stack_parser parser = {0};
+    stack_ast_prog prog = {0};
+    int result = 0;
 
     if (argparse(argc, argv, &args) != 0) {
         DS_LOG_ERROR("Failed to parse arguments");
@@ -366,41 +778,19 @@ int main(int argc, char **argv) {
         return_defer(1);
     }
 
-    stack_token token = {0};
-    stack_lexer lexer = {0};
-    stack_parser parser = {0};
-    stack_ast_data data = {0};
     stack_lexer_init(&lexer, buffer, buffer_len);
     stack_parser_init(&parser, lexer);
 
-    stack_parser_parse_data(&parser, &data);
-
-    char *name = NULL;
-
-    ds_string_slice_to_owned(&data.name, &name);
-
-    DS_LOG_INFO("%s", name);
-    for (unsigned int i = 0; i < data.fields.count; i++) {
-        stack_ast_data_field field = {0};
-        ds_dynamic_array_get(&data.fields, i, &field);
-
-        char *name = NULL;
-        char *type = NULL;
-
-        ds_string_slice_to_owned(&field.type, &type);
-        ds_string_slice_to_owned(&field.name, &name);
-
-        DS_LOG_INFO("%s: %s", name, type);
+    if (stack_parser_parse_prog(&parser, &prog) != 0) {
+        return_defer(1);
     }
 
-    do {
-        token = stack_lexer_next(&lexer);
-        char *value = stack_token_to_string(token);
-        DS_LOG_INFO("%s", value);
-        DS_FREE(NULL, value);
-    } while (token.kind != STACK_TOKEN_EOF);
+    stack_ast_dump(&prog, stdout);
+    stack_lexer_dump(&lexer);
 
 defer:
     if (buffer != NULL) DS_FREE(NULL, buffer);
+    stack_parser_free(&parser);
+    stack_ast_free(&prog);
     return result;
 }
