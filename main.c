@@ -25,7 +25,6 @@ typedef enum {
     STACK_TOKEN_RPAREN,
     STACK_TOKEN_COMMA,
     STACK_TOKEN_FUNC,
-    STACK_TOKEN_ARROW,
     STACK_TOKEN_IN,
     STACK_TOKEN_END,
     STACK_TOKEN_NUMBER,
@@ -41,7 +40,6 @@ static const char* stack_token_kind_to_string(stack_token_kind kind) {
     case STACK_TOKEN_RPAREN: return ")";
     case STACK_TOKEN_COMMA: return ",";
     case STACK_TOKEN_FUNC: return "FUNC";
-    case STACK_TOKEN_ARROW: return "->";
     case STACK_TOKEN_IN: return "IN";
     case STACK_TOKEN_END: return "END";
     case STACK_TOKEN_NUMBER: return "NUMBER";
@@ -146,10 +144,6 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
     } else if (lexer->ch == SYMBOL_COMMA) {
         stack_lexer_read(lexer);
         return (stack_token){.kind = STACK_TOKEN_COMMA, .value = {0}, .pos = position };
-    } else if (lexer->ch == SYMBOL_MINUS && stack_lexer_peek(lexer) == SYMBOL_GT) {
-        stack_lexer_read(lexer);
-        stack_lexer_read(lexer);
-        return (stack_token){.kind = STACK_TOKEN_ARROW, .value = {0}, .pos = position };
     } else if (isdigit(lexer->ch) || lexer->ch == SYMBOL_MINUS) {
         ds_string_slice slice = { .str = (char *)lexer->buffer + lexer->pos, .len = 0 };
 
@@ -204,7 +198,7 @@ void stack_lexer_dump(stack_lexer *lexer) {
     } while (token.kind != STACK_TOKEN_EOF);
 }
 
-int lexer_pos_to_lc(stack_lexer *lexer, unsigned int pos, unsigned int *line, unsigned int *col) {
+int stack_lexer_pos_to_lc(stack_lexer *lexer, unsigned int pos, unsigned int *line, unsigned int *col) {
     int result = 0;
     if (pos >= lexer->buffer_len) {
         return_defer(1);
@@ -262,10 +256,10 @@ int stack_parser_init(stack_parser *parser, stack_lexer lexer) {
     return 0;
 }
 
-void stack_parser_show_errorf(stack_parser *parser, const char *format, ...) {
+static void stack_parser_show_errorf(stack_parser *parser, const char *format, ...) {
     unsigned int line = 0;
     unsigned int col = 0;
-    lexer_pos_to_lc(&parser->lexer, parser->tok.pos, &line, &col);
+    stack_lexer_pos_to_lc(&parser->lexer, parser->tok.pos, &line, &col);
 
     fprintf(stderr, ":%d:%d, ", line, col);
     if (parser->tok.kind == STACK_TOKEN_ILLEGAL) {
