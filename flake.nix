@@ -19,13 +19,25 @@
         };
       };
     in {
+      packages.default = pkgs.stdenv.mkDerivation {
+        pname = "slc";
+        version = "0.0.1";
+
+        makeFlags = ["PREFIX=$(out)"];
+
+        nativeBuildInputs = with pkgs; [
+          clang
+        ];
+
+        src = ./.;
+      };
       packages.checker = pkgs.writeShellApplication {
-          name = "checker";
-          text =
-            /*
-            bash
-            */
-            ''
+        name = "checker";
+        text =
+          /*
+          bash
+          */
+          ''
             set +o errexit
             set +o pipefail
 
@@ -105,7 +117,7 @@
             fi
 
             main "$@"
-            '';
+          '';
       };
       devShells.default =
         pkgs.mkShell
