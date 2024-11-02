@@ -1,0 +1,16 @@
+FUNC
+NAME(ivec2.add_xy)
+(
+NAME(ivec2)
+)
+(
+NAME(int)
+)
+IN
+NAME(dup)
+NAME(ivec2.x)
+NAME(swp)
+NAME(ivec2.y)
+NAME(+)
+END
+<EOF>

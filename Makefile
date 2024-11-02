@@ -3,3 +3,8 @@ CFLAGS=-Wall -Wextra -Werror -Wno-unused-parameter -Wno-unused-variable -Wno-unu
 
 build:
 	$(CC) $(CFLAGS) -o main main.c
+
+.PHONY: clean
+
+clean:
+	rm -rf main

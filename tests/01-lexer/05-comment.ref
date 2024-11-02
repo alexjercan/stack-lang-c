@@ -1,0 +1,14 @@
+FUNC
+NAME(main)
+(
+)
+(
+NAME(int)
+)
+IN
+NAME(this)
+NAME(is)
+NAME(some)
+NAME(code)
+END
+<EOF>

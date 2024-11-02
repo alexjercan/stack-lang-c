@@ -8,7 +8,10 @@ func ivec2.dot (ivec2, ivec2) (int) in
     +
 end
 
+data complicated (int n, ivec2 i)
+
 func main () (int) in
-    42 27 ivec2
-    dup ivec2.x swp ivec2.y +
+    22 5 42 ivec2 complicated
+    dup complicated.n swp
+    complicated.i dup ivec2.y swp ivec2.x + +
 end

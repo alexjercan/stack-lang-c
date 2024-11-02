@@ -10,6 +10,7 @@
 #define SYMBOL_GT '>'
 #define SYMBOL_LPAREN '('
 #define SYMBOL_RPAREN ')'
+#define SYMBOL_NEWLINE '\n'
 
 #define isname(c) ((isalnum((c)) || ispunct((c))) && (c) != SYMBOL_LPAREN && (c) != SYMBOL_RPAREN && (c) != SYMBOL_COMMA)
 
@@ -32,7 +33,7 @@ typedef enum {
     STACK_TOKEN_ILLEGAL,
 } stack_token_kind;
 
-static const char* stack_token_kind_to_string(stack_token_kind kind) {
+static const char* stack_token_kind_map(stack_token_kind kind) {
     switch (kind) {
     case STACK_TOKEN_DATA: return "DATA";
     case STACK_TOKEN_NAME: return "NAME";
@@ -54,12 +55,12 @@ typedef struct {
     unsigned int pos;
 } stack_token;
 
-static char* stack_token_to_string(stack_token token) {
+static char* stack_token_map(stack_token token) {
     char *buffer = NULL;
     ds_string_builder sb = {0};
     ds_string_builder_init(&sb);
 
-    if (ds_string_builder_append(&sb, "%s", stack_token_kind_to_string(token.kind)) != 0) {
+    if (ds_string_builder_append(&sb, "%s", stack_token_kind_map(token.kind)) != 0) {
         DS_PANIC("Failed to format token");
     }
 
@@ -116,6 +117,12 @@ static void stack_lexer_skip_whitespace(stack_lexer *lexer) {
     }
 }
 
+static void stack_lexer_skip_until_newline(stack_lexer *lexer) {
+    while (lexer->ch != SYMBOL_NEWLINE && lexer->ch != EOF) {
+        stack_lexer_read(lexer);
+    }
+}
+
 int stack_lexer_init(stack_lexer *lexer, const char *buffer, unsigned int buffer_len) {
     lexer->buffer = buffer;
     lexer->buffer_len = buffer_len;
@@ -144,7 +151,10 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
     } else if (lexer->ch == SYMBOL_COMMA) {
         stack_lexer_read(lexer);
         return (stack_token){.kind = STACK_TOKEN_COMMA, .value = {0}, .pos = position };
-    } else if (isdigit(lexer->ch) || lexer->ch == SYMBOL_MINUS) {
+    } else if ((lexer->ch == SYMBOL_MINUS && stack_lexer_peek(lexer) == SYMBOL_MINUS)) {
+        stack_lexer_skip_until_newline(lexer);
+        return stack_lexer_next(lexer);
+    } else if (isdigit(lexer->ch) || (lexer->ch == SYMBOL_MINUS && isdigit(stack_lexer_peek(lexer)))) {
         ds_string_slice slice = { .str = (char *)lexer->buffer + lexer->pos, .len = 0 };
 
         if (lexer->ch == SYMBOL_MINUS) {
@@ -192,8 +202,8 @@ void stack_lexer_dump(stack_lexer *lexer) {
 
     do {
         token = stack_lexer_next(lexer);
-        char *value = stack_token_to_string(token);
-        DS_LOG_INFO("%s", value);
+        char *value = stack_token_map(token);
+        fprintf(stdout, "%s\n", value);
         DS_FREE(NULL, value);
     } while (token.kind != STACK_TOKEN_EOF);
 }
@@ -232,6 +242,8 @@ typedef struct {
     stack_lexer lexer;
     stack_token tok;
     stack_token next_tok;
+
+    char *filename;
 } stack_parser;
 
 static stack_token stack_parser_peek(stack_parser *parser) {
@@ -246,10 +258,11 @@ static stack_token stack_parser_read(stack_parser *parser) {
     return parser->tok;
 }
 
-int stack_parser_init(stack_parser *parser, stack_lexer lexer) {
+int stack_parser_init(stack_parser *parser, stack_lexer lexer, char *filename) {
     parser->lexer = lexer;
     parser->tok = (stack_token){0};
     parser->next_tok = (stack_token){0};
+    parser->filename = filename;
 
     stack_parser_read(parser);
 
@@ -260,6 +273,10 @@ static void stack_parser_show_errorf(stack_parser *parser, const char *format, .
     unsigned int line = 0;
     unsigned int col = 0;
     stack_lexer_pos_to_lc(&parser->lexer, parser->tok.pos, &line, &col);
+
+    if (parser->filename != NULL) {
+        fprintf(stderr, "%s", parser->filename);
+    }
 
     fprintf(stderr, ":%d:%d, ", line, col);
     if (parser->tok.kind == STACK_TOKEN_ILLEGAL) {
@@ -287,22 +304,20 @@ static void stack_parser_show_errorf(stack_parser *parser, const char *format, .
 
 #define stack_parser_show_expected(parser, expected, got)                      \
   stack_parser_show_errorf(parser, "expected %s got %s",                       \
-                           stack_token_kind_to_string(expected),               \
-                           stack_token_kind_to_string(got))
+                           stack_token_kind_map(expected),                     \
+                           stack_token_kind_map(got))
 
 #define stack_parser_show_expected_2(parser, expected1, expected2, got)        \
-  stack_parser_show_errorf(parser, "expected %s or %s, got %s",                \
-                           stack_token_kind_to_string(expected1),              \
-                           stack_token_kind_to_string(expected2),              \
-                           stack_token_kind_to_string(got))
+  stack_parser_show_errorf(                                                    \
+      parser, "expected %s or %s, got %s", stack_token_kind_map(expected1),    \
+      stack_token_kind_map(expected2), stack_token_kind_map(got))
 
 #define stack_parser_show_expected_3(parser, expected1, expected2, expected3,  \
                                      got)                                      \
-  stack_parser_show_errorf(parser, "expected %s, %s or %s, got %s",            \
-                           stack_token_kind_to_string(expected1),              \
-                           stack_token_kind_to_string(expected2),              \
-                           stack_token_kind_to_string(expected3),              \
-                           stack_token_kind_to_string(got))
+  stack_parser_show_errorf(                                                    \
+      parser, "expected %s, %s or %s, got %s",                                 \
+      stack_token_kind_map(expected1), stack_token_kind_map(expected2),        \
+      stack_token_kind_map(expected3), stack_token_kind_map(got))
 
 void stack_parser_free(stack_parser *parser) {
     stack_lexer_free(&parser->lexer);
@@ -393,7 +408,9 @@ static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
 
     do {
         stack_ast_data_field field = {0};
-        stack_parser_parse_data_field(parser, &field);
+        if (stack_parser_parse_data_field(parser, &field) != 0) {
+            return_defer(1);
+        }
         ds_dynamic_array_append(&data->fields, &field);
 
         token = stack_parser_read(parser);
@@ -739,6 +756,39 @@ static void stack_assembler_emit_format(stack_assembler *assembler, const char *
 
 #define EMIT(format, ...) stack_assembler_emit_format(assembler, format, ##__VA_ARGS__)
 
+#define STACK_KEYWORD_DUP "dup"
+#define STACK_KEYWORD_SWP "swp"
+#define STACK_KEYWORD_ROT "rot"
+#define STACK_KEYWORD_POP "pop"
+#define STACK_KEYWORD_PLUS "+"
+#define STACK_KEYWORD_STAR "*"
+
+#define STACK_EXPR_NAME_DUP "func." STACK_KEYWORD_DUP
+#define STACK_EXPR_NAME_SWP "func." STACK_KEYWORD_SWP
+#define STACK_EXPR_NAME_ROT "func." STACK_KEYWORD_ROT
+#define STACK_EXPR_NAME_POP "func." STACK_KEYWORD_POP
+#define STACK_EXPR_NAME_INT "func.int"
+#define STACK_EXPR_NAME_PLUS STACK_EXPR_NAME_INT ".plus"
+#define STACK_EXPR_NAME_STAR STACK_EXPR_NAME_INT ".mul"
+
+static const char *stack_expr_name_map(char *name) {
+    if (strcmp(STACK_KEYWORD_DUP, name) == 0) {
+        return STACK_EXPR_NAME_DUP;
+    } else if (strcmp(STACK_KEYWORD_SWP, name) == 0) {
+        return STACK_EXPR_NAME_SWP;
+    } else if (strcmp(STACK_KEYWORD_ROT, name) == 0) {
+        return STACK_EXPR_NAME_ROT;
+    } else if (strcmp(STACK_KEYWORD_POP, name) == 0) {
+        return STACK_EXPR_NAME_POP;
+    } else if (strcmp(STACK_KEYWORD_PLUS, name) == 0) {
+        return STACK_EXPR_NAME_PLUS;
+    } else if (strcmp(STACK_KEYWORD_STAR, name) == 0) {
+        return STACK_EXPR_NAME_STAR;
+    } else {
+        return NULL;
+    }
+}
+
 static void stack_assembler_emit_entry(stack_assembler *assembler) {
     EMIT("section '.data' writeable");
     EMIT("");
@@ -923,70 +973,6 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
-    EMIT(";");
-    EMIT(";");
-    EMIT("; memcpy");
-    EMIT(";   INPUT:");
-    EMIT(";       rdi points to destination");
-    EMIT(";       rsi points to source");
-    EMIT(";       rdx contains the number of bytes to copy");
-    EMIT(";   STACK: empty");
-    EMIT(";   OUTPUT: nothing");
-    EMIT(";");
-    EMIT("memcpy:");
-    EMIT("    push    rbp                        ; save return address");
-    EMIT("    mov     rbp, rsp                   ; set up stack frame");
-    EMIT("");
-    EMIT(".next_byte:");
-    EMIT("    cmp     rdx, 0                     ; check if done");
-    EMIT("    jle     .done");
-    EMIT("");
-    EMIT("    mov     al, byte [rsi]             ; get byte from self");
-    EMIT("    mov     byte [rdi], al             ; copy byte to new object");
-    EMIT("");
-    EMIT("    inc     rdi                        ; increment destination");
-    EMIT("    inc     rsi                        ; increment source");
-    EMIT("    dec     rdx                        ; decrement count");
-    EMIT("");
-    EMIT("    jmp .next_byte");
-    EMIT(".done:");
-    EMIT("");
-    EMIT("    pop     rbp                        ; restore return address");
-    EMIT("    ret");
-    EMIT("");
-}
-
-#define STACK_KEYWORD_DUP "dup"
-#define STACK_KEYWORD_SWP "swp"
-#define STACK_KEYWORD_ROT "rot"
-#define STACK_KEYWORD_POP "pop"
-#define STACK_KEYWORD_PLUS "+"
-#define STACK_KEYWORD_STAR "*"
-
-#define STACK_EXPR_NAME_DUP "func." STACK_KEYWORD_DUP
-#define STACK_EXPR_NAME_SWP "func." STACK_KEYWORD_SWP
-#define STACK_EXPR_NAME_ROT "func." STACK_KEYWORD_ROT
-#define STACK_EXPR_NAME_POP "func." STACK_KEYWORD_POP
-#define STACK_EXPR_NAME_INT "func.int"
-#define STACK_EXPR_NAME_PLUS "func.int.plus"
-#define STACK_EXPR_NAME_STAR "func.int.mul"
-
-static const char *stack_expr_name_map(char *name) {
-    if (strcmp(STACK_KEYWORD_DUP, name) == 0) {
-        return STACK_EXPR_NAME_DUP;
-    } else if (strcmp(STACK_KEYWORD_SWP, name) == 0) {
-        return STACK_EXPR_NAME_SWP;
-    } else if (strcmp(STACK_KEYWORD_ROT, name) == 0) {
-        return STACK_EXPR_NAME_ROT;
-    } else if (strcmp(STACK_KEYWORD_POP, name) == 0) {
-        return STACK_EXPR_NAME_POP;
-    } else if (strcmp(STACK_KEYWORD_PLUS, name) == 0) {
-        return STACK_EXPR_NAME_PLUS;
-    } else if (strcmp(STACK_KEYWORD_STAR, name) == 0) {
-        return STACK_EXPR_NAME_STAR;
-    } else {
-        return NULL;
-    }
 }
 
 void stack_assembler_emit_keywords(stack_assembler *assembler) {
@@ -1165,9 +1151,104 @@ void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
+    // MUL
+    EMIT(";");
+    EMIT(";");
+    EMIT("; mul");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("%s:", STACK_EXPR_NAME_STAR);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    push    rax");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    pop     rdi");
+    EMIT("");
+    EMIT("    mul     rdi");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    %s", STACK_EXPR_NAME_INT);
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
 }
 
+#define STACK_WORD_SZ 8
+
 void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data *data) {
+    char *data_name = NULL;
+    ds_string_slice_to_owned(&data->name.value, &data_name);
+
+    // TODO: maybe rename function made users
+    EMIT("func.%s:", data_name);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+
+    unsigned int size = data->fields.count * STACK_WORD_SZ;
+    EMIT("    ; t0 <- allocate(%d)", size);
+    EMIT("    mov     rdi, %d", size);
+    EMIT("    call    allocate");
+    EMIT("    mov     qword [rbp - loc_0], rax");
+
+    for (unsigned int i = 0; i < data->fields.count; i++) {
+        char *field_name = NULL;
+        stack_ast_data_field field = {0};
+
+        ds_dynamic_array_get(&data->fields, i, &field);
+        ds_string_slice_to_owned(&field.name.value, &field_name);
+
+        EMIT("    ; *t0.%s <- pop", field_name);
+        EMIT("    call    stack_pop");
+        EMIT("    mov     rdi, [rbp - loc_0]");
+        EMIT("    mov     qword [rdi + %d], rax", (data->fields.count - i - 1) * STACK_WORD_SZ);
+
+        DS_FREE(NULL, field_name);
+    }
+
+    EMIT("    ; push t0");
+    EMIT("    mov     rdi, [rbp - loc_0]");
+    EMIT("    call    stack_push");
+
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+
+    for (unsigned int i = 0; i < data->fields.count; i++) {
+        char *field_name = NULL;
+        stack_ast_data_field field = {0};
+
+        ds_dynamic_array_get(&data->fields, i, &field);
+        ds_string_slice_to_owned(&field.name.value, &field_name);
+
+        // TODO: maybe rename function made users
+        EMIT("func.%s.%s:", data_name, field_name);
+        EMIT("    push    rbp                        ; save return address");
+        EMIT("    mov     rbp, rsp                   ; set up stack frame");
+
+        EMIT("    ; pop %s & push %s.%s", data_name, data_name, field_name);
+        EMIT("    call    stack_pop");
+        EMIT("    mov     rax, [rax + %d]", i * STACK_WORD_SZ);
+        EMIT("    mov     rdi, rax");
+        EMIT("    call    stack_push");
+
+        EMIT("    pop     rbp                        ; restore return address");
+        EMIT("    ret");
+        EMIT("");
+
+        DS_FREE(NULL, field_name);
+    }
+
+    DS_FREE(NULL, data_name);
 }
 
 void stack_assembler_emit_expr_number(stack_assembler *assembler, stack_ast_node *node) {
@@ -1185,6 +1266,7 @@ void stack_assembler_emit_expr_name(stack_assembler *assembler, stack_ast_node *
     const char *func = stack_expr_name_map(name);
 
     if (func == NULL) {
+        // TODO: maybe rename function made users
         EMIT("    call    func.%s", name);
     } else {
         EMIT("    call    %s", func);
@@ -1208,6 +1290,7 @@ void stack_assembler_emit_func(stack_assembler *assembler, stack_ast_func *func)
     char *name = NULL;
     ds_string_slice_to_owned(&func->name.value, &name);
 
+    // TODO: maybe rename function made users
     EMIT("func.%s:", name);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
@@ -1254,6 +1337,9 @@ void stack_assembler_free(stack_assembler *assembler) {
 
 typedef struct {
     char *filename;
+    bool lexer;
+    bool parser;
+    bool assembler;
 } t_args;
 
 static int argparse(int argc, char **argv, t_args *args) {
@@ -1261,6 +1347,39 @@ static int argparse(int argc, char **argv, t_args *args) {
     ds_argparse_parser argparser = {0};
 
     ds_argparse_parser_init(&argparser, "stack", "stack lang compiler" , "0.1");
+
+    if (ds_argparse_add_argument(&argparser, (ds_argparse_options){
+        .short_name = 'l',
+        .long_name = "lexer",
+        .description = "flag to stop on the lexer phase",
+        .type = ARGUMENT_TYPE_FLAG,
+        .required = 0,
+    }) != 0) {
+        DS_LOG_ERROR("Failed to add argument `lexer`");
+        return_defer(1);
+    }
+
+    if (ds_argparse_add_argument(&argparser, (ds_argparse_options){
+        .short_name = 'p',
+        .long_name = "parser",
+        .description = "flag to stop on the parser phase",
+        .type = ARGUMENT_TYPE_FLAG,
+        .required = 0,
+    }) != 0) {
+        DS_LOG_ERROR("Failed to add argument `parser`");
+        return_defer(1);
+    }
+
+    if (ds_argparse_add_argument(&argparser, (ds_argparse_options){
+        .short_name = 'a',
+        .long_name = "assembler",
+        .description = "flag to stop on the assembler phase",
+        .type = ARGUMENT_TYPE_FLAG,
+        .required = 0,
+    }) != 0) {
+        DS_LOG_ERROR("Failed to add argument `assembler`");
+        return_defer(1);
+    }
 
     if (ds_argparse_add_argument(&argparser, (ds_argparse_options){
         .short_name = 'i',
@@ -1279,6 +1398,9 @@ static int argparse(int argc, char **argv, t_args *args) {
     }
 
     args->filename = ds_argparse_get_value(&argparser, "input");
+    args->lexer = ds_argparse_get_flag(&argparser, "lexer");
+    args->parser = ds_argparse_get_flag(&argparser, "parser");
+    args->assembler = ds_argparse_get_flag(&argparser, "assembler");
 
 defer:
     ds_argparse_parser_free(&argparser);
@@ -1307,16 +1429,27 @@ int main(int argc, char **argv) {
     }
 
     stack_lexer_init(&lexer, buffer, buffer_len);
-    stack_parser_init(&parser, lexer);
+    stack_parser_init(&parser, lexer, args.filename);
     stack_assembler_init(&assembler, stdout);
+
+    if (args.lexer) {
+        stack_lexer_dump(&lexer);
+        return_defer(0);
+    }
 
     if (stack_parser_parse_prog(&parser, &prog) != 0) {
         return_defer(1);
     }
 
-    stack_assembler_emit(&assembler, &prog);
-    // stack_ast_dump(&prog, stdout);
-    // stack_lexer_dump(&lexer);
+    if (args.parser) {
+        stack_ast_dump(&prog, stdout);
+        return_defer(0);
+    }
+
+    if (args.assembler) {
+        stack_assembler_emit(&assembler, &prog);
+        return_defer(0);
+    }
 
 defer:
     if (buffer != NULL) DS_FREE(NULL, buffer);
