@@ -323,15 +323,21 @@ void stack_parser_free(stack_parser *parser) {
     stack_lexer_free(&parser->lexer);
     parser->tok = (stack_token){0};
     parser->next_tok = (stack_token){0};
+
+    parser->filename = NULL;
 }
 
 typedef struct {
     ds_string_slice value;
+    stack_parser *parser;
     unsigned int pos;
 } stack_ast_node;
 
-void stack_ast_node_free(stack_ast_node *node) {
+#define STACK_AST_NODE(value_, parser_, pos_) ((stack_ast_node){.value = (value_), .parser = (parser), .pos = (pos_)})
+
+static void stack_ast_node_free(stack_ast_node *node) {
     ds_string_slice_free(&node->value);
+    node->parser = NULL;
 }
 
 typedef struct {
@@ -351,20 +357,20 @@ static int stack_parser_parse_data_field(stack_parser *parser, stack_ast_data_fi
         stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
         return_defer(1);
     }
-    field->type = (stack_ast_node){.value = token.value, .pos = token.pos };
+    field->type = STACK_AST_NODE(token.value, parser, token.pos);
 
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_NAME) {
         stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
         return_defer(1);
     }
-    field->name = (stack_ast_node){.value = token.value, .pos = token.pos };
+    field->name = STACK_AST_NODE(token.value, parser, token.pos);
 
 defer:
     return result;
 }
 
-void stack_ast_data_field_free(stack_ast_data_field *field) {
+static void stack_ast_data_field_free(stack_ast_data_field *field) {
     stack_ast_node_free(&field->name);
     stack_ast_node_free(&field->type);
 }
@@ -392,7 +398,7 @@ static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
         stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
         return_defer(1);
     }
-    data->name = (stack_ast_node){.value = token.value, .pos = token.pos};
+    data->name = STACK_AST_NODE(token.value, parser, token.pos);
 
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_LPAREN) {
@@ -428,7 +434,7 @@ defer:
     return result;
 }
 
-void stack_ast_data_free(stack_ast_data *data) {
+static void stack_ast_data_free(stack_ast_data *data) {
     stack_ast_node_free(&data->name);
     for (unsigned int i = 0; i < data->fields.count; i++) {
         stack_ast_data_field *field = NULL;
@@ -451,7 +457,46 @@ typedef struct {
     };
 } stack_ast_expr;
 
-void stack_ast_expr_free(stack_ast_expr *expr) {
+#define STACK_DATA_INT "int"
+#define STACK_FUNC_DUP "dup"
+#define STACK_FUNC_SWP "swp"
+#define STACK_FUNC_ROT "rot"
+#define STACK_FUNC_POP "pop"
+#define STACK_FUNC_PLUS "+"
+#define STACK_FUNC_STAR "*"
+
+#define STACK_FUNC_ASM_PREFIX "func."
+
+#define STACK_DATA_INT_ASM STACK_FUNC_ASM_PREFIX STACK_DATA_INT
+#define STACK_FUNC_DUP_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_DUP
+#define STACK_FUNC_SWP_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_SWP
+#define STACK_FUNC_ROT_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_ROT
+#define STACK_FUNC_POP_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_POP
+#define STACK_FUNC_PLUS_ASM STACK_FUNC_ASM_PREFIX "plus"
+#define STACK_FUNC_STAR_ASM STACK_FUNC_ASM_PREFIX "mul"
+
+// TODO: add something like this to ds.h
+#define DS_STRING_SLICE(string) ((ds_string_slice){.str = string, .len = strlen((string))})
+
+static const char *stack_expr_name_map(ds_string_slice* name) {
+    if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_DUP), name)) {
+        return STACK_FUNC_DUP_ASM;
+    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_SWP), name)) {
+        return STACK_FUNC_SWP_ASM;
+    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_ROT), name)) {
+        return STACK_FUNC_ROT_ASM;
+    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_POP), name)) {
+        return STACK_FUNC_POP_ASM;
+    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_PLUS), name)) {
+        return STACK_FUNC_PLUS_ASM;
+    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_STAR), name)) {
+        return STACK_FUNC_STAR_ASM;
+    } else {
+        return NULL;
+    }
+}
+
+static void stack_ast_expr_free(stack_ast_expr *expr) {
     switch (expr->kind) {
     case STACK_AST_EXPR_NUMBER:
         stack_ast_node_free(&expr->number);
@@ -491,7 +536,7 @@ static int stack_parser_parse_func_nodes(stack_parser *parser, ds_dynamic_array 
             stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
             return_defer(1);
         }
-        ds_dynamic_array_append(nodes, &(stack_ast_node){.value = token.value, .pos = token.pos});
+        ds_dynamic_array_append(nodes, &STACK_AST_NODE(token.value, parser, token.pos));
 
         token = stack_parser_read(parser);
         if (token.kind == STACK_TOKEN_RPAREN) {
@@ -515,21 +560,19 @@ static int stack_parser_parse_func_body(stack_parser *parser, ds_dynamic_array *
         stack_token token = stack_parser_peek(parser);
         switch (token.kind) {
         case STACK_TOKEN_NAME:
-            stack_parser_read(parser);
-            ds_dynamic_array_append(
-                exprs,
-                &(stack_ast_expr){.kind = STACK_AST_EXPR_NAME,
-                                  .name = (stack_ast_node){.value = token.value,
-                                                           .pos = token.pos}});
-            break;
+          stack_parser_read(parser);
+          ds_dynamic_array_append(
+              exprs, &(stack_ast_expr){.kind = STACK_AST_EXPR_NAME,
+                                       .name = STACK_AST_NODE(
+                                           token.value, parser, token.pos)});
+          break;
         case STACK_TOKEN_NUMBER:
-            stack_parser_read(parser);
-            ds_dynamic_array_append(
-                exprs,
-                &(stack_ast_expr){.kind = STACK_AST_EXPR_NUMBER,
-                                  .number = (stack_ast_node){
-                                      .value = token.value, .pos = token.pos}});
-            break;
+          stack_parser_read(parser);
+          ds_dynamic_array_append(
+              exprs, &(stack_ast_expr){.kind = STACK_AST_EXPR_NUMBER,
+                                       .number = STACK_AST_NODE(
+                                           token.value, parser, token.pos)});
+          break;
         default:
             return_defer(0);
         }
@@ -559,7 +602,7 @@ static int stack_parser_parse_func(stack_parser *parser, stack_ast_func *func) {
         stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
         return_defer(1);
     }
-    func->name = (stack_ast_node){.value = token.value, .pos = token.pos};
+    func->name = STACK_AST_NODE(token.value, parser, token.pos);
 
     stack_parser_parse_func_nodes(parser, &func->args);
     stack_parser_parse_func_nodes(parser, &func->rets);
@@ -582,7 +625,7 @@ defer:
     return result;
 }
 
-void stack_ast_func_free(stack_ast_func *func) {
+static void stack_ast_func_free(stack_ast_func *func) {
     stack_ast_node_free(&func->name);
     for (unsigned int i = 0; i < func->args.count; i++) {
         stack_ast_node *arg = NULL;
@@ -611,7 +654,7 @@ typedef struct {
     ds_dynamic_array funcs; // stack_ast_func
 } stack_ast_prog;
 
-static int stack_parser_parse_prog(stack_parser *parser, stack_ast_prog *prog) {
+int stack_parser_parse(stack_parser *parser, stack_ast_prog *prog) {
     int result = 0;
 
     ds_dynamic_array_init(&prog->datas, sizeof(stack_ast_data));
@@ -738,6 +781,46 @@ void stack_ast_free(stack_ast_prog *prog) {
 }
 
 typedef struct {
+    // TODO: implement data structure for the context:
+    // - list with functions
+    // - list with data structures
+    int a;
+} stack_context;
+
+// TODO: add functions to add new funcs and datas
+
+void stack_context_init(stack_context *context) {
+    // TODO: add the implicit functions: +, *, dup...
+    // TODO: add the implicit data types with associated functions (cons and get)
+}
+
+void stack_context_free(stack_context *context) {
+    // TODO: implement free
+}
+
+typedef struct {
+    char *filename;
+} stack_typechecker;
+
+void stack_typechecker_init(stack_typechecker *typechecker, char *filename) {
+    typechecker->filename = filename;
+}
+
+int stack_typechecker_check(stack_typechecker *typechecker, stack_ast_prog *prog, stack_context *context) {
+    int result = 0;
+
+    // TODO: implement
+    return_defer(0);
+
+defer:
+    return result;
+}
+
+void stack_typechecker_free(stack_typechecker *typechecker) {
+    typechecker->filename = NULL;
+}
+
+typedef struct {
     FILE *stdout;
 } stack_assembler;
 
@@ -755,39 +838,6 @@ static void stack_assembler_emit_format(stack_assembler *assembler, const char *
 }
 
 #define EMIT(format, ...) stack_assembler_emit_format(assembler, format, ##__VA_ARGS__)
-
-#define STACK_KEYWORD_DUP "dup"
-#define STACK_KEYWORD_SWP "swp"
-#define STACK_KEYWORD_ROT "rot"
-#define STACK_KEYWORD_POP "pop"
-#define STACK_KEYWORD_PLUS "+"
-#define STACK_KEYWORD_STAR "*"
-
-#define STACK_EXPR_NAME_DUP "func." STACK_KEYWORD_DUP
-#define STACK_EXPR_NAME_SWP "func." STACK_KEYWORD_SWP
-#define STACK_EXPR_NAME_ROT "func." STACK_KEYWORD_ROT
-#define STACK_EXPR_NAME_POP "func." STACK_KEYWORD_POP
-#define STACK_EXPR_NAME_INT "func.int"
-#define STACK_EXPR_NAME_PLUS STACK_EXPR_NAME_INT ".plus"
-#define STACK_EXPR_NAME_STAR STACK_EXPR_NAME_INT ".mul"
-
-static const char *stack_expr_name_map(char *name) {
-    if (strcmp(STACK_KEYWORD_DUP, name) == 0) {
-        return STACK_EXPR_NAME_DUP;
-    } else if (strcmp(STACK_KEYWORD_SWP, name) == 0) {
-        return STACK_EXPR_NAME_SWP;
-    } else if (strcmp(STACK_KEYWORD_ROT, name) == 0) {
-        return STACK_EXPR_NAME_ROT;
-    } else if (strcmp(STACK_KEYWORD_POP, name) == 0) {
-        return STACK_EXPR_NAME_POP;
-    } else if (strcmp(STACK_KEYWORD_PLUS, name) == 0) {
-        return STACK_EXPR_NAME_PLUS;
-    } else if (strcmp(STACK_KEYWORD_STAR, name) == 0) {
-        return STACK_EXPR_NAME_STAR;
-    } else {
-        return NULL;
-    }
-}
 
 static void stack_assembler_emit_entry(stack_assembler *assembler) {
     EMIT("section '.data' writeable");
@@ -975,7 +1025,7 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("");
 }
 
-void stack_assembler_emit_keywords(stack_assembler *assembler) {
+static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("section '.text' executable");
     EMIT("");
     // DUP
@@ -985,7 +1035,7 @@ void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_EXPR_NAME_DUP);
+    EMIT("%s:", STACK_FUNC_DUP_ASM);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1005,7 +1055,7 @@ void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_EXPR_NAME_SWP);
+    EMIT("%s:", STACK_FUNC_SWP_ASM);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1037,7 +1087,7 @@ void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_EXPR_NAME_ROT);
+    EMIT("%s:", STACK_FUNC_ROT_ASM);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 32                    ; allocate 4 local variables");
@@ -1079,7 +1129,7 @@ void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_EXPR_NAME_POP);
+    EMIT("%s:", STACK_FUNC_POP_ASM);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1098,7 +1148,7 @@ void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: rdi is the int value");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_EXPR_NAME_INT);
+    EMIT("%s:", STACK_DATA_INT_ASM);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1131,7 +1181,7 @@ void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_EXPR_NAME_PLUS);
+    EMIT("%s:", STACK_FUNC_PLUS_ASM);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1145,7 +1195,7 @@ void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    pop     rdi");
     EMIT("");
     EMIT("    add     rdi, rax");
-    EMIT("    call    %s", STACK_EXPR_NAME_INT);
+    EMIT("    call    %s", STACK_DATA_INT_ASM);
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -1158,7 +1208,7 @@ void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_EXPR_NAME_STAR);
+    EMIT("%s:", STACK_FUNC_STAR_ASM);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1173,7 +1223,7 @@ void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("");
     EMIT("    mul     rdi");
     EMIT("    mov     rdi, rax");
-    EMIT("    call    %s", STACK_EXPR_NAME_INT);
+    EMIT("    call    %s", STACK_DATA_INT_ASM);
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -1183,7 +1233,7 @@ void stack_assembler_emit_keywords(stack_assembler *assembler) {
 
 #define STACK_WORD_SZ 8
 
-void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data *data) {
+static void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data *data) {
     char *data_name = NULL;
     ds_string_slice_to_owned(&data->name.value, &data_name);
 
@@ -1255,24 +1305,23 @@ void stack_assembler_emit_expr_number(stack_assembler *assembler, stack_ast_node
     char *number = NULL;
     ds_string_slice_to_owned(&node->value, &number);
     EMIT("    mov     rdi, %s", number);
-    EMIT("    call    %s", STACK_EXPR_NAME_INT);
+    EMIT("    call    %s", STACK_DATA_INT_ASM);
 
     DS_FREE(NULL, number);
 }
 
 void stack_assembler_emit_expr_name(stack_assembler *assembler, stack_ast_node *node) {
-    char *name = NULL;
-    ds_string_slice_to_owned(&node->value, &name);
-    const char *func = stack_expr_name_map(name);
+    const char *func = stack_expr_name_map(&node->value);
 
     if (func == NULL) {
         // TODO: maybe rename function made users
+        char *name = NULL;
+        ds_string_slice_to_owned(&node->value, &name);
         EMIT("    call    func.%s", name);
+        DS_FREE(NULL, name);
     } else {
         EMIT("    call    %s", func);
     }
-
-    DS_FREE(NULL, name);
 }
 
 void stack_assembler_emit_expr(stack_assembler *assembler, stack_ast_expr *expr) {
@@ -1286,7 +1335,7 @@ void stack_assembler_emit_expr(stack_assembler *assembler, stack_ast_expr *expr)
     }
 }
 
-void stack_assembler_emit_func(stack_assembler *assembler, stack_ast_func *func) {
+static void stack_assembler_emit_func(stack_assembler *assembler, stack_ast_func *func) {
     char *name = NULL;
     ds_string_slice_to_owned(&func->name.value, &name);
 
@@ -1308,7 +1357,7 @@ void stack_assembler_emit_func(stack_assembler *assembler, stack_ast_func *func)
     DS_FREE(NULL, name);
 }
 
-void stack_assembler_emit(stack_assembler *assembler, stack_ast_prog *prog) {
+void stack_assembler_emit(stack_assembler *assembler, stack_ast_prog *prog, stack_context *context) {
     EMIT("format ELF64");
     EMIT("");
     stack_assembler_emit_allocator(assembler);
@@ -1339,6 +1388,7 @@ typedef struct {
     char *filename;
     bool lexer;
     bool parser;
+    bool typecheck;
     bool assembler;
 } t_args;
 
@@ -1382,6 +1432,17 @@ static int argparse(int argc, char **argv, t_args *args) {
     }
 
     if (ds_argparse_add_argument(&argparser, (ds_argparse_options){
+        .short_name = 't',
+        .long_name = "typecheck",
+        .description = "flag to stop on the typecheck phase",
+        .type = ARGUMENT_TYPE_FLAG,
+        .required = 0,
+    }) != 0) {
+        DS_LOG_ERROR("Failed to add argument `typecheck`");
+        return_defer(1);
+    }
+
+    if (ds_argparse_add_argument(&argparser, (ds_argparse_options){
         .short_name = 'i',
         .long_name = "input",
         .description = "the input file",
@@ -1400,6 +1461,7 @@ static int argparse(int argc, char **argv, t_args *args) {
     args->filename = ds_argparse_get_value(&argparser, "input");
     args->lexer = ds_argparse_get_flag(&argparser, "lexer");
     args->parser = ds_argparse_get_flag(&argparser, "parser");
+    args->typecheck = ds_argparse_get_flag(&argparser, "typecheck");
     args->assembler = ds_argparse_get_flag(&argparser, "assembler");
 
 defer:
@@ -1413,8 +1475,10 @@ int main(int argc, char **argv) {
     t_args args = {0};
     stack_lexer lexer = {0};
     stack_parser parser = {0};
-    stack_ast_prog prog = {0};
+    stack_typechecker typechecker = {0};
     stack_assembler assembler = {0};
+    stack_ast_prog prog = {0};
+    stack_context context = {0};
     int result = 0;
 
     if (argparse(argc, argv, &args) != 0) {
@@ -1430,6 +1494,8 @@ int main(int argc, char **argv) {
 
     stack_lexer_init(&lexer, buffer, buffer_len);
     stack_parser_init(&parser, lexer, args.filename);
+    stack_context_init(&context);
+    stack_typechecker_init(&typechecker, args.filename);
     stack_assembler_init(&assembler, stdout);
 
     if (args.lexer) {
@@ -1437,7 +1503,7 @@ int main(int argc, char **argv) {
         return_defer(0);
     }
 
-    if (stack_parser_parse_prog(&parser, &prog) != 0) {
+    if (stack_parser_parse(&parser, &prog) != 0) {
         return_defer(1);
     }
 
@@ -1446,8 +1512,18 @@ int main(int argc, char **argv) {
         return_defer(0);
     }
 
+    // TODO: dependency graph based on `import` and merge all the ASTs
+
+    if (stack_typechecker_check(&typechecker, &prog, &context) != 0) {
+        return_defer(1);
+    }
+
+    if (args.typecheck) {
+        return_defer(0);
+    }
+
     if (args.assembler) {
-        stack_assembler_emit(&assembler, &prog);
+        stack_assembler_emit(&assembler, &prog, &context);
         return_defer(0);
     }
 
