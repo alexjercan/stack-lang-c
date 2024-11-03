@@ -1186,7 +1186,7 @@ static void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data
         EMIT("    ; *t0.%.*s <- pop", field.name.value.len, field.name.value.str);
         EMIT("    call    stack_pop");
         EMIT("    mov     rdi, [rbp - loc_0]");
-        EMIT("    mov     qword [rdi + %d], rax", (data->fields.count - i - 1) * STACK_WORD_SZ);
+        EMIT("    mov     qword [rdi + %d], rax", i * STACK_WORD_SZ);
     }
 
     EMIT("    ; push t0");

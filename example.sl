@@ -10,8 +10,12 @@ end
 
 data complicated (int n, ivec2 i)
 
+func !!! (ivec2) (int) in
+    dup ivec2.y swp ivec2.x +
+end
+
 func main () (int) in
-    22 5 42 ivec2 complicated
+    42 5 ivec2 22 complicated
     dup complicated.n swp
-    complicated.i dup ivec2.y swp ivec2.x + +
+    complicated.i !!! +
 end
