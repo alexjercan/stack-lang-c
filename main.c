@@ -14,10 +14,10 @@
 
 #define isname(c) ((isalnum((c)) || ispunct((c))) && (c) != SYMBOL_LPAREN && (c) != SYMBOL_RPAREN && (c) != SYMBOL_COMMA)
 
-#define SLICE_FUNC (ds_string_slice){.str = "func", .len = 4, .allocator = NULL }
-#define SLICE_IN (ds_string_slice){.str = "in", .len = 2, .allocator = NULL }
-#define SLICE_END (ds_string_slice){.str = "end", .len = 3, .allocator = NULL }
-#define SLICE_DATA (ds_string_slice){.str = "data", .len = 4, .allocator = NULL }
+#define SLICE_FUNC DS_STRING_SLICE("func")
+#define SLICE_IN DS_STRING_SLICE("in")
+#define SLICE_END DS_STRING_SLICE("end")
+#define SLICE_DATA DS_STRING_SLICE("data")
 
 typedef enum {
     STACK_TOKEN_DATA,
@@ -55,36 +55,7 @@ typedef struct {
     unsigned int pos;
 } stack_token;
 
-static char* stack_token_map(stack_token token) {
-    char *buffer = NULL;
-    ds_string_builder sb = {0};
-    ds_string_builder_init(&sb);
-
-    if (ds_string_builder_append(&sb, "%s", stack_token_kind_map(token.kind)) != 0) {
-        DS_PANIC("Failed to format token");
-    }
-
-    if (token.value.str != NULL) {
-        char *buffer = NULL;
-
-        if (ds_string_slice_to_owned(&token.value, &buffer) != 0) {
-            DS_PANIC("Failed to create a string");
-        }
-
-        if (ds_string_builder_append(&sb, "(%s)", buffer) != 0) {
-            DS_PANIC("Failed to format token");
-        }
-
-        DS_FREE(NULL, buffer);
-    }
-
-    if (ds_string_builder_build(&sb, &buffer) != 0) {
-        DS_PANIC("Failed to build string");
-    }
-
-    ds_string_builder_free(&sb);
-    return buffer;
-}
+#define STACK_TOKEN(k, v, p) (stack_token){.kind = (k), .value = (v), .pos = (p)}
 
 typedef struct {
     const char *buffer;
@@ -141,16 +112,16 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
     unsigned int position = lexer->pos;
     if (lexer->ch == EOF) {
         stack_lexer_read(lexer);
-        return (stack_token){.kind = STACK_TOKEN_EOF, .value = {0}, .pos = position };
+        return STACK_TOKEN(STACK_TOKEN_EOF, (ds_string_slice){0}, position);
     } else if (lexer->ch == SYMBOL_LPAREN) {
         stack_lexer_read(lexer);
-        return (stack_token){.kind = STACK_TOKEN_LPAREN, .value = {0}, .pos = position };
+        return STACK_TOKEN(STACK_TOKEN_LPAREN, (ds_string_slice){0}, position);
     } else if (lexer->ch == SYMBOL_RPAREN) {
         stack_lexer_read(lexer);
-        return (stack_token){.kind = STACK_TOKEN_RPAREN, .value = {0}, .pos = position };
+        return STACK_TOKEN(STACK_TOKEN_RPAREN, (ds_string_slice){0}, position);
     } else if (lexer->ch == SYMBOL_COMMA) {
         stack_lexer_read(lexer);
-        return (stack_token){.kind = STACK_TOKEN_COMMA, .value = {0}, .pos = position };
+        return STACK_TOKEN(STACK_TOKEN_COMMA, (ds_string_slice){0}, position);
     } else if ((lexer->ch == SYMBOL_MINUS && stack_lexer_peek(lexer) == SYMBOL_MINUS)) {
         stack_lexer_skip_until_newline(lexer);
         return stack_lexer_next(lexer);
@@ -167,7 +138,7 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
             stack_lexer_read(lexer);
         }
 
-        return (stack_token){.kind = STACK_TOKEN_NUMBER, .value = slice, .pos = position };
+        return STACK_TOKEN(STACK_TOKEN_NUMBER, slice, position);
     } else if (isname(lexer->ch)) {
         ds_string_slice slice = { .str = (char *)lexer->buffer + lexer->pos, .len = 0 };
 
@@ -177,15 +148,15 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
         }
 
         if (ds_string_slice_equals(&slice, &SLICE_FUNC)) {
-            return (stack_token){.kind = STACK_TOKEN_FUNC, .value = {0}, .pos = position };
+            return STACK_TOKEN(STACK_TOKEN_FUNC, (ds_string_slice){0}, position);
         } else if (ds_string_slice_equals(&slice, &SLICE_IN)) {
-            return (stack_token){.kind = STACK_TOKEN_IN, .value = {0}, .pos = position };
+            return STACK_TOKEN(STACK_TOKEN_IN, (ds_string_slice){0}, position);
         } else if (ds_string_slice_equals(&slice, &SLICE_END)) {
-            return (stack_token){.kind = STACK_TOKEN_END, .value = {0}, .pos = position };
+            return STACK_TOKEN(STACK_TOKEN_END, (ds_string_slice){0}, position);
         } else if (ds_string_slice_equals(&slice, &SLICE_DATA)) {
-            return (stack_token){.kind = STACK_TOKEN_DATA, .value = {0}, .pos = position };
+            return STACK_TOKEN(STACK_TOKEN_DATA, (ds_string_slice){0}, position);
         } else {
-            return (stack_token){.kind = STACK_TOKEN_NAME, .value = slice, .pos = position };
+            return STACK_TOKEN(STACK_TOKEN_NAME, slice, position);
         }
     } else {
         char *value = NULL;
@@ -193,7 +164,7 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
 
         stack_lexer_read(lexer);
 
-        return (stack_token){.kind = STACK_TOKEN_ILLEGAL, .value = slice, .pos = position };
+        return STACK_TOKEN(STACK_TOKEN_ILLEGAL, slice, position);
     }
 }
 
@@ -202,9 +173,12 @@ void stack_lexer_dump(stack_lexer *lexer) {
 
     do {
         token = stack_lexer_next(lexer);
-        char *value = stack_token_map(token);
-        fprintf(stdout, "%s\n", value);
-        DS_FREE(NULL, value);
+
+        fprintf(stdout, "%s", stack_token_kind_map(token.kind));
+        if (token.value.str != NULL) {
+            fprintf(stdout, "(%.*s)", token.value.len, token.value.str);
+        }
+        fprintf(stdout, "\n");
     } while (token.kind != STACK_TOKEN_EOF);
 }
 
@@ -283,10 +257,7 @@ static void stack_parser_show_errorf(stack_parser *parser, const char *format, .
         fprintf(stderr, "Lexical error: ILLEGAL TOKEN");
 
         if (parser->tok.value.str != NULL) {
-            char *value = NULL;
-            ds_string_slice_to_owned(&parser->tok.value, &value);
-            fprintf(stderr, ": %s", value);
-            DS_FREE(NULL, value);
+            fprintf(stderr, ": (%.*s)", parser->tok.value.len, parser->tok.value.str);
         }
 
         fprintf(stderr, "\n");
@@ -333,7 +304,7 @@ typedef struct {
     unsigned int pos;
 } stack_ast_node;
 
-#define STACK_AST_NODE(value_, parser_, pos_) ((stack_ast_node){.value = (value_), .parser = (parser), .pos = (pos_)})
+#define STACK_AST_NODE(value_, parser_, pos_) ((stack_ast_node){.value = (value_), .parser = (parser_), .pos = (pos_)})
 
 static void stack_ast_node_free(stack_ast_node *node) {
     ds_string_slice_free(&node->value);
@@ -457,43 +428,28 @@ typedef struct {
     };
 } stack_ast_expr;
 
-#define STACK_DATA_INT "int"
-#define STACK_FUNC_DUP "dup"
-#define STACK_FUNC_SWP "swp"
-#define STACK_FUNC_ROT "rot"
-#define STACK_FUNC_POP "pop"
-#define STACK_FUNC_PLUS "+"
-#define STACK_FUNC_STAR "*"
+#define STACK_AST_EXPR_NUMBER(node) (stack_ast_expr){ .kind = STACK_AST_EXPR_NUMBER, .number = (node)}
+#define STACK_AST_EXPR_NAME(node) (stack_ast_expr){ .kind = STACK_AST_EXPR_NAME, .name = (node)}
 
-#define STACK_FUNC_ASM_PREFIX "func."
+static int stack_parser_parse_expr(stack_parser *parser, stack_ast_expr *expr) {
+    int result = 0;
 
-#define STACK_DATA_INT_ASM STACK_FUNC_ASM_PREFIX STACK_DATA_INT
-#define STACK_FUNC_DUP_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_DUP
-#define STACK_FUNC_SWP_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_SWP
-#define STACK_FUNC_ROT_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_ROT
-#define STACK_FUNC_POP_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_POP
-#define STACK_FUNC_PLUS_ASM STACK_FUNC_ASM_PREFIX "plus"
-#define STACK_FUNC_STAR_ASM STACK_FUNC_ASM_PREFIX "mul"
-
-// TODO: add something like this to ds.h
-#define DS_STRING_SLICE(string) ((ds_string_slice){.str = string, .len = strlen((string))})
-
-static const char *stack_expr_name_map(ds_string_slice* name) {
-    if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_DUP), name)) {
-        return STACK_FUNC_DUP_ASM;
-    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_SWP), name)) {
-        return STACK_FUNC_SWP_ASM;
-    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_ROT), name)) {
-        return STACK_FUNC_ROT_ASM;
-    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_POP), name)) {
-        return STACK_FUNC_POP_ASM;
-    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_PLUS), name)) {
-        return STACK_FUNC_PLUS_ASM;
-    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_STAR), name)) {
-        return STACK_FUNC_STAR_ASM;
-    } else {
-        return NULL;
+    stack_token token = stack_parser_peek(parser);
+    switch (token.kind) {
+    case STACK_TOKEN_NAME:
+        stack_parser_read(parser);
+        *expr = STACK_AST_EXPR_NAME(STACK_AST_NODE(token.value, parser, token.pos));
+        return_defer(0);
+    case STACK_TOKEN_NUMBER:
+        stack_parser_read(parser);
+        *expr = STACK_AST_EXPR_NUMBER(STACK_AST_NODE(token.value, parser, token.pos));
+        return_defer(0);
+    default:
+        return_defer(1);
     }
+
+defer:
+    return result;
 }
 
 static void stack_ast_expr_free(stack_ast_expr *expr) {
@@ -553,35 +509,6 @@ defer:
     return result;
 }
 
-static int stack_parser_parse_func_body(stack_parser *parser, ds_dynamic_array *exprs /* stack_ast_expr */) {
-    int result = 0;
-
-    while (true) {
-        stack_token token = stack_parser_peek(parser);
-        switch (token.kind) {
-        case STACK_TOKEN_NAME:
-          stack_parser_read(parser);
-          ds_dynamic_array_append(
-              exprs, &(stack_ast_expr){.kind = STACK_AST_EXPR_NAME,
-                                       .name = STACK_AST_NODE(
-                                           token.value, parser, token.pos)});
-          break;
-        case STACK_TOKEN_NUMBER:
-          stack_parser_read(parser);
-          ds_dynamic_array_append(
-              exprs, &(stack_ast_expr){.kind = STACK_AST_EXPR_NUMBER,
-                                       .number = STACK_AST_NODE(
-                                           token.value, parser, token.pos)});
-          break;
-        default:
-            return_defer(0);
-        }
-    }
-
-defer:
-    return result;
-}
-
 static int stack_parser_parse_func(stack_parser *parser, stack_ast_func *func) {
     stack_token token = {0};
     int result = 0;
@@ -613,13 +540,20 @@ static int stack_parser_parse_func(stack_parser *parser, stack_ast_func *func) {
         return_defer(1);
     }
 
-    stack_parser_parse_func_body(parser, &func->body);
+    do {
+        token = stack_parser_peek(parser);
+        if (token.kind == STACK_TOKEN_END) {
+            stack_parser_read(parser);
+            return_defer(0);
+        }
 
-    token = stack_parser_read(parser);
-    if (token.kind != STACK_TOKEN_END) {
-        stack_parser_show_expected(parser, STACK_TOKEN_END, token.kind);
-        return_defer(1);
-    }
+        stack_ast_expr expr = {0};
+        if (stack_parser_parse_expr(parser, &expr) != 0) {
+            stack_parser_show_expected(parser, STACK_TOKEN_END, token.kind);
+            return_defer(1);
+        }
+        ds_dynamic_array_append(&func->body, &expr);
+    } while (true);
 
 defer:
     return result;
@@ -686,79 +620,53 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
     const int indent = 2;
 
     for (unsigned int i = 0; i < prog->datas.count; i++) {
-        char *name = NULL;
-
         stack_ast_data data = {0};
         ds_dynamic_array_get(&prog->datas, i, &data);
 
-        ds_string_slice_to_owned(&data.name.value, &name);
-        fprintf(stdout, "data %s\n", name);
-        DS_FREE(NULL, name);
-
+        fprintf(stdout, "data %.*s\n", data.name.value.len, data.name.value.str);
         for (unsigned int i = 0; i < data.fields.count; i++) {
-            char *name = NULL;
-            char *type = NULL;
-
             stack_ast_data_field field = {0};
             ds_dynamic_array_get(&data.fields, i, &field);
 
-            ds_string_slice_to_owned(&field.type.value, &type);
-            ds_string_slice_to_owned(&field.name.value, &name);
-            fprintf(stdout, "%*s%s: %s\n", indent, "", name, type);
-            DS_FREE(NULL, name);
-            DS_FREE(NULL, type);
+            fprintf(stdout, "%*s%.*s: %.*s\n", indent, "", field.name.value.len, field.name.value.str, field.type.value.len, field.type.value.str);
         }
         fprintf(stdout, "\n");
     }
 
     for (unsigned int i = 0; i < prog->funcs.count; i++) {
-        char *name = NULL;
-
         stack_ast_func func = {0};
         ds_dynamic_array_get(&prog->funcs, i, &func);
 
-        ds_string_slice_to_owned(&func.name.value, &name);
-        fprintf(stdout, "func %s\n", name);
-        DS_FREE(NULL, name);
-
+        fprintf(stdout, "func %.*s\n", func.name.value.len, func.name.value.str);
         for (unsigned int j = 0; j < func.args.count; j++) {
-            char *name = NULL;
-
             stack_ast_node arg = {0};
             ds_dynamic_array_get(&func.args, j, &arg);
 
-            ds_string_slice_to_owned(&arg.value, &name);
-            fprintf(stdout, "%*sarg%d: %s\n", indent, "", j, name);
-            DS_FREE(NULL, name);
+            fprintf(stdout, "%*sarg%d: %.*s\n", indent, "", j, arg.value.len, arg.value.str);
         }
         for (unsigned int j = 0; j < func.rets.count; j++) {
-            char *name = NULL;
-
             stack_ast_node ret = {0};
             ds_dynamic_array_get(&func.rets, j, &ret);
 
-            ds_string_slice_to_owned(&ret.value, &name);
-            fprintf(stdout, "%*sret%d: %s\n", indent, "", j, name);
-            DS_FREE(NULL, name);
+            fprintf(stdout, "%*sret%d: %.*s\n", indent, "", j, ret.value.len, ret.value.str);
         }
 
         fprintf(stdout, "%*sbody:\n", indent, "");
         for (unsigned int j = 0; j < func.body.count; j++) {
-            char *name = NULL;
+            ds_string_slice slice = {0};
 
             stack_ast_expr expr = {0};
             ds_dynamic_array_get(&func.body, j, &expr);
 
             switch (expr.kind) {
             case STACK_AST_EXPR_NUMBER:
-                ds_string_slice_to_owned(&expr.number.value, &name);
-              break;
+                slice = expr.number.value;
+                break;
             case STACK_AST_EXPR_NAME:
-                ds_string_slice_to_owned(&expr.name.value, &name);
-              break;
+                slice = expr.name.value;
+                break;
             }
-            fprintf(stdout, "%*s%s\n", indent * 2, "", name);
-            DS_FREE(NULL, name);
+            fprintf(stdout, "%*s%.*s\n", indent * 2, "", slice.len, slice.str);
         }
         fprintf(stdout, "\n");
     }
@@ -779,6 +687,19 @@ void stack_ast_free(stack_ast_prog *prog) {
     }
     ds_dynamic_array_free(&prog->funcs);
 }
+
+// TODO: BIG TODO HERE. I need to think more about the ASM part. More optimized.
+// Function names. Etc.
+
+#define STACK_DATA_INT "int"
+
+#define STACK_FUNC_MAIN "main"
+#define STACK_FUNC_DUP "dup"
+#define STACK_FUNC_SWP "swp"
+#define STACK_FUNC_ROT "rot"
+#define STACK_FUNC_POP "pop"
+#define STACK_FUNC_PLUS "+"
+#define STACK_FUNC_STAR "*"
 
 typedef struct {
     // TODO: implement data structure for the context:
@@ -810,6 +731,9 @@ int stack_typechecker_check(stack_typechecker *typechecker, stack_ast_prog *prog
     int result = 0;
 
     // TODO: implement
+    // - simulate the stack with types.
+    // - how about generic types? dup is func (a) (a a) => inference
+    // - how about "traits" Eq, Cmp, etc.
     return_defer(0);
 
 defer:
@@ -823,6 +747,45 @@ void stack_typechecker_free(stack_typechecker *typechecker) {
 typedef struct {
     FILE *stdout;
 } stack_assembler;
+
+#define STACK_FUNC_ASM_PREFIX "func."
+
+#define STACK_DATA_INT_ASM STACK_FUNC_ASM_PREFIX STACK_DATA_INT
+
+#define STACK_FUNC_MAIN_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_MAIN
+#define STACK_FUNC_DUP_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_DUP
+#define STACK_FUNC_SWP_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_SWP
+#define STACK_FUNC_ROT_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_ROT
+#define STACK_FUNC_POP_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_POP
+#define STACK_FUNC_PLUS_ASM STACK_FUNC_ASM_PREFIX "plus"
+#define STACK_FUNC_STAR_ASM STACK_FUNC_ASM_PREFIX "mul"
+
+// TODO: think about this => maybe having the context from typechecker will make
+// this obsolete; or maybe this should be a function on the stack_assembler and
+// rename all functions based on an index (hard to do debugging... => comment
+// with function name?)
+//
+// NOTE: WIll do it as a function on assembler and will have a comment with the
+// real function name
+static const char *stack_expr_name_map(ds_string_slice* name) {
+    if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_MAIN), name)) {
+        return STACK_FUNC_MAIN_ASM;
+    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_DUP), name)) {
+        return STACK_FUNC_DUP_ASM;
+    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_SWP), name)) {
+        return STACK_FUNC_SWP_ASM;
+    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_ROT), name)) {
+        return STACK_FUNC_ROT_ASM;
+    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_POP), name)) {
+        return STACK_FUNC_POP_ASM;
+    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_PLUS), name)) {
+        return STACK_FUNC_PLUS_ASM;
+    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_STAR), name)) {
+        return STACK_FUNC_STAR_ASM;
+    } else {
+        return NULL;
+    }
+}
 
 void stack_assembler_init(stack_assembler *assembler, FILE *stdout) {
     assembler->stdout = stdout;
@@ -871,7 +834,7 @@ static void stack_assembler_emit_entry(stack_assembler *assembler) {
     EMIT("    call allocator_init");
     EMIT("");
     EMIT("    ; Call the main method");
-    EMIT("    call   func.main");
+    EMIT("    call   %s", STACK_FUNC_MAIN_ASM);
     EMIT("");
     EMIT("    ; Exit the program");
     EMIT("    call    stack_pop");

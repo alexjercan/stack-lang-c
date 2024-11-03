@@ -183,6 +183,8 @@ typedef struct ds_string_slice {
         unsigned int len;
 } ds_string_slice;
 
+#define DS_STRING_SLICE(string) ((ds_string_slice){.str = string, .len = strlen((string))})
+
 DSHDEF void ds_string_slice_init_allocator(ds_string_slice *ss, char *str,
                                            unsigned int len,
                                            struct ds_allocator *allocator);
