@@ -5,6 +5,8 @@
 #define DS_DA_IMPLEMENTATION
 #include "ds.h"
 
+#define OOM_ERROR "Buy more RAM!"
+
 #define SYMBOL_COMMA ','
 #define SYMBOL_MINUS '-'
 #define SYMBOL_GT '>'
@@ -745,62 +747,31 @@ void stack_typechecker_free(stack_typechecker *typechecker) {
 }
 
 typedef struct {
+    ds_dynamic_array func_map;
+    ds_dynamic_array _data_bufs;
     FILE *stdout;
 } stack_assembler;
 
-#define STACK_FUNC_ASM_PREFIX "func."
-
-#define STACK_DATA_INT_ASM STACK_FUNC_ASM_PREFIX STACK_DATA_INT
-
-#define STACK_FUNC_MAIN_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_MAIN
-#define STACK_FUNC_DUP_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_DUP
-#define STACK_FUNC_SWP_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_SWP
-#define STACK_FUNC_ROT_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_ROT
-#define STACK_FUNC_POP_ASM STACK_FUNC_ASM_PREFIX STACK_FUNC_POP
-#define STACK_FUNC_PLUS_ASM STACK_FUNC_ASM_PREFIX "plus"
-#define STACK_FUNC_STAR_ASM STACK_FUNC_ASM_PREFIX "mul"
-
-// TODO: think about this => maybe having the context from typechecker will make
-// this obsolete; or maybe this should be a function on the stack_assembler and
-// rename all functions based on an index (hard to do debugging... => comment
-// with function name?)
-//
-// NOTE: WIll do it as a function on assembler and will have a comment with the
-// real function name
-static const char *stack_expr_name_map(ds_string_slice* name) {
-    if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_MAIN), name)) {
-        return STACK_FUNC_MAIN_ASM;
-    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_DUP), name)) {
-        return STACK_FUNC_DUP_ASM;
-    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_SWP), name)) {
-        return STACK_FUNC_SWP_ASM;
-    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_ROT), name)) {
-        return STACK_FUNC_ROT_ASM;
-    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_POP), name)) {
-        return STACK_FUNC_POP_ASM;
-    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_PLUS), name)) {
-        return STACK_FUNC_PLUS_ASM;
-    } else if (ds_string_slice_equals(&DS_STRING_SLICE(STACK_FUNC_STAR), name)) {
-        return STACK_FUNC_STAR_ASM;
-    } else {
-        return NULL;
+static unsigned long stack_assembler_func_map(stack_assembler *assembler, ds_string_slice* name) {
+    for (unsigned int i = 0; i < assembler->func_map.count; i++) {
+        ds_string_slice item = {0};
+        ds_dynamic_array_get(&assembler->func_map, i, &item);
+        if (ds_string_slice_equals(name, &item)) {
+            return i;
+        }
     }
+
+    ds_dynamic_array_append(&assembler->func_map, name);
+    return assembler->func_map.count - 1;
 }
 
 void stack_assembler_init(stack_assembler *assembler, FILE *stdout) {
+    ds_dynamic_array_init(&assembler->func_map, sizeof(ds_string_slice));
+    ds_dynamic_array_init(&assembler->_data_bufs, sizeof(char *));
     assembler->stdout = stdout;
 }
 
-static void stack_assembler_emit_format(stack_assembler *assembler, const char *format, ...) {
-    va_list args;
-    va_start(args, format);
-    vfprintf(assembler->stdout, format, args);
-    va_end(args);
-
-    fprintf(assembler->stdout, "\n");
-}
-
-#define EMIT(format, ...) stack_assembler_emit_format(assembler, format, ##__VA_ARGS__)
+#define EMIT(format, ...) fprintf(assembler->stdout, format "\n", ##__VA_ARGS__)
 
 static void stack_assembler_emit_entry(stack_assembler *assembler) {
     EMIT("section '.data' writeable");
@@ -834,7 +805,7 @@ static void stack_assembler_emit_entry(stack_assembler *assembler) {
     EMIT("    call allocator_init");
     EMIT("");
     EMIT("    ; Call the main method");
-    EMIT("    call   %s", STACK_FUNC_MAIN_ASM);
+    EMIT("    call   func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_MAIN)), STACK_FUNC_MAIN);
     EMIT("");
     EMIT("    ; Exit the program");
     EMIT("    call    stack_pop");
@@ -998,7 +969,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_FUNC_DUP_ASM);
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_DUP)), STACK_FUNC_DUP);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1018,7 +989,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_FUNC_SWP_ASM);
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_SWP)), STACK_FUNC_SWP);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1050,7 +1021,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_FUNC_ROT_ASM);
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_ROT)), STACK_FUNC_ROT);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 32                    ; allocate 4 local variables");
@@ -1092,7 +1063,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_FUNC_POP_ASM);
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_POP)), STACK_FUNC_POP);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1111,7 +1082,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: rdi is the int value");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_DATA_INT_ASM);
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_DATA_INT)), STACK_DATA_INT);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1144,7 +1115,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_FUNC_PLUS_ASM);
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_PLUS)), STACK_FUNC_PLUS);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1158,7 +1129,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    pop     rdi");
     EMIT("");
     EMIT("    add     rdi, rax");
-    EMIT("    call    %s", STACK_DATA_INT_ASM);
+    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_DATA_INT)), STACK_DATA_INT);
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -1171,7 +1142,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("%s:", STACK_FUNC_STAR_ASM);
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_STAR)), STACK_FUNC_STAR);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1186,7 +1157,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("");
     EMIT("    mul     rdi");
     EMIT("    mov     rdi, rax");
-    EMIT("    call    %s", STACK_DATA_INT_ASM);
+    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_DATA_INT)), STACK_DATA_INT);
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -1197,11 +1168,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
 #define STACK_WORD_SZ 8
 
 static void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data *data) {
-    char *data_name = NULL;
-    ds_string_slice_to_owned(&data->name.value, &data_name);
-
-    // TODO: maybe rename function made users
-    EMIT("func.%s:", data_name);
+    EMIT("func.%lu: ; %.*s", stack_assembler_func_map(assembler, &data->name.value), data->name.value.len, data->name.value.str);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1213,18 +1180,13 @@ static void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data
     EMIT("    mov     qword [rbp - loc_0], rax");
 
     for (unsigned int i = 0; i < data->fields.count; i++) {
-        char *field_name = NULL;
         stack_ast_data_field field = {0};
-
         ds_dynamic_array_get(&data->fields, i, &field);
-        ds_string_slice_to_owned(&field.name.value, &field_name);
 
-        EMIT("    ; *t0.%s <- pop", field_name);
+        EMIT("    ; *t0.%.*s <- pop", field.name.value.len, field.name.value.str);
         EMIT("    call    stack_pop");
         EMIT("    mov     rdi, [rbp - loc_0]");
         EMIT("    mov     qword [rdi + %d], rax", (data->fields.count - i - 1) * STACK_WORD_SZ);
-
-        DS_FREE(NULL, field_name);
     }
 
     EMIT("    ; push t0");
@@ -1237,18 +1199,29 @@ static void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data
     EMIT("");
 
     for (unsigned int i = 0; i < data->fields.count; i++) {
-        char *field_name = NULL;
+        char *buffer = NULL;
+        ds_string_builder sb = {0};
+        ds_string_slice slice = {0};
         stack_ast_data_field field = {0};
 
         ds_dynamic_array_get(&data->fields, i, &field);
-        ds_string_slice_to_owned(&field.name.value, &field_name);
 
-        // TODO: maybe rename function made users
-        EMIT("func.%s.%s:", data_name, field_name);
+        // TODO: maybe can use the context to not allocate it again
+        ds_string_builder_init(&sb);
+        if (ds_string_builder_append(&sb, "%.*s.%.*s", data->name.value.len, data->name.value.str, field.name.value.len, field.name.value.str) != 0) {
+            DS_PANIC(OOM_ERROR);
+        }
+        if (ds_string_builder_build(&sb, &buffer) != 0) {
+            DS_PANIC(OOM_ERROR);
+        }
+        ds_dynamic_array_append(&assembler->_data_bufs, &buffer);
+
+        slice = DS_STRING_SLICE(buffer);
+
+        EMIT("func.%lu: ; %.*s", stack_assembler_func_map(assembler, &slice), slice.len, slice.str);
         EMIT("    push    rbp                        ; save return address");
         EMIT("    mov     rbp, rsp                   ; set up stack frame");
 
-        EMIT("    ; pop %s & push %s.%s", data_name, data_name, field_name);
         EMIT("    call    stack_pop");
         EMIT("    mov     rax, [rax + %d]", i * STACK_WORD_SZ);
         EMIT("    mov     rdi, rax");
@@ -1258,33 +1231,18 @@ static void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data
         EMIT("    ret");
         EMIT("");
 
-        DS_FREE(NULL, field_name);
+        ds_string_slice_free(&slice);
+        ds_string_builder_free(&sb);
     }
-
-    DS_FREE(NULL, data_name);
 }
 
 void stack_assembler_emit_expr_number(stack_assembler *assembler, stack_ast_node *node) {
-    char *number = NULL;
-    ds_string_slice_to_owned(&node->value, &number);
-    EMIT("    mov     rdi, %s", number);
-    EMIT("    call    %s", STACK_DATA_INT_ASM);
-
-    DS_FREE(NULL, number);
+    EMIT("    mov     rdi, %.*s", node->value.len, node->value.str);
+    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_DATA_INT)), STACK_DATA_INT);
 }
 
 void stack_assembler_emit_expr_name(stack_assembler *assembler, stack_ast_node *node) {
-    const char *func = stack_expr_name_map(&node->value);
-
-    if (func == NULL) {
-        // TODO: maybe rename function made users
-        char *name = NULL;
-        ds_string_slice_to_owned(&node->value, &name);
-        EMIT("    call    func.%s", name);
-        DS_FREE(NULL, name);
-    } else {
-        EMIT("    call    %s", func);
-    }
+    EMIT("    call    func.%lu ; %.*s", stack_assembler_func_map(assembler, &node->value), node->value.len, node->value.str);
 }
 
 void stack_assembler_emit_expr(stack_assembler *assembler, stack_ast_expr *expr) {
@@ -1299,11 +1257,7 @@ void stack_assembler_emit_expr(stack_assembler *assembler, stack_ast_expr *expr)
 }
 
 static void stack_assembler_emit_func(stack_assembler *assembler, stack_ast_func *func) {
-    char *name = NULL;
-    ds_string_slice_to_owned(&func->name.value, &name);
-
-    // TODO: maybe rename function made users
-    EMIT("func.%s:", name);
+    EMIT("func.%lu: ; %.*s", stack_assembler_func_map(assembler, &func->name.value), func->name.value.len, func->name.value.str);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
 
@@ -1316,8 +1270,6 @@ static void stack_assembler_emit_func(stack_assembler *assembler, stack_ast_func
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
-
-    DS_FREE(NULL, name);
 }
 
 void stack_assembler_emit(stack_assembler *assembler, stack_ast_prog *prog, stack_context *context) {
@@ -1344,6 +1296,13 @@ void stack_assembler_emit(stack_assembler *assembler, stack_ast_prog *prog, stac
 }
 
 void stack_assembler_free(stack_assembler *assembler) {
+    ds_dynamic_array_free(&assembler->func_map);
+    for (unsigned int i = 0; i < assembler->_data_bufs.count; i++) {
+        char *buffer = NULL;
+        ds_dynamic_array_get(&assembler->_data_bufs, i, &buffer);
+        DS_FREE(NULL, buffer);
+    }
+    ds_dynamic_array_free(&assembler->_data_bufs);
     assembler->stdout = NULL;
 }
 
@@ -1491,8 +1450,9 @@ int main(int argc, char **argv) {
     }
 
 defer:
-    if (buffer != NULL) DS_FREE(NULL, buffer);
-    stack_parser_free(&parser);
+    stack_assembler_free(&assembler);
     stack_ast_free(&prog);
+    stack_parser_free(&parser);
+    if (buffer != NULL) DS_FREE(NULL, buffer);
     return result;
 }
