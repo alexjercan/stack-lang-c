@@ -306,7 +306,7 @@ typedef struct {
     unsigned int pos;
 } stack_ast_node;
 
-#define STACK_AST_NODE(value_, parser_, pos_) ((stack_ast_node){.value = (value_), .parser = (parser_), .pos = (pos_)})
+#define STACK_AST_NODE(v, p, s) ((stack_ast_node){.value = (v), .parser = (p), .pos = (s)})
 
 static void stack_ast_node_free(stack_ast_node *node) {
     ds_string_slice_free(&node->value);
@@ -771,6 +771,7 @@ void stack_assembler_init(stack_assembler *assembler, FILE *stdout) {
     assembler->stdout = stdout;
 }
 
+// TODO: maybe refactor big chunks of EMIT's into things like `EMIT_POP`
 #define EMIT(format, ...) fprintf(assembler->stdout, format "\n", ##__VA_ARGS__)
 
 static void stack_assembler_emit_entry(stack_assembler *assembler) {
