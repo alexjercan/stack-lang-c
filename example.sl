@@ -15,7 +15,5 @@ func !!! (ivec2) (int) in
 end
 
 func main () (int) in
-    42 5 ivec2 22 complicated
-    dup complicated.n swp
-    complicated.i !!! +
+    42 5 ivec2 22 complicated dup complicated.n swp complicated.i !!! +
 end
