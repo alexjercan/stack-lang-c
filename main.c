@@ -24,6 +24,9 @@
 #define SLICE_DATA DS_STRING_SLICE("data")
 #define SLICE_TRUE DS_STRING_SLICE("true")
 #define SLICE_FALSE DS_STRING_SLICE("false")
+#define SLICE_IF DS_STRING_SLICE("if")
+#define SLICE_ELSE DS_STRING_SLICE("else")
+#define SLICE_FI DS_STRING_SLICE("fi")
 
 typedef enum {
     STACK_TOKEN_DATA,
@@ -36,6 +39,9 @@ typedef enum {
     STACK_TOKEN_END,
     STACK_TOKEN_NUMBER,
     STACK_TOKEN_BOOLEAN,
+    STACK_TOKEN_IF,
+    STACK_TOKEN_ELSE,
+    STACK_TOKEN_FI,
     STACK_TOKEN_EOF,
     STACK_TOKEN_ILLEGAL,
 } stack_token_kind;
@@ -52,6 +58,9 @@ static const char* stack_token_kind_map(stack_token_kind kind) {
     case STACK_TOKEN_END: return "END";
     case STACK_TOKEN_NUMBER: return "NUMBER";
     case STACK_TOKEN_BOOLEAN: return "BOOLEAN";
+    case STACK_TOKEN_IF: return "IF";
+    case STACK_TOKEN_ELSE: return "ELSE";
+    case STACK_TOKEN_FI: return "FI";
     case STACK_TOKEN_EOF: return "<EOF>";
     case STACK_TOKEN_ILLEGAL: return "ILLEGAL";
     }
@@ -165,6 +174,12 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
             return STACK_TOKEN(STACK_TOKEN_DATA, (ds_string_slice){0}, position);
         } else if (ds_string_slice_equals(&slice, &SLICE_TRUE) || ds_string_slice_equals(&slice, &SLICE_FALSE)) {
             return STACK_TOKEN(STACK_TOKEN_BOOLEAN, slice, position);
+        } else if (ds_string_slice_equals(&slice, &SLICE_IF)) {
+            return STACK_TOKEN(STACK_TOKEN_IF, (ds_string_slice){0}, position);
+        } else if (ds_string_slice_equals(&slice, &SLICE_ELSE)) {
+            return STACK_TOKEN(STACK_TOKEN_ELSE, (ds_string_slice){0}, position);
+        } else if (ds_string_slice_equals(&slice, &SLICE_FI)) {
+            return STACK_TOKEN(STACK_TOKEN_FI, (ds_string_slice){0}, position);
         } else {
             return STACK_TOKEN(STACK_TOKEN_NAME, slice, position);
         }
@@ -201,7 +216,7 @@ int stack_lexer_pos_to_lc(stack_lexer *lexer, unsigned int pos, unsigned int *li
     *line = 1;
     *col = 1;
 
-    for (unsigned int i = 0; i < pos; i++) {
+    for (unsigned int i = 0; i <= pos; i++) {
         if (lexer->buffer[i] == '\n') {
             *line += 1;
             *col = 1;
@@ -429,7 +444,13 @@ typedef enum {
     STACK_AST_EXPR_NUMBER,
     STACK_AST_EXPR_BOOLEAN,
     STACK_AST_EXPR_NAME,
+    STACK_AST_EXPR_COND,
 } stack_ast_expr_kind;
+
+typedef struct {
+    ds_dynamic_array if_; //stack_ast_expr
+    ds_dynamic_array else_; // stack_ast_expr
+} stack_ast_cond;
 
 typedef struct {
     stack_ast_expr_kind kind;
@@ -437,12 +458,74 @@ typedef struct {
         stack_ast_node number;
         stack_ast_node boolean;
         stack_ast_node name;
+        stack_ast_cond cond;
     };
 } stack_ast_expr;
 
 #define STACK_AST_EXPR_NUMBER(node) (stack_ast_expr){ .kind = STACK_AST_EXPR_NUMBER, .number = (node)}
 #define STACK_AST_EXPR_BOOLEAN(node) (stack_ast_expr){ .kind = STACK_AST_EXPR_BOOLEAN, .boolean = (node)}
 #define STACK_AST_EXPR_NAME(node) (stack_ast_expr){ .kind = STACK_AST_EXPR_NAME, .name = (node)}
+#define STACK_AST_EXPR_COND(node) (stack_ast_expr){ .kind = STACK_AST_EXPR_COND, .cond = (node)}
+
+static int stack_parser_parse_expr(stack_parser *parser, stack_ast_expr *expr);
+static void stack_ast_expr_free(stack_ast_expr *expr);
+static void stack_ast_expr_dump(stack_ast_expr *prog, FILE* stdout, unsigned int indent);
+
+static int stack_parser_parse_cond(stack_parser *parser, stack_ast_cond *cond) {
+    stack_token token = {0};
+    int result = 0;
+
+    ds_dynamic_array_init(&cond->if_, sizeof(stack_ast_expr));
+    ds_dynamic_array_init(&cond->else_, sizeof(stack_ast_expr));
+
+    token = stack_parser_read(parser);
+    if (token.kind != STACK_TOKEN_IF) {
+        stack_parser_show_expected(parser, STACK_TOKEN_IF, token.kind);
+        return_defer(1);
+    }
+
+    do {
+        token = stack_parser_peek(parser);
+        if (token.kind == STACK_TOKEN_FI) {
+            stack_parser_read(parser);
+            return_defer(0);
+        }
+        if (token.kind == STACK_TOKEN_ELSE) {
+            stack_parser_read(parser);
+            break;
+        }
+
+        stack_ast_expr expr = {0};
+        if (stack_parser_parse_expr(parser, &expr) != 0) {
+            return_defer(1);
+        }
+        if (ds_dynamic_array_append(&cond->if_, &expr) != 0) {
+            DS_PANIC(OOM_ERROR);
+        }
+    } while (true);
+
+    do {
+        token = stack_parser_peek(parser);
+        if (token.kind == STACK_TOKEN_FI) {
+            stack_parser_read(parser);
+            return_defer(0);
+        }
+
+        stack_ast_expr expr = {0};
+        if (stack_parser_parse_expr(parser, &expr) != 0) {
+            return_defer(1);
+        }
+        if (ds_dynamic_array_append(&cond->else_, &expr) != 0) {
+            DS_PANIC(OOM_ERROR);
+        }
+    } while (true);
+
+    stack_parser_show_expected(parser, STACK_TOKEN_FI, token.kind);
+    return_defer(1);
+
+defer:
+    return result;
+}
 
 static int stack_parser_parse_expr(stack_parser *parser, stack_ast_expr *expr) {
     int result = 0;
@@ -461,12 +544,79 @@ static int stack_parser_parse_expr(stack_parser *parser, stack_ast_expr *expr) {
         stack_parser_read(parser);
         *expr = STACK_AST_EXPR_BOOLEAN(STACK_AST_NODE(token.value, parser, token.pos));
         return_defer(0);
+    case STACK_TOKEN_IF: {
+        stack_ast_cond cond = {0};
+        if (stack_parser_parse_cond(parser, &cond) != 0) {
+            return_defer(1);
+        }
+        *expr = STACK_AST_EXPR_COND(cond);
+        return_defer(0);
+    }
     default:
         return_defer(1);
     }
 
 defer:
     return result;
+}
+
+#define INDENT_INCREMENT 4
+
+static void stack_ast_cond_dump(stack_ast_cond *cond, FILE* stdout, unsigned int indent) {
+    fprintf(stdout, "%*sIF\n", indent, "");
+    for (unsigned int i = 0; i < cond->if_.count; i++) {
+        stack_ast_expr expr = {0};
+        ds_dynamic_array_get(&cond->if_, i, &expr);
+        stack_ast_expr_dump(&expr, stdout, indent + INDENT_INCREMENT);
+    }
+    fprintf(stdout, "%*sELSE\n", indent, "");
+    for (unsigned int i = 0; i < cond->else_.count; i++) {
+        stack_ast_expr expr = {0};
+        ds_dynamic_array_get(&cond->else_, i, &expr);
+        stack_ast_expr_dump(&expr, stdout, indent + INDENT_INCREMENT);
+    }
+    fprintf(stdout, "%*sFI\n", indent, "");
+}
+
+static void stack_ast_expr_dump(stack_ast_expr *expr, FILE* stdout, unsigned int indent) {
+    switch (expr->kind) {
+    case STACK_AST_EXPR_NUMBER: {
+        ds_string_slice slice = {0};
+        slice = expr->number.value;
+        fprintf(stdout, "%*s%.*s\n", indent, "", slice.len, slice.str);
+        break;
+    }
+    case STACK_AST_EXPR_BOOLEAN: {
+        ds_string_slice slice = {0};
+        slice = expr->boolean.value;
+        fprintf(stdout, "%*s%.*s\n", indent, "", slice.len, slice.str);
+        break;
+    }
+    case STACK_AST_EXPR_NAME: {
+        ds_string_slice slice = {0};
+        slice = expr->name.value;
+        fprintf(stdout, "%*s%.*s\n", indent, "", slice.len, slice.str);
+        break;
+    }
+    case STACK_AST_EXPR_COND:
+        stack_ast_cond_dump(&expr->cond, stdout, indent);
+        break;
+    }
+}
+
+static void stack_ast_cond_free(stack_ast_cond *cond) {
+    for (unsigned int i = 0; i < cond->if_.count; i++) {
+        stack_ast_expr *expr = NULL;
+        ds_dynamic_array_get_ref(&cond->if_, i, (void **)&expr);
+        stack_ast_expr_free(expr);
+    }
+    for (unsigned int i = 0; i < cond->else_.count; i++) {
+        stack_ast_expr *expr = NULL;
+        ds_dynamic_array_get_ref(&cond->else_, i, (void **)&expr);
+        stack_ast_expr_free(expr);
+    }
+    ds_dynamic_array_free(&cond->if_);
+    ds_dynamic_array_free(&cond->else_);
 }
 
 static void stack_ast_expr_free(stack_ast_expr *expr) {
@@ -479,6 +629,9 @@ static void stack_ast_expr_free(stack_ast_expr *expr) {
         break;
     case STACK_AST_EXPR_BOOLEAN:
         stack_ast_node_free(&expr->boolean);
+        break;
+    case STACK_AST_EXPR_COND:
+        stack_ast_cond_free(&expr->cond);
         break;
     }
 }
@@ -637,7 +790,7 @@ defer:
 }
 
 void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
-    const int indent = 2;
+    const int indent = INDENT_INCREMENT;
 
     for (unsigned int i = 0; i < prog->datas.count; i++) {
         stack_ast_data data = {0};
@@ -673,23 +826,10 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
 
         fprintf(stdout, "%*sbody:\n", indent, "");
         for (unsigned int j = 0; j < func.body.count; j++) {
-            ds_string_slice slice = {0};
-
             stack_ast_expr expr = {0};
             ds_dynamic_array_get(&func.body, j, &expr);
 
-            switch (expr.kind) {
-            case STACK_AST_EXPR_NUMBER:
-                slice = expr.number.value;
-                break;
-            case STACK_AST_EXPR_BOOLEAN:
-                slice = expr.boolean.value;
-                break;
-            case STACK_AST_EXPR_NAME:
-                slice = expr.name.value;
-                break;
-            }
-            fprintf(stdout, "%*s%.*s\n", indent * 2, "", slice.len, slice.str);
+            stack_ast_expr_dump(&expr, stdout, indent + INDENT_INCREMENT);
         }
         fprintf(stdout, "\n");
     }
@@ -1388,21 +1528,46 @@ static void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data
     }
 }
 
-void stack_assembler_emit_expr_number(stack_assembler *assembler, stack_ast_node *node) {
+static void stack_assembler_emit_expr(stack_assembler *assembler, stack_ast_expr *expr);
+
+static void stack_assembler_emit_expr_number(stack_assembler *assembler, stack_ast_node *node) {
     EMIT("    mov     rdi, %.*s", node->value.len, node->value.str);
     EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_DATA_INT)), STACK_DATA_INT);
 }
 
-void stack_assembler_emit_expr_boolean(stack_assembler *assembler, stack_ast_node *node) {
+static void stack_assembler_emit_expr_boolean(stack_assembler *assembler, stack_ast_node *node) {
     EMIT("    mov     rdi, %d", ds_string_slice_equals(&node->value, &SLICE_TRUE) ? 1 : 0);
     EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_DATA_BOOL)), STACK_DATA_BOOL);
 }
 
-void stack_assembler_emit_expr_name(stack_assembler *assembler, stack_ast_node *node) {
+static void stack_assembler_emit_expr_name(stack_assembler *assembler, stack_ast_node *node) {
     EMIT("    call    func.%lu ; %.*s", stack_assembler_func_map(assembler, &node->value), node->value.len, node->value.str);
 }
 
-void stack_assembler_emit_expr(stack_assembler *assembler, stack_ast_expr *expr) {
+static void stack_assembler_emit_expr_cond(stack_assembler *assembler, stack_ast_cond *cond) {
+    // TODO: actually implement - add a mapping for the if's
+
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    test    rax, rax");
+    EMIT("    jnz     .if");
+    EMIT(".else:");
+    for (unsigned int i = 0; i < cond->else_.count; i++) {
+        stack_ast_expr expr = {0};
+        ds_dynamic_array_get(&cond->else_, i, &expr);
+        stack_assembler_emit_expr(assembler, &expr);
+    }
+    EMIT("    jmp    .fi");
+    EMIT(".if:");
+    for (unsigned int i = 0; i < cond->if_.count; i++) {
+        stack_ast_expr expr = {0};
+        ds_dynamic_array_get(&cond->if_, i, &expr);
+        stack_assembler_emit_expr(assembler, &expr);
+    }
+    EMIT(".fi:");
+}
+
+static void stack_assembler_emit_expr(stack_assembler *assembler, stack_ast_expr *expr) {
     switch (expr->kind) {
     case STACK_AST_EXPR_NUMBER:
         stack_assembler_emit_expr_number(assembler, &expr->number);
@@ -1412,6 +1577,9 @@ void stack_assembler_emit_expr(stack_assembler *assembler, stack_ast_expr *expr)
         break;
     case STACK_AST_EXPR_NAME:
         stack_assembler_emit_expr_name(assembler, &expr->name);
+        break;
+    case STACK_AST_EXPR_COND:
+        stack_assembler_emit_expr_cond(assembler, &expr->cond);
         break;
     }
 }

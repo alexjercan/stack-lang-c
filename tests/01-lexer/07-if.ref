@@ -1,0 +1,9 @@
+BOOLEAN(true)
+IF
+NUMBER(0)
+NUMBER(1)
+NAME(+)
+ELSE
+NUMBER(1)
+FI
+<EOF>
