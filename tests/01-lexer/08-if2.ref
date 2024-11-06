@@ -1,0 +1,13 @@
+BOOLEAN(true)
+IF
+NUMBER(1)
+NUMBER(2)
+NAME(=)
+IF
+NAME(some)
+NAME(f)
+ELSE
+NUMBER(0)
+FI
+FI
+<EOF>
