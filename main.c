@@ -15,6 +15,7 @@
 #define SYMBOL_LPAREN '('
 #define SYMBOL_RPAREN ')'
 #define SYMBOL_NEWLINE '\n'
+#define SYMBOL_QUOTE '"'
 
 #define isname(c) ((isalnum((c)) || ispunct((c))) && (c) != SYMBOL_LPAREN && (c) != SYMBOL_RPAREN && (c) != SYMBOL_COMMA)
 
@@ -39,6 +40,7 @@ typedef enum {
     STACK_TOKEN_END,
     STACK_TOKEN_NUMBER,
     STACK_TOKEN_BOOLEAN,
+    STACK_TOKEN_STRING,
     STACK_TOKEN_IF,
     STACK_TOKEN_ELSE,
     STACK_TOKEN_FI,
@@ -58,6 +60,7 @@ static const char* stack_token_kind_map(stack_token_kind kind) {
     case STACK_TOKEN_END: return "END";
     case STACK_TOKEN_NUMBER: return "NUMBER";
     case STACK_TOKEN_BOOLEAN: return "BOOLEAN";
+    case STACK_TOKEN_STRING: return "STRING";
     case STACK_TOKEN_IF: return "IF";
     case STACK_TOKEN_ELSE: return "ELSE";
     case STACK_TOKEN_FI: return "FI";
@@ -156,6 +159,21 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
         }
 
         return STACK_TOKEN(STACK_TOKEN_NUMBER, slice, position);
+    } else if (lexer->ch == SYMBOL_QUOTE) {
+        // TODO: actually implement
+        ds_string_slice slice = { .str = (char *)lexer->buffer + lexer->pos, .len = 0 };
+
+        do {
+            slice.len += 1;
+            stack_lexer_read(lexer);
+            // need to check if ch == backslash
+            // need to check for EOF
+        } while (lexer->ch != SYMBOL_QUOTE);
+
+        slice.len += 1;
+        stack_lexer_read(lexer);
+
+        return STACK_TOKEN(STACK_TOKEN_STRING, slice, position);
     } else if (isname(lexer->ch)) {
         ds_string_slice slice = { .str = (char *)lexer->buffer + lexer->pos, .len = 0 };
 
