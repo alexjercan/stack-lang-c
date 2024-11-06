@@ -14,18 +14,15 @@ func !!! (ivec2) (int) in
     dup ivec2.y swp ivec2.x +
 end
 
-func out (int) () in
-    -- TODO: implement out
-    pop
-end
-
 func *** (int) (int) in
-    dup out
+    dup 6 = if dup 48 + out fi
+    dup 9 = if dup 48 + out fi
     dup 10 <
-    if 0 else 1 + *** fi
+    if 1 + *** else 0 fi
 end
 
 func main () (int) in
-    -- 42 5 ivec2 22 complicated dup complicated.n swp complicated.i !!! +
+    22 42 5 ivec2 complicated dup complicated.n swp complicated.i !!! + out
+    10 out
     1 ***
 end

@@ -93,13 +93,25 @@ compile phase.
 ##### 1.4.3. `rot`
 
 ```stack
-func rot (a, b, c) (c, a, b) in
+func rot (a, b, c) (b, c, a) in
     ...
 end
 ```
 
-The rotate function can be used to rotate the first three items on the stack.
-Rotate will take the first item and push it behind the first two.
+The rotate (clockwise) function can be used to rotate  the first three items on
+the stack. Rotate will take the last item and put it in the front.
+
+##### 1.4.3. `rot'`
+
+```stack
+func rot' (a, b, c) (c, a, b) in
+    ...
+end
+```
+
+The rotate' (counter clockwise) function can be used to rotate the first three
+items on the stack. Rotate' will take the first item and push it behind the
+first two.
 
 ##### 1.4.4. `pop`
 
@@ -141,10 +153,8 @@ func > (int, int) (bool) in
 end
 ```
 
-The `>` "greater than" function will compare two int values from the stack. You
-need to remember that functions take the arguments by pop'ing the stack, so you
-will need to provide them in the reverse order. That said, `0 1 >` will return
-`true`.
+The `>` "greater than" function will compare two int values from the stack.
+That said, `1 0 >` will return `true`.
 
 ##### 1.4.8. `<`
 
@@ -154,10 +164,8 @@ func < (int, int) (bool) in
 end
 ```
 
-The `<` "less than" function will compare two int values from the stack. You
-need to remember that functions take the arguments by pop'ing the stack, so you
-will need to provide them in the reverse order. That said, `1 0 <` will return
-`true`.
+The `<` "less than" function will compare two int values from the stack. That
+said, `0 1 <` will return `true`.
 
 ##### 1.4.9. `=`
 
@@ -168,9 +176,9 @@ end
 ```
 
 The `=` "equals" function will compare two int values from the stack. That
-said, `1 1 =` will return `true`. Here the order does not matter.
+said, `1 1 =` will return `true`.
 
-##### 1.4.10. `out`
+##### 1.4.10. `out` (TODO)
 
 ```stack
 func out (int) () in
@@ -226,28 +234,23 @@ end
 ```
 
 The `if` statement can be used to get a rudimentary for loop using recursion.
+This is an example of a function that shows the characters from `i` to `n`.
 
 ```stack
---  function that prints the first n numbers
-func show_n (int) () in
-    0 swp show_n'
-end
-
 -- this function will be used to recurse
 -- args: i, n
-func show_n' (int, int) () in
+func show_n (int, int) () in
     dup -- i, n, n
-    rot -- n, i, n
-    swp -- n, n, i
+    rot -- n, n, i
     dup -- n, n, i, i
-    rot -- n, i, n, i
-    < -- n, i, bool
+    rot -- n, i, i, n
+    > -- n, i, bool
     if -- n, i
         dup -- n, i, i
         out -- n, i
         1 + -- n, (i + 1)
         swp -- (i + 1), n
-        show_n' -- ()
+        show_n -- ()
     else -- n, i
         -- making sure the type is the same
         pop pop -- ()
