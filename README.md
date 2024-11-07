@@ -220,6 +220,21 @@ put it on the stack.
 -- "ell"
 ```
 
+##### 1.4.11. `show`
+
+```stack
+func show (int) (string) in
+    ...
+end
+```
+
+The show function will create a string with the value of an int.
+
+```stack
+5 show
+-- "5"
+```
+
 #### 1.5. Expressions
 
 Expressions in stack are used in the body of the functions as a sequence of
@@ -279,7 +294,8 @@ func show_n (int, int) () in
     > -- n, i, bool
     if -- n, i
         dup -- n, i, i
-        out -- n, i
+        show -- n, i, i
+        string.out -- n, i
         1 + -- n, (i + 1)
         swp -- (i + 1), n
         show_n -- ()
