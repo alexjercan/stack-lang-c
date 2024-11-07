@@ -962,6 +962,7 @@ void stack_ast_free(stack_ast_prog *prog) {
 #define STACK_FUNC_ROT "rot"
 #define STACK_FUNC_ROTP "rot'"
 #define STACK_FUNC_POP "pop"
+
 #define STACK_FUNC_PLUS "+"
 #define STACK_FUNC_MINUS "-"
 #define STACK_FUNC_STAR "*"
@@ -973,6 +974,7 @@ void stack_ast_free(stack_ast_prog *prog) {
 #define STACK_FUNC_OUT "string.out"
 #define STACK_FUNC_LEN "string.len"
 #define STACK_FUNC_CONCAT "string.concat"
+#define STACK_FUNC_SUBSTR "string.substr"
 
 typedef struct {
     // TODO: implement data structure for the context:
@@ -1903,6 +1905,66 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("");
     EMIT("    ; push t4");
     EMIT("    mov     rdi, [rbp - loc_4]");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 40                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // STRING SUBSTR STACK_FUNC_SUBSTR
+    EMIT(";");
+    EMIT(";");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_SUBSTR)), STACK_FUNC_SUBSTR);
+    EMIT(";");
+    EMIT(";   Returns the substring starting at int1 and having length int2 for string1");
+    EMIT(";");
+    EMIT(";	INPUT: (string, int, int)");
+    EMIT(";	OUTPUT:	(string)");
+    EMIT(";");
+    EMIT("String.substr:");
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 40                    ; allocate 5 local variables");
+    EMIT("");
+    EMIT("    ; t0 <- L");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, [rax]");
+    EMIT("    mov     qword [rbp - loc_0], rax");
+    EMIT("");
+    EMIT("    ; t1 <- (t0 + 7) >> 3 << 3 + 8");
+    EMIT("    mov     rax, qword [rbp - loc_0]");
+    EMIT("    add     rax, 7");
+    EMIT("    shr     rax, 3");
+    EMIT("    shl     rax, 3");
+    EMIT("    add     rax, 8");
+    EMIT("    mov     qword [rbp - loc_1], rax");
+    EMIT("");
+    EMIT("    ; t2 <- allocate(t1)");
+    EMIT("    mov     rdi, qword [rbp - loc_1]");
+    EMIT("    call    allocate");
+    EMIT("    mov     qword [rbp - loc_2], rax");
+    EMIT("");
+    EMIT("    ; t2.len <- t0");
+    EMIT("    mov     rax, qword [rbp - loc_2]");
+    EMIT("    mov     rdi, qword [rbp - loc_0]");
+    EMIT("    mov     [rax], rdi");
+    EMIT("");
+    EMIT("    ; t3 <- i");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, [rax]");
+    EMIT("    mov     qword [rbp - loc_3], rax");
+    EMIT("");
+    EMIT("    ; rdi = t2.str, rsi = s.str + t3, rdx = t0");
+    EMIT("    call    stack_pop");
+    EMIT("    lea     rsi, [rax + 8]");
+    EMIT("    add     rsi, qword [rbp - loc_3]");
+    EMIT("    mov     rax, qword [rbp - loc_2]");
+    EMIT("    lea     rdi, [rax + 8]");
+    EMIT("    mov     rdx, qword [rbp - loc_0]");
+    EMIT("    call    memcpy");
+    EMIT("");
+    EMIT("    ; push t2");
+    EMIT("    mov     rdi, [rbp - loc_2]");
     EMIT("    call    stack_push");
     EMIT("");
     EMIT("    add     rsp, 40                    ; deallocate local variables");

@@ -8,21 +8,16 @@ func ivec2.dot (ivec2, ivec2) (int) in
     +
 end
 
-data complicated (int n, ivec2 i)
-
-func !!! (ivec2) (int) in
-    dup ivec2.y swp ivec2.x +
+func abs (int) (int) in
+    dup 0 < if 0 swp - fi
 end
 
-func *** (int) (int) in
-    dup 6 = if dup 48 + out fi
-    dup 9 = if dup 48 + out fi
-    dup 10 <
-    if 1 + *** else 0 fi
+func mod (int, int) (int) in
+    dup rot' % dup 0 < if + else swp pop fi
 end
 
 func main () (int) in
-    22 42 5 ivec2 complicated dup complicated.n swp complicated.i !!! + out
-    10 out
-    1 ***
+    "Well, Hello, there" 6 7 string.substr
+    "World!\n" string.concat string.out
+    0
 end
