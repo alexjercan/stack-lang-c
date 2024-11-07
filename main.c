@@ -18,6 +18,8 @@
 #define SYMBOL_RPAREN ')'
 #define SYMBOL_NEWLINE '\n'
 #define SYMBOL_QUOTE '"'
+#define SYMBOL_BACKSLASH '\\'
+#define SYMBOL_NULL '\0'
 
 #define isname(c) ((isalnum((c)) || ispunct((c))) && (c) != SYMBOL_LPAREN && (c) != SYMBOL_RPAREN && (c) != SYMBOL_COMMA)
 
@@ -85,6 +87,8 @@ typedef struct {
     unsigned int pos;
     unsigned int read_pos;
     char ch;
+
+    ds_dynamic_array _strings; // char *
 } stack_lexer;
 
 static char stack_lexer_peek(stack_lexer *lexer) {
@@ -125,6 +129,8 @@ int stack_lexer_init(stack_lexer *lexer, const char *buffer, unsigned int buffer
 
     stack_lexer_read(lexer);
 
+    ds_dynamic_array_init(&lexer->_strings, sizeof(char *));
+
     return 0;
 }
 
@@ -162,20 +168,68 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
 
         return STACK_TOKEN(STACK_TOKEN_NUMBER, slice, position);
     } else if (lexer->ch == SYMBOL_QUOTE) {
-        // TODO: actually implement
-        ds_string_slice slice = { .str = (char *)lexer->buffer + lexer->pos, .len = 0 };
+        char *buffer = NULL;
+        ds_string_builder sb = {0};
+        ds_string_builder_init(&sb);
 
-        do {
-            slice.len += 1;
-            stack_lexer_read(lexer);
-            // need to check if ch == backslash
-            // need to check for EOF
-        } while (lexer->ch != SYMBOL_QUOTE);
-
-        slice.len += 1;
         stack_lexer_read(lexer);
 
-        return STACK_TOKEN(STACK_TOKEN_STRING, slice, position);
+        while (lexer->ch != SYMBOL_QUOTE) {
+            char ch = lexer->ch;
+
+            if (lexer->ch == EOF) {
+                // TODO: STACK_TOKEN_ILLEGAL with stack_token_error_kind enum
+                stack_lexer_skip_until_newline(lexer);
+                ds_string_builder_free(&sb);
+                return STACK_TOKEN(STACK_TOKEN_ILLEGAL, (ds_string_slice){0}, position);
+            }
+
+            if (lexer->ch == SYMBOL_NULL) {
+                // TODO: STACK_TOKEN_ILLEGAL with stack_token_error_kind enum
+                stack_lexer_skip_until_newline(lexer);
+                ds_string_builder_free(&sb);
+                return STACK_TOKEN(STACK_TOKEN_ILLEGAL, (ds_string_slice){0}, position);
+            }
+
+            if (lexer->ch == SYMBOL_NEWLINE) {
+                // TODO: STACK_TOKEN_ILLEGAL with stack_token_error_kind enum
+                stack_lexer_skip_until_newline(lexer);
+                ds_string_builder_free(&sb);
+                return STACK_TOKEN(STACK_TOKEN_ILLEGAL, (ds_string_slice){0}, position);
+            }
+
+            if (lexer->ch == SYMBOL_BACKSLASH) {
+                stack_lexer_read(lexer);
+
+                if (lexer->ch == 'n') {
+                    ch = '\n';
+                } else if (lexer->ch == 't') {
+                    ch = '\t';
+                } else if (lexer->ch == 'b') {
+                    ch = '\b';
+                } else if (lexer->ch == 'f') {
+                    ch = '\f';
+                } else {
+                    ch = lexer->ch;
+                }
+            }
+
+            if (ds_string_builder_appendc(&sb, ch) != 0) {
+                DS_PANIC(OOM_ERROR);
+            }
+
+            stack_lexer_read(lexer);
+        }
+
+        stack_lexer_read(lexer);
+
+        if (ds_string_builder_build(&sb, &buffer) != 0) {
+            DS_PANIC(OOM_ERROR);
+        }
+
+        ds_string_builder_free(&sb);
+        ds_dynamic_array_append(&lexer->_strings, &buffer);
+        return STACK_TOKEN(STACK_TOKEN_STRING, DS_STRING_SLICE(buffer), position);
     } else if (isname(lexer->ch)) {
         ds_string_slice slice = { .str = (char *)lexer->buffer + lexer->pos, .len = 0 };
 
@@ -255,6 +309,13 @@ void stack_lexer_free(stack_lexer *lexer) {
     lexer->pos = 0;
     lexer->read_pos = 0;
     lexer->ch = 0;
+
+    for (unsigned int i = 0; i < lexer->_strings.count; i++) {
+        char *buffer = NULL;
+        ds_dynamic_array_get(&lexer->_strings, i, &buffer);
+        DS_FREE(NULL, buffer);
+    }
+    ds_dynamic_array_free(&lexer->_strings);
 }
 
 /// PARSER
@@ -465,6 +526,7 @@ static void stack_ast_data_free(stack_ast_data *data) {
 typedef enum {
     STACK_AST_EXPR_NUMBER,
     STACK_AST_EXPR_BOOLEAN,
+    STACK_AST_EXPR_STRING,
     STACK_AST_EXPR_NAME,
     STACK_AST_EXPR_COND,
 } stack_ast_expr_kind;
@@ -479,6 +541,7 @@ typedef struct {
     union {
         stack_ast_node number;
         stack_ast_node boolean;
+        stack_ast_node string;
         stack_ast_node name;
         stack_ast_cond cond;
     };
@@ -486,6 +549,7 @@ typedef struct {
 
 #define STACK_AST_EXPR_NUMBER(node) (stack_ast_expr){ .kind = STACK_AST_EXPR_NUMBER, .number = (node)}
 #define STACK_AST_EXPR_BOOLEAN(node) (stack_ast_expr){ .kind = STACK_AST_EXPR_BOOLEAN, .boolean = (node)}
+#define STACK_AST_EXPR_STRING(node) (stack_ast_expr){ .kind = STACK_AST_EXPR_STRING, .string = (node)}
 #define STACK_AST_EXPR_NAME(node) (stack_ast_expr){ .kind = STACK_AST_EXPR_NAME, .name = (node)}
 #define STACK_AST_EXPR_COND(node) (stack_ast_expr){ .kind = STACK_AST_EXPR_COND, .cond = (node)}
 
@@ -566,6 +630,10 @@ static int stack_parser_parse_expr(stack_parser *parser, stack_ast_expr *expr) {
         stack_parser_read(parser);
         *expr = STACK_AST_EXPR_BOOLEAN(STACK_AST_NODE(token.value, parser, token.pos));
         return_defer(0);
+    case STACK_TOKEN_STRING:
+        stack_parser_read(parser);
+        *expr = STACK_AST_EXPR_STRING(STACK_AST_NODE(token.value, parser, token.pos));
+        return_defer(0);
     case STACK_TOKEN_IF: {
         stack_ast_cond cond = {0};
         if (stack_parser_parse_cond(parser, &cond) != 0) {
@@ -614,6 +682,12 @@ static void stack_ast_expr_dump(stack_ast_expr *expr, FILE* stdout, unsigned int
         fprintf(stdout, "%*s%.*s\n", indent, "", slice.len, slice.str);
         break;
     }
+    case STACK_AST_EXPR_STRING: {
+        ds_string_slice slice = {0};
+        slice = expr->string.value;
+        fprintf(stdout, "%*s%.*s\n", indent, "", slice.len, slice.str);
+        break;
+    }
     case STACK_AST_EXPR_NAME: {
         ds_string_slice slice = {0};
         slice = expr->name.value;
@@ -651,6 +725,9 @@ static void stack_ast_expr_free(stack_ast_expr *expr) {
         break;
     case STACK_AST_EXPR_BOOLEAN:
         stack_ast_node_free(&expr->boolean);
+        break;
+    case STACK_AST_EXPR_STRING:
+        stack_ast_node_free(&expr->string);
         break;
     case STACK_AST_EXPR_COND:
         stack_ast_cond_free(&expr->cond);
@@ -877,6 +954,7 @@ void stack_ast_free(stack_ast_prog *prog) {
 
 #define STACK_DATA_INT "int"
 #define STACK_DATA_BOOL "bool"
+#define STACK_DATA_STRING "string"
 
 #define STACK_FUNC_MAIN "main"
 #define STACK_FUNC_DUP "dup"
@@ -884,12 +962,17 @@ void stack_ast_free(stack_ast_prog *prog) {
 #define STACK_FUNC_ROT "rot"
 #define STACK_FUNC_ROTP "rot'"
 #define STACK_FUNC_POP "pop"
-#define STACK_FUNC_OUT "out"
 #define STACK_FUNC_PLUS "+"
+#define STACK_FUNC_MINUS "-"
 #define STACK_FUNC_STAR "*"
+#define STACK_FUNC_DIV "/"
+#define STACK_FUNC_MOD "%"
 #define STACK_FUNC_GT ">"
 #define STACK_FUNC_LT "<"
 #define STACK_FUNC_EQ "="
+#define STACK_FUNC_OUT "string.out"
+#define STACK_FUNC_LEN "string.len"
+#define STACK_FUNC_CONCAT "string.concat"
 
 typedef struct {
     // TODO: implement data structure for the context:
@@ -942,10 +1025,12 @@ void stack_typechecker_free(stack_typechecker *typechecker) {
 
 #define STACK_CONST_INT STACK_CONST "_" STACK_DATA_INT
 #define STACK_CONST_BOOL STACK_CONST "_" STACK_DATA_BOOL
+#define STACK_CONST_STRING STACK_CONST "_" STACK_DATA_STRING
 
 typedef enum {
     STACK_CONST_EXPR_INT,
     STACK_CONST_EXPR_BOOL,
+    STACK_CONST_EXPR_STRING,
 } stack_const_expr_kind;
 
 typedef struct {
@@ -960,7 +1045,7 @@ typedef struct {
     ds_dynamic_array constants; // stack_const_expr
     unsigned int if_counter;
 
-    ds_dynamic_array _data_bufs; // char *
+    ds_dynamic_array _buffers; // char *
     FILE *stdout;
 } stack_assembler;
 
@@ -969,7 +1054,7 @@ void stack_assembler_init(stack_assembler *assembler, FILE *stdout) {
     ds_dynamic_array_init(&assembler->constants, sizeof(stack_const_expr));
     assembler->if_counter = 0;
 
-    ds_dynamic_array_init(&assembler->_data_bufs, sizeof(char *));
+    ds_dynamic_array_init(&assembler->_buffers, sizeof(char *));
     assembler->stdout = stdout;
 }
 
@@ -978,12 +1063,12 @@ void stack_assembler_free(stack_assembler *assembler) {
     ds_dynamic_array_free(&assembler->constants);
     assembler->if_counter = 0;
 
-    for (unsigned int i = 0; i < assembler->_data_bufs.count; i++) {
+    for (unsigned int i = 0; i < assembler->_buffers.count; i++) {
         char *buffer = NULL;
-        ds_dynamic_array_get(&assembler->_data_bufs, i, &buffer);
+        ds_dynamic_array_get(&assembler->_buffers, i, &buffer);
         DS_FREE(NULL, buffer);
     }
-    ds_dynamic_array_free(&assembler->_data_bufs);
+    ds_dynamic_array_free(&assembler->_buffers);
     assembler->stdout = NULL;
 }
 
@@ -1017,6 +1102,7 @@ static unsigned int stack_assembler_constants_map(stack_assembler *assembler, st
 
 // TODO: maybe refactor big chunks of EMIT's into things like `EMIT_POP`
 #define EMIT(format, ...) fprintf(assembler->stdout, format "\n", ##__VA_ARGS__)
+#define EMIT_N(format, ...) fprintf(assembler->stdout, format, ##__VA_ARGS__)
 
 static void stack_assembler_emit_entry(stack_assembler *assembler) {
     EMIT("section '.data' writeable");
@@ -1202,6 +1288,37 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
+    EMIT(";");
+    EMIT(";");
+    EMIT("; memcpy");
+    EMIT(";   INPUT:");
+    EMIT(";       rdi points to destination");
+    EMIT(";       rsi points to source");
+    EMIT(";       rdx contains the number of bytes to copy");
+    EMIT(";   STACK: empty");
+    EMIT(";   OUTPUT: nothing");
+    EMIT(";");
+    EMIT("memcpy:");
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT(".next_byte:");
+    EMIT("    cmp     rdx, 0                     ; check if done");
+    EMIT("    jle     .done");
+    EMIT("");
+    EMIT("    mov     al, byte [rsi]             ; get byte from self");
+    EMIT("    mov     byte [rdi], al             ; copy byte to new object");
+    EMIT("");
+    EMIT("    inc     rdi                        ; increment destination");
+    EMIT("    inc     rsi                        ; increment source");
+    EMIT("    dec     rdx                        ; decrement count");
+    EMIT("");
+    EMIT("    jmp .next_byte");
+    EMIT(".done:");
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
 }
 
 static void stack_assembler_emit_keywords(stack_assembler *assembler) {
@@ -1369,7 +1486,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: rdi is the int value");
     EMIT(";   OUTPUT: nothing");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_DATA_INT)), STACK_DATA_INT);
+    EMIT("func.%s:", STACK_DATA_INT);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1394,31 +1511,6 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
-    // OUT INT
-    EMIT("");
-    EMIT(";");
-    EMIT(";");
-    EMIT("; out int");
-    EMIT(";");
-    EMIT(";   INPUT: nothing");
-    EMIT(";   OUTPUT: nothing");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_OUT)), STACK_FUNC_OUT);
-    EMIT("    push    rbp                        ; save return address");
-    EMIT("    mov     rbp, rsp                   ; set up stack frame");
-    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
-    EMIT("");
-    EMIT("    call    stack_pop");
-    EMIT("");
-    EMIT("    mov     rdi, 1");
-    EMIT("    mov     rsi, rax");
-    EMIT("    mov     rdx, 1");
-    EMIT("    mov     rax, 1");
-    EMIT("    syscall");
-    EMIT("");
-    EMIT("    add     rsp, 16                    ; deallocate local variables");
-    EMIT("    pop     rbp                        ; restore return address");
-    EMIT("    ret");
-    EMIT("");
     // PLUS
     EMIT(";");
     EMIT(";");
@@ -1436,11 +1528,38 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    push    rax");
     EMIT("");
     EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    pop     rdi");
+    EMIT("");
+    EMIT("    add     rdi, rax");
+    EMIT("    call    func.%s", STACK_DATA_INT);
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // SUB
+    EMIT(";");
+    EMIT(";");
+    EMIT("; sub");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_MINUS)), STACK_FUNC_MINUS);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    push    rax");
+    EMIT("");
+    EMIT("    call    stack_pop");
     EMIT("    mov     rdi, qword [rax]");
     EMIT("    pop     rax");
     EMIT("");
-    EMIT("    add     rdi, rax");
-    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_DATA_INT)), STACK_DATA_INT);
+    EMIT("    sub     rdi, rax");
+    EMIT("    call    func.%s", STACK_DATA_INT);
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -1463,12 +1582,70 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    push    rax");
     EMIT("");
     EMIT("    call    stack_pop");
-    EMIT("    mov     rdi, qword [rax]");
-    EMIT("    pop     rax");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    pop     rdi");
     EMIT("");
     EMIT("    mul     rdi");
     EMIT("    mov     rdi, rax");
-    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_DATA_INT)), STACK_DATA_INT);
+    EMIT("    call    func.%s", STACK_DATA_INT);
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // DIV
+    EMIT(";");
+    EMIT(";");
+    EMIT("; div");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_DIV)), STACK_FUNC_DIV);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    push    rax");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    pop     rdi");
+    EMIT("");
+    EMIT("    cqo");
+    EMIT("    idiv    rdi");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    func.%s", STACK_DATA_INT);
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // MOD
+    EMIT(";");
+    EMIT(";");
+    EMIT("; mod");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_MOD)), STACK_FUNC_MOD);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    push    rax");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    pop     rdi");
+    EMIT("");
+    EMIT("    cqo");
+    EMIT("    idiv    rdi");
+    EMIT("    mov     rdi, rdx");
+    EMIT("    call    func.%s", STACK_DATA_INT);
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -1499,7 +1676,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    and     al, 1");
     EMIT("    movzx   rax, al");
     EMIT("    mov     rdi, rax");
-    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_DATA_BOOL)), STACK_DATA_BOOL);
+    EMIT("    call    func.%s", STACK_DATA_BOOL);
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -1530,7 +1707,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    and     al, 1");
     EMIT("    movzx   rax, al");
     EMIT("    mov     rdi, rax");
-    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_DATA_BOOL)), STACK_DATA_BOOL);
+    EMIT("    call    func.%s", STACK_DATA_BOOL);
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -1561,7 +1738,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    and     al, 1");
     EMIT("    movzx   rax, al");
     EMIT("    mov     rdi, rax");
-    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_DATA_BOOL)), STACK_DATA_BOOL);
+    EMIT("    call    func.%s", STACK_DATA_BOOL);
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -1574,7 +1751,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: rdi is the bool value");
     EMIT(";   OUTPUT: nothing");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_DATA_BOOL)), STACK_DATA_BOOL);
+    EMIT("func.%s:", STACK_DATA_BOOL);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -1599,6 +1776,156 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
+    EMIT("");
+    // STRING OUT
+    EMIT(";");
+    EMIT(";");
+    EMIT("; out");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_OUT)), STACK_FUNC_OUT);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    ; t0 <- string");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     qword [rbp - loc_0], rax");
+    EMIT("");
+    EMIT("    ; rdx <- t0.len");
+    EMIT("    mov     rdx, [rbp - loc_0]");
+    EMIT("    mov     rdx, [rdx]");
+    EMIT("");
+    EMIT("    ; rsi <- t0.str");
+    EMIT("    mov     rsi, [rbp - loc_0]");
+    EMIT("    lea     rsi, [rsi + 8]");
+    EMIT("");
+    EMIT("    mov     rdi, 1");
+    EMIT("    mov     rax, 1");
+    EMIT("    syscall");
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // STRING LENGTH
+    EMIT(";");
+    EMIT(";");
+    EMIT("; string.len");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_LEN)), STACK_FUNC_LEN);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rdi, [rax]");
+    EMIT("    call    func.%s", STACK_DATA_INT);
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // STRING CONCAT
+    EMIT(";");
+    EMIT(";");
+    EMIT("; string.concat");
+    EMIT(";");
+    EMIT(";   Returns a the concatenation of arg1 and arg2");
+    EMIT(";");
+    EMIT(";   INPUT: (string, string)");
+    EMIT(";   OUTPUT: (string)");
+    EMIT(";");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_CONCAT)), STACK_FUNC_CONCAT);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 40                    ; allocate 5 local variables");
+    EMIT("");
+    EMIT("    ; t0 <- s1.len");
+    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_SWP)), STACK_FUNC_SWP);
+    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_DUP)), STACK_FUNC_DUP);
+    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_LEN)), STACK_FUNC_LEN);
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, [rax]");
+    EMIT("    mov     qword [rbp - loc_0], rax");
+    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_SWP)), STACK_FUNC_SWP);
+    EMIT("");
+    EMIT("    ; t1 <- s2.len");
+    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_DUP)), STACK_FUNC_DUP);
+    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_LEN)), STACK_FUNC_LEN);
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, [rax]");
+    EMIT("    mov     qword [rbp - loc_1], rax");
+    EMIT("");
+    EMIT("    ; t2 <- t0 + t1");
+    EMIT("    mov     rax, qword [rbp - loc_0]");
+    EMIT("    add     rax, qword [rbp - loc_1]");
+    EMIT("    mov     qword [rbp - loc_2], rax");
+    EMIT("");
+    EMIT("    ; t3 <- (t2 + 7) >> 3 << 3 + 8");
+    EMIT("    mov     rax, qword [rbp - loc_2]");
+    EMIT("    add     rax, 7");
+    EMIT("    shr     rax, 3");
+    EMIT("    shl     rax, 3");
+    EMIT("    add     rax, 8");
+    EMIT("    mov     qword [rbp - loc_3], rax");
+    EMIT("");
+    EMIT("    ; t4 <- allocate(t3)");
+    EMIT("    mov     rdi, qword [rbp - loc_3]");
+    EMIT("    call    allocate");
+    EMIT("    mov     qword [rbp - loc_4], rax");
+    EMIT("");
+    EMIT("    ; t4.len <- t2");
+    EMIT("    mov     rax, qword [rbp - loc_4]");
+    EMIT("    mov     rdi, qword [rbp - loc_2]");
+    EMIT("    mov     [rax], rdi");
+    EMIT("");
+    EMIT("    ; rdi = t4.str, rsi = s1.str, rdx = t0");
+    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_SWP)), STACK_FUNC_SWP);
+    EMIT("    call    stack_pop");
+    EMIT("    lea     rsi, [rax + 8]");
+    EMIT("    mov     rax, qword [rbp - loc_4]");
+    EMIT("    lea     rdi, [rax + 8]");
+    EMIT("    mov     rdx, qword [rbp - loc_0]");
+    EMIT("    call    memcpy");
+    EMIT("");
+    EMIT("    ; rdi = t4.str + t0, rsi = s2.str, rdx = t1");
+    EMIT("    call    stack_pop");
+    EMIT("    lea     rsi, [rax + 8]");
+    EMIT("    mov     rax, qword [rbp - loc_4]");
+    EMIT("    lea     rdi, [rax + 8]");
+    EMIT("    add     rdi, qword [rbp - loc_0]");
+    EMIT("    mov     rdx, qword [rbp - loc_1]");
+    EMIT("    call    memcpy");
+    EMIT("");
+    EMIT("    ; push t4");
+    EMIT("    mov     rdi, [rbp - loc_4]");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 40                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+}
+
+int ds_itoa(int number, char **buffer) {
+    int result = 0;
+    ds_string_builder sb = {0};
+    ds_string_builder_init(&sb);
+
+    if (ds_string_builder_append(&sb, "%d", number) != 0) {
+        return_defer(1);
+    }
+    if (ds_string_builder_build(&sb, buffer) != 0) {
+        return_defer(1);
+    }
+
+defer:
+    ds_string_builder_free(&sb);
+    return result;
 }
 
 static void stack_assembler_emit_constants(stack_assembler *assembler) {
@@ -1616,6 +1943,25 @@ static void stack_assembler_emit_constants(stack_assembler *assembler) {
         case STACK_CONST_EXPR_BOOL:
             EMIT("%s.%d dq %d", STACK_CONST_BOOL, i, ds_string_slice_equals(&expr.value, &SLICE_TRUE) ? 1 : 0);
             break;
+        case STACK_CONST_EXPR_STRING: {
+            unsigned int count = expr.value.len;
+
+            EMIT("%s.%d dq %d", STACK_CONST_STRING, i, count);
+            EMIT_N(" db ");
+            if (count == 0) {
+                count = 1;
+                EMIT_N(" 0");
+            }
+            for (unsigned int j = 0; j < expr.value.len; j++) {
+                EMIT_N("%d", expr.value.str[j]);
+                if (j < expr.value.len - 1) EMIT_N(",");
+            }
+            for (unsigned int j = 0; j < (STACK_WORD_SZ - count % STACK_WORD_SZ); j++) {
+                EMIT_N(",0");
+            }
+            EMIT("");
+            break;
+        }
         }
     }
 }
@@ -1667,7 +2013,7 @@ static void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data
         if (ds_string_builder_build(&sb, &buffer) != 0) {
             DS_PANIC(OOM_ERROR);
         }
-        ds_dynamic_array_append(&assembler->_data_bufs, &buffer);
+        ds_dynamic_array_append(&assembler->_buffers, &buffer);
 
         slice = DS_STRING_SLICE(buffer);
 
@@ -1705,6 +2051,13 @@ static void stack_assembler_emit_expr_boolean(stack_assembler *assembler, stack_
     EMIT("    call    stack_push");
 }
 
+static void stack_assembler_emit_expr_string(stack_assembler *assembler, stack_ast_node *node) {
+    unsigned int constant_label = stack_assembler_constants_map(assembler, &STACK_CONST_EXPR(STACK_CONST_EXPR_STRING, node->value));
+
+    EMIT("    mov     rdi, %s.%d", STACK_CONST_STRING, constant_label);
+    EMIT("    call    stack_push");
+}
+
 static void stack_assembler_emit_expr_name(stack_assembler *assembler, stack_ast_node *node) {
     EMIT("    call    func.%lu ; %.*s", stack_assembler_func_map(assembler, &node->value), node->value.len, node->value.str);
 }
@@ -1739,6 +2092,9 @@ static void stack_assembler_emit_expr(stack_assembler *assembler, stack_ast_expr
         break;
     case STACK_AST_EXPR_BOOLEAN:
         stack_assembler_emit_expr_boolean(assembler, &expr->boolean);
+        break;
+    case STACK_AST_EXPR_STRING:
+        stack_assembler_emit_expr_string(assembler, &expr->string);
         break;
     case STACK_AST_EXPR_NAME:
         stack_assembler_emit_expr_name(assembler, &expr->name);
@@ -1903,16 +2259,12 @@ int main(int argc, char **argv) {
     }
 
     stack_lexer_init(&lexer, buffer, buffer_len);
-    stack_parser_init(&parser, lexer, args.filename);
-    stack_context_init(&context);
-    stack_typechecker_init(&typechecker, args.filename);
-    stack_assembler_init(&assembler, stdout);
-
     if (args.lexer) {
         stack_lexer_dump(&lexer);
         return_defer(0);
     }
 
+    stack_parser_init(&parser, lexer, args.filename);
     if (stack_parser_parse(&parser, &prog) != 0) {
         return_defer(1);
     }
@@ -1921,6 +2273,10 @@ int main(int argc, char **argv) {
         stack_ast_dump(&prog, stdout);
         return_defer(0);
     }
+
+    stack_context_init(&context);
+    stack_typechecker_init(&typechecker, args.filename);
+    stack_assembler_init(&assembler, stdout);
 
     // TODO: dependency graph based on `import` and merge all the ASTs
 
@@ -1941,6 +2297,7 @@ defer:
     stack_assembler_free(&assembler);
     stack_ast_free(&prog);
     stack_parser_free(&parser);
+    stack_lexer_free(&lexer);
     if (buffer != NULL) DS_FREE(NULL, buffer);
     return result;
 }

@@ -1,2 +1,3 @@
-STRING("Hello, \"World\"\n")
+STRING(Hello, "World"
+)
 <EOF>
