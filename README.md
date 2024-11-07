@@ -37,7 +37,7 @@ The `bool` data type is also provided by the stack compiler. It can have the
 values of `true` and `false`. These can be thought as the constructors of the
 boolean type.
 
-##### 1.3.3. string (TODO)
+##### 1.3.3. string
 
 The `string` data type is part of the stack compiler. String in stack are
 defined using the `"` (quotes). Strings can be escaped using the `\`
@@ -178,15 +178,47 @@ end
 The `=` "equals" function will compare two int values from the stack. That
 said, `1 1 =` will return `true`.
 
-##### 1.4.10. `out` (TODO)
+##### 1.4.10. `string.out`
 
 ```stack
-func out (int) () in
+func string.out (string) () in
     ...
 end
 ```
 
-The out function will print an `int` to stdout.
+The out function will print a `string` to stdout.
+
+##### 1.4.11. `string.concat`
+
+```stack
+func string.concat (string, string) (string) in
+    ...
+end
+```
+
+The concat function will print concatenate the two strings in order and put the
+result on the stack.
+
+```stack
+"Hello, " "World\n" string.concat
+-- "Hello, World\n"
+```
+
+##### 1.4.11. `string.substr`
+
+```stack
+func string.substr (string, int, int) (string) in
+    ...
+end
+```
+
+The substr function will create a substring starting at `i` with length `L` and
+put it on the stack.
+
+```stack
+"Hello, World\n" 1 3 string.substr
+-- "ell"
+```
 
 #### 1.5. Expressions
 
