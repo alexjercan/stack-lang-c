@@ -32,6 +32,7 @@
 #define SLICE_IF DS_STRING_SLICE("if")
 #define SLICE_ELSE DS_STRING_SLICE("else")
 #define SLICE_FI DS_STRING_SLICE("fi")
+#define SLICE_IMPORT DS_STRING_SLICE("@import")
 
 typedef enum {
     STACK_ILLEGAL_NO_ERROR,
@@ -53,6 +54,7 @@ static const char *stack_token_error_kind_map(stack_token_error_kind kind) {
 }
 
 typedef enum {
+    STACK_TOKEN_IMPORT,
     STACK_TOKEN_DATA,
     STACK_TOKEN_NAME,
     STACK_TOKEN_LPAREN,
@@ -73,6 +75,7 @@ typedef enum {
 
 static const char* stack_token_kind_map(stack_token_kind kind) {
     switch (kind) {
+    case STACK_TOKEN_IMPORT: return "IMPORT";
     case STACK_TOKEN_DATA: return "DATA";
     case STACK_TOKEN_NAME: return "NAME";
     case STACK_TOKEN_LPAREN: return "(";
@@ -103,7 +106,7 @@ typedef struct {
 #define STACK_TOKEN_ERROR(v, p, e) (stack_token){.kind = STACK_TOKEN_ILLEGAL, .value = (v), .pos = (p), .error = (e)}
 
 typedef struct {
-    const char *buffer;
+    char *buffer;
     unsigned int buffer_len;
     unsigned int pos;
     unsigned int read_pos;
@@ -141,7 +144,7 @@ static void stack_lexer_skip_until_newline(stack_lexer *lexer) {
     }
 }
 
-int stack_lexer_init(stack_lexer *lexer, const char *buffer, unsigned int buffer_len) {
+int stack_lexer_init(stack_lexer *lexer, char *buffer, unsigned int buffer_len) {
     lexer->buffer = buffer;
     lexer->buffer_len = buffer_len;
     lexer->pos = 0;
@@ -256,7 +259,9 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
             stack_lexer_read(lexer);
         }
 
-        if (ds_string_slice_equals(&slice, &SLICE_FUNC)) {
+        if (ds_string_slice_equals(&slice, &SLICE_IMPORT)) {
+            return STACK_TOKEN(STACK_TOKEN_IMPORT, (ds_string_slice){0}, position);
+        } else if (ds_string_slice_equals(&slice, &SLICE_FUNC)) {
             return STACK_TOKEN(STACK_TOKEN_FUNC, (ds_string_slice){0}, position);
         } else if (ds_string_slice_equals(&slice, &SLICE_IN)) {
             return STACK_TOKEN(STACK_TOKEN_IN, (ds_string_slice){0}, position);
@@ -340,7 +345,7 @@ void stack_lexer_free(stack_lexer *lexer) {
 /// PARSER
 
 typedef struct {
-    stack_lexer lexer;
+    stack_lexer *lexer;
     stack_token tok;
     stack_token next_tok;
 
@@ -354,12 +359,12 @@ static stack_token stack_parser_peek(stack_parser *parser) {
 static stack_token stack_parser_read(stack_parser *parser) {
     parser->tok = stack_parser_peek(parser);
 
-    parser->next_tok = stack_lexer_next(&parser->lexer);
+    parser->next_tok = stack_lexer_next(parser->lexer);
 
     return parser->tok;
 }
 
-int stack_parser_init(stack_parser *parser, stack_lexer lexer, char *filename) {
+int stack_parser_init(stack_parser *parser, stack_lexer *lexer, char *filename) {
     parser->lexer = lexer;
     parser->tok = (stack_token){0};
     parser->next_tok = (stack_token){0};
@@ -373,7 +378,7 @@ int stack_parser_init(stack_parser *parser, stack_lexer lexer, char *filename) {
 static void stack_parser_show_errorf(stack_parser *parser, const char *format, ...) {
     unsigned int line = 0;
     unsigned int col = 0;
-    stack_lexer_pos_to_lc(&parser->lexer, parser->tok.pos, &line, &col);
+    stack_lexer_pos_to_lc(parser->lexer, parser->tok.pos, &line, &col);
 
     if (parser->filename != NULL) {
         fprintf(stderr, "%s", parser->filename);
@@ -418,7 +423,9 @@ static void stack_parser_show_errorf(stack_parser *parser, const char *format, .
       stack_token_kind_map(expected3), stack_token_kind_map(got))
 
 void stack_parser_free(stack_parser *parser) {
-    stack_lexer_free(&parser->lexer);
+    parser->lexer = NULL;
+
+    parser->lexer = NULL;
     parser->tok = (stack_token){0};
     parser->next_tok = (stack_token){0};
 
@@ -875,15 +882,48 @@ static void stack_ast_func_free(stack_ast_func *func) {
 }
 
 typedef struct {
+    stack_ast_node name;
+} stack_ast_import;
+
+static int stack_parser_parse_import(stack_parser *parser, stack_ast_import *import) {
+    stack_token token = {0};
+    int result = 0;
+
+    token = stack_parser_read(parser);
+    if (token.kind != STACK_TOKEN_IMPORT) {
+        stack_parser_show_expected(parser, STACK_TOKEN_IMPORT, token.kind);
+        return_defer(1);
+    }
+
+    token = stack_parser_read(parser);
+    if (token.kind != STACK_TOKEN_NAME) {
+        stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
+        return_defer(1);
+    }
+    import->name = STACK_AST_NODE(token.value, parser, token.pos);
+
+defer:
+    return result;
+}
+
+static void stack_ast_import_free(stack_ast_import *import) {
+    stack_ast_node_free(&import->name);
+}
+
+typedef struct {
     ds_dynamic_array datas; // stack_ast_data
     ds_dynamic_array funcs; // stack_ast_func
+    ds_dynamic_array imports; // stack_ast_import
 } stack_ast_prog;
+
+void stack_ast_init(stack_ast_prog *prog) {
+    ds_dynamic_array_init(&prog->datas, sizeof(stack_ast_data));
+    ds_dynamic_array_init(&prog->funcs, sizeof(stack_ast_func));
+    ds_dynamic_array_init(&prog->imports, sizeof(stack_ast_import));
+}
 
 int stack_parser_parse(stack_parser *parser, stack_ast_prog *prog) {
     int result = 0;
-
-    ds_dynamic_array_init(&prog->datas, sizeof(stack_ast_data));
-    ds_dynamic_array_init(&prog->funcs, sizeof(stack_ast_func));
 
     while (true) {
         stack_token token = stack_parser_peek(parser);
@@ -895,6 +935,10 @@ int stack_parser_parse(stack_parser *parser, stack_ast_prog *prog) {
             stack_ast_func func = {0};
             stack_parser_parse_func(parser, &func);
             ds_dynamic_array_append(&prog->funcs, &func);
+        } else if (token.kind == STACK_TOKEN_IMPORT) {
+            stack_ast_import import = {0};
+            stack_parser_parse_import(parser, &import);
+            ds_dynamic_array_append(&prog->imports, &import);
         } else if (token.kind == STACK_TOKEN_EOF) {
             break;
         } else {
@@ -909,6 +953,14 @@ defer:
 
 void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
     const int indent = INDENT_INCREMENT;
+
+    for (unsigned int i = 0; i < prog->imports.count; i++) {
+        stack_ast_import import = {0};
+        ds_dynamic_array_get(&prog->imports, i, &import);
+
+        fprintf(stdout, "@import %.*s\n", import.name.value.len, import.name.value.str);
+    }
+    fprintf(stdout, "\n");
 
     for (unsigned int i = 0; i < prog->datas.count; i++) {
         stack_ast_data data = {0};
@@ -967,6 +1019,100 @@ void stack_ast_free(stack_ast_prog *prog) {
         stack_ast_func_free(func);
     }
     ds_dynamic_array_free(&prog->funcs);
+
+    for (unsigned int i = 0; i < prog->imports.count; i++) {
+        stack_ast_import *import = NULL;
+        ds_dynamic_array_get_ref(&prog->imports, i, (void **)&import);
+        stack_ast_import_free(import);
+    }
+    ds_dynamic_array_free(&prog->imports);
+}
+
+/// PREPROCESSOR
+
+typedef struct {
+    ds_dynamic_array _lexers; // stack_lexer *
+    ds_dynamic_array _parsers; // stack_parser *
+    ds_dynamic_array _buffers; // char *
+} stack_preprocessor;
+
+void stack_preprocessor_init(stack_preprocessor *preprocessor) {
+    ds_dynamic_array_init(&preprocessor->_lexers, sizeof(stack_lexer));
+    ds_dynamic_array_init(&preprocessor->_parsers, sizeof(stack_parser));
+    ds_dynamic_array_init(&preprocessor->_buffers, sizeof(char *));
+}
+
+void stack_preprocessor_free(stack_preprocessor *preprocessor) {
+    for (unsigned int i = 0; i < preprocessor->_lexers.count; i++) {
+        stack_lexer lexer = {0};
+        ds_dynamic_array_get(&preprocessor->_lexers, i, &lexer);
+        stack_lexer_free(&lexer);
+    }
+    ds_dynamic_array_free(&preprocessor->_lexers);
+
+    for (unsigned int i = 0; i < preprocessor->_parsers.count; i++) {
+        stack_parser parser = {0};
+        ds_dynamic_array_get(&preprocessor->_parsers, i, &parser);
+        stack_parser_free(&parser);
+    }
+    ds_dynamic_array_free(&preprocessor->_parsers);
+
+    for (unsigned int i = 0; i < preprocessor->_buffers.count; i++) {
+        char *buffer = NULL;
+        ds_dynamic_array_get(&preprocessor->_buffers, i, &buffer);
+        DS_FREE(NULL, buffer);
+    }
+    ds_dynamic_array_free(&preprocessor->_buffers);
+}
+
+int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *prog) {
+    ds_string_builder sb = {0};
+    unsigned int buffer_len = 0;
+    int result = 0;
+
+    // TODO: dependency graph based on `import` and merge all the ASTs
+    // TODO: BUILD DEP GRAPH
+    // TODO: Make sure no cycle import
+    // TODO: memory hadling
+    for (unsigned int i = 0; i < prog->imports.count; i++) {
+        char *buffer = NULL;
+        char *filename = NULL;
+        stack_lexer lexer = {0};
+        stack_parser parser = {0};
+        stack_ast_import import = {0};
+
+        ds_dynamic_array_get(&prog->imports, i, &import);
+
+        ds_string_builder_init(&sb);
+        ds_string_builder_append(&sb, "lib/%.*s.sl", import.name.value.len, import.name.value.str);
+        ds_string_builder_build(&sb, &filename);
+        ds_dynamic_array_append(&preprocessor->_buffers, &filename);
+
+        buffer_len = ds_io_read(filename, &buffer, "r");
+        if (buffer_len < 0) {
+            DS_LOG_ERROR("Failed to read from file: %s", filename);
+            return_defer(1);
+        }
+
+        ds_dynamic_array_append(&preprocessor->_buffers, &buffer);
+
+        stack_lexer_init(&lexer, buffer, buffer_len);
+
+        stack_parser_init(&parser, &lexer, filename);
+        ds_dynamic_array_append(&preprocessor->_parsers, &parser);
+
+        if (stack_parser_parse(&parser, prog) != 0) {
+            return_defer(1);
+        }
+        // TODO: Fix this by using references better
+        ds_dynamic_array_append(&preprocessor->_lexers, &lexer);
+
+        ds_string_builder_free(&sb);
+    }
+
+defer:
+    ds_string_builder_free(&sb);
+    return result;
 }
 
 /// TYPE CHECKER
@@ -2322,6 +2468,7 @@ int main(int argc, char **argv) {
     t_args args = {0};
     stack_lexer lexer = {0};
     stack_parser parser = {0};
+    stack_preprocessor preprocessor = {0};
     stack_typechecker typechecker = {0};
     stack_assembler assembler = {0};
     stack_ast_prog prog = {0};
@@ -2345,7 +2492,8 @@ int main(int argc, char **argv) {
         return_defer(0);
     }
 
-    stack_parser_init(&parser, lexer, args.filename);
+    stack_parser_init(&parser, &lexer, args.filename);
+    stack_ast_init(&prog);
     if (stack_parser_parse(&parser, &prog) != 0) {
         return_defer(1);
     }
@@ -2355,12 +2503,13 @@ int main(int argc, char **argv) {
         return_defer(0);
     }
 
+    stack_preprocessor_init(&preprocessor);
+    if (stack_preprocessor_run(&preprocessor, &prog) != 0) {
+        return_defer(1);
+    }
+
     stack_context_init(&context);
     stack_typechecker_init(&typechecker, args.filename);
-    stack_assembler_init(&assembler, stdout);
-
-    // TODO: dependency graph based on `import` and merge all the ASTs
-
     if (stack_typechecker_check(&typechecker, &prog, &context) != 0) {
         return_defer(1);
     }
@@ -2369,6 +2518,7 @@ int main(int argc, char **argv) {
         return_defer(0);
     }
 
+    stack_assembler_init(&assembler, stdout);
     if (args.assembler) {
         stack_assembler_emit(&assembler, &prog, &context);
         return_defer(0);
@@ -2376,6 +2526,8 @@ int main(int argc, char **argv) {
 
 defer:
     stack_assembler_free(&assembler);
+    stack_typechecker_free(&typechecker);
+    stack_preprocessor_free(&preprocessor);
     stack_ast_free(&prog);
     stack_parser_free(&parser);
     stack_lexer_free(&lexer);
