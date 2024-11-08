@@ -863,7 +863,7 @@ static int stack_parser_parse_func(stack_parser *parser, stack_ast_func *func) {
                 continue;
             } else {
                 stack_parser_show_expected(parser, STACK_TOKEN_END, token.kind);
-                return_defer(1);
+                DS_PANIC("TODO: RECOVER FROM ERROR");
             }
         }
         ds_dynamic_array_append(&func->body, &expr);
