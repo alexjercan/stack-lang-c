@@ -34,6 +34,25 @@
 #define SLICE_FI DS_STRING_SLICE("fi")
 
 typedef enum {
+    STACK_ILLEGAL_NO_ERROR,
+    STACK_ILLEGAL_INVALID,
+    STACK_ILLEGAL_STRING_NULL,
+    STACK_ILLEGAL_STRING_NEWLINE,
+    STACK_ILLEGAL_STRING_EOF,
+} stack_token_error_kind;
+
+static const char *stack_token_error_kind_map(stack_token_error_kind kind) {
+    switch (kind) {
+    case STACK_ILLEGAL_NO_ERROR: return "NO_ERROR";
+    case STACK_ILLEGAL_INVALID: return "Invalid character: ";
+    case STACK_ILLEGAL_STRING_NULL: return "String contains null character";
+    case STACK_ILLEGAL_STRING_NEWLINE: return "String contains new line character";
+    case STACK_ILLEGAL_STRING_EOF: return "Unterminated string";
+      break;
+    }
+}
+
+typedef enum {
     STACK_TOKEN_DATA,
     STACK_TOKEN_NAME,
     STACK_TOKEN_LPAREN,
@@ -77,9 +96,11 @@ typedef struct {
     stack_token_kind kind;
     ds_string_slice value;
     unsigned int pos;
+    stack_token_error_kind error;
 } stack_token;
 
-#define STACK_TOKEN(k, v, p) (stack_token){.kind = (k), .value = (v), .pos = (p)}
+#define STACK_TOKEN(k, v, p) (stack_token){.kind = (k), .value = (v), .pos = (p), .error = STACK_ILLEGAL_NO_ERROR}
+#define STACK_TOKEN_ERROR(v, p, e) (stack_token){.kind = STACK_TOKEN_ILLEGAL, .value = (v), .pos = (p), .error = (e)}
 
 typedef struct {
     const char *buffer;
@@ -178,24 +199,21 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
             char ch = lexer->ch;
 
             if (lexer->ch == EOF) {
-                // TODO: STACK_TOKEN_ILLEGAL with stack_token_error_kind enum
                 stack_lexer_skip_until_newline(lexer);
                 ds_string_builder_free(&sb);
-                return STACK_TOKEN(STACK_TOKEN_ILLEGAL, (ds_string_slice){0}, position);
+                return STACK_TOKEN_ERROR((ds_string_slice){0}, position, STACK_ILLEGAL_STRING_EOF);
             }
 
             if (lexer->ch == SYMBOL_NULL) {
-                // TODO: STACK_TOKEN_ILLEGAL with stack_token_error_kind enum
                 stack_lexer_skip_until_newline(lexer);
                 ds_string_builder_free(&sb);
-                return STACK_TOKEN(STACK_TOKEN_ILLEGAL, (ds_string_slice){0}, position);
+                return STACK_TOKEN_ERROR((ds_string_slice){0}, position, STACK_ILLEGAL_STRING_NULL);
             }
 
             if (lexer->ch == SYMBOL_NEWLINE) {
-                // TODO: STACK_TOKEN_ILLEGAL with stack_token_error_kind enum
                 stack_lexer_skip_until_newline(lexer);
                 ds_string_builder_free(&sb);
-                return STACK_TOKEN(STACK_TOKEN_ILLEGAL, (ds_string_slice){0}, position);
+                return STACK_TOKEN_ERROR((ds_string_slice){0}, position, STACK_ILLEGAL_STRING_NEWLINE);
             }
 
             if (lexer->ch == SYMBOL_BACKSLASH) {
@@ -263,7 +281,7 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
 
         stack_lexer_read(lexer);
 
-        return STACK_TOKEN(STACK_TOKEN_ILLEGAL, slice, position);
+        return STACK_TOKEN_ERROR(slice, position, STACK_ILLEGAL_INVALID);
     }
 }
 
@@ -274,6 +292,7 @@ void stack_lexer_dump(stack_lexer *lexer) {
         token = stack_lexer_next(lexer);
 
         fprintf(stdout, "%s", stack_token_kind_map(token.kind));
+
         if (token.value.str != NULL) {
             fprintf(stdout, "(%.*s)", token.value.len, token.value.str);
         }
