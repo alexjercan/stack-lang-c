@@ -75,10 +75,11 @@
 
                     memcheck_result=1
                     if [[ "$memcheck" -eq 1 ]]; then
-                        if "$MEMCHECKER" --leak-check=full --error-exitcode=1 ./"$MAIN" "$exec_arg" "$file_path" > /dev/null 2>&1; then
-                            memcheck_result=1
-                        else
+                        "$MEMCHECKER" --leak-check=full --errors-for-leak-kinds=all --error-exitcode=42 ./"$MAIN" "$exec_arg" "$file_path" > /dev/null 2>&1
+                        if [ $? -eq 42 ]; then
                             memcheck_result=0
+                        else
+                            memcheck_result=1
                         fi
                     fi
 
@@ -96,11 +97,12 @@
             }
 
             usage() {
-                echo "Usage: $0 [--all | --lexer] [--memcheck] [-h | --help]"
+                echo "Usage: $0 [--all | --lexer | --parser] [--memcheck] [-h | --help]"
                 echo
                 echo "Options:"
                 echo "  --all           Enable 'all' mode."
                 echo "  --lexer         Enable 'lexer' mode."
+                echo "  --parser        Enable 'parser' mode."
                 echo "  --memcheck      Enable memory check."
                 echo "  -h, --help      Show this help message and exit."
             }
@@ -116,6 +118,10 @@
                             ;;
                         --lexer)
                             ARG1="lexer"
+                            shift
+                            ;;
+                        --parser)
+                            ARG1="parser"
                             shift
                             ;;
                         --memcheck)
@@ -136,9 +142,11 @@
                 if [[ "$ARG1" == "lexer" || "$ARG1" == "all" ]]; then
                     echo -e "\e[33mTesting the lexical analyzer\e[0m"
                     analyzer "01-lexer" "--lexer" "$MEMCHECK"
-                else
-                    usage
-                    exit 1
+                fi
+
+                if [[ "$ARG1" == "parser" || "$ARG1" == "all" ]]; then
+                    echo -e "\e[33mTesting the parser\e[0m"
+                    analyzer "02-parser" "--parser" "$MEMCHECK"
                 fi
 
                 if [ $PASSED_TESTS -eq $TOTAL_TESTS ]; then

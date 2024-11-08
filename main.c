@@ -334,7 +334,7 @@ int stack_lexer_pos_to_lc(stack_lexer *lexer, unsigned int pos, unsigned int *li
     *line = 1;
     *col = 1;
 
-    for (unsigned int i = 0; i <= pos; i++) {
+    for (unsigned int i = 0; i < pos; i++) {
         if (lexer->buffer[i] == '\n') {
             *line += 1;
             *col = 1;
@@ -353,6 +353,8 @@ typedef struct {
     stack_lexer *lexer;
     stack_token tok;
     stack_token next_tok;
+
+    bool failed;
 
     char *filename;
 } stack_parser;
@@ -375,6 +377,8 @@ int stack_parser_init(stack_parser *parser, stack_lexer *lexer, char *filename) 
     parser->next_tok = (stack_token){0};
     parser->filename = filename;
 
+    parser->failed = false;
+
     stack_parser_read(parser);
 
     return 0;
@@ -383,18 +387,19 @@ int stack_parser_init(stack_parser *parser, stack_lexer *lexer, char *filename) 
 static void stack_parser_show_errorf(stack_parser *parser, const char *format, ...) {
     unsigned int line = 0;
     unsigned int col = 0;
-    stack_lexer_pos_to_lc(parser->lexer, parser->tok.pos, &line, &col);
+    stack_token tok = parser->tok;
+    stack_lexer_pos_to_lc(parser->lexer, tok.pos, &line, &col);
 
     if (parser->filename != NULL) {
         fprintf(stderr, "%s", parser->filename);
     }
 
     fprintf(stderr, ":%d:%d, ", line, col);
-    if (parser->tok.kind == STACK_TOKEN_ILLEGAL) {
-        fprintf(stderr, "Lexical error: ILLEGAL TOKEN");
+    if (tok.kind == STACK_TOKEN_ILLEGAL) {
+        fprintf(stderr, "Lexical error: %s", stack_token_error_kind_map(tok.error));
 
-        if (parser->tok.value.str != NULL) {
-            fprintf(stderr, ": (%.*s)", parser->tok.value.len, parser->tok.value.str);
+        if (tok.value.str != NULL) {
+            fprintf(stderr, ": (%.*s)", tok.value.len, tok.value.str);
         }
 
         fprintf(stderr, "\n");
@@ -465,16 +470,18 @@ static int stack_parser_parse_data_field(stack_parser *parser, stack_ast_data_fi
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_NAME) {
         stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
-        return_defer(1);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
     }
     field->type = STACK_AST_NODE(token.value, parser, token.pos);
 
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_NAME) {
         stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
-        return_defer(1);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
     }
     field->name = STACK_AST_NODE(token.value, parser, token.pos);
+
+    return_defer(0);
 
 defer:
     return result;
@@ -500,20 +507,20 @@ static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_DATA) {
         stack_parser_show_expected(parser, STACK_TOKEN_DATA, token.kind);
-        return_defer(1);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
     }
 
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_NAME) {
         stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
-        return_defer(1);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
     }
     data->name = STACK_AST_NODE(token.value, parser, token.pos);
 
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_LPAREN) {
         stack_parser_show_expected(parser, STACK_TOKEN_LPAREN, token.kind);
-        return_defer(1);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
     }
 
     token = stack_parser_peek(parser);
@@ -525,7 +532,7 @@ static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
     do {
         stack_ast_data_field field = {0};
         if (stack_parser_parse_data_field(parser, &field) != 0) {
-            return_defer(1);
+            DS_PANIC("TODO: RECOVER FROM ERROR");
         }
         ds_dynamic_array_append(&data->fields, &field);
 
@@ -536,7 +543,7 @@ static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
             continue;
         } else {
             stack_parser_show_expected_2(parser, STACK_TOKEN_COMMA, STACK_TOKEN_RPAREN, token.kind);
-            return_defer(1);
+            DS_PANIC("TODO: RECOVER FROM ERROR");
         }
     } while (true);
 
@@ -598,7 +605,7 @@ static int stack_parser_parse_cond(stack_parser *parser, stack_ast_cond *cond) {
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_IF) {
         stack_parser_show_expected(parser, STACK_TOKEN_IF, token.kind);
-        return_defer(1);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
     }
 
     do {
@@ -614,7 +621,7 @@ static int stack_parser_parse_cond(stack_parser *parser, stack_ast_cond *cond) {
 
         stack_ast_expr expr = {0};
         if (stack_parser_parse_expr(parser, &expr) != 0) {
-            return_defer(1);
+            DS_PANIC("TODO: RECOVER FROM ERROR");
         }
         DS_EXPECT(ds_dynamic_array_append(&cond->if_, &expr), OOM_ERROR);
     } while (true);
@@ -628,13 +635,13 @@ static int stack_parser_parse_cond(stack_parser *parser, stack_ast_cond *cond) {
 
         stack_ast_expr expr = {0};
         if (stack_parser_parse_expr(parser, &expr) != 0) {
-            return_defer(1);
+            DS_PANIC("TODO: RECOVER FROM ERROR");
         }
         DS_EXPECT(ds_dynamic_array_append(&cond->else_, &expr), OOM_ERROR);
     } while (true);
 
     stack_parser_show_expected(parser, STACK_TOKEN_FI, token.kind);
-    return_defer(1);
+    DS_PANIC("TODO: RECOVER FROM ERROR");
 
 defer:
     return result;
@@ -664,12 +671,13 @@ static int stack_parser_parse_expr(stack_parser *parser, stack_ast_expr *expr) {
     case STACK_TOKEN_IF: {
         stack_ast_cond cond = {0};
         if (stack_parser_parse_cond(parser, &cond) != 0) {
-            return_defer(1);
+            DS_PANIC("TODO: RECOVER FROM ERROR");
         }
         *expr = STACK_AST_EXPR_COND(cond);
         return_defer(0);
     }
     default:
+        stack_parser_read(parser);
         return_defer(1);
     }
 
@@ -776,7 +784,7 @@ static int stack_parser_parse_func_nodes(stack_parser *parser, ds_dynamic_array 
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_LPAREN) {
         stack_parser_show_expected(parser, STACK_TOKEN_LPAREN, token.kind);
-        return_defer(1);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
     }
 
     token = stack_parser_peek(parser);
@@ -789,7 +797,7 @@ static int stack_parser_parse_func_nodes(stack_parser *parser, ds_dynamic_array 
         token = stack_parser_read(parser);
         if (token.kind != STACK_TOKEN_NAME) {
             stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
-            return_defer(1);
+            DS_PANIC("TODO: RECOVER FROM ERROR");
         }
         ds_dynamic_array_append(nodes, &STACK_AST_NODE(token.value, parser, token.pos));
 
@@ -800,7 +808,7 @@ static int stack_parser_parse_func_nodes(stack_parser *parser, ds_dynamic_array 
             continue;
         } else {
             stack_parser_show_expected_2(parser, STACK_TOKEN_COMMA, STACK_TOKEN_RPAREN, token.kind);
-            return_defer(1);
+            DS_PANIC("TODO: RECOVER FROM ERROR");
         }
     } while (true);
 
@@ -820,13 +828,13 @@ static int stack_parser_parse_func(stack_parser *parser, stack_ast_func *func) {
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_FUNC) {
         stack_parser_show_expected(parser, STACK_TOKEN_FUNC, token.kind);
-        return_defer(1);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
     }
 
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_NAME) {
         stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
-        return_defer(1);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
     }
     func->name = STACK_AST_NODE(token.value, parser, token.pos);
 
@@ -836,7 +844,7 @@ static int stack_parser_parse_func(stack_parser *parser, stack_ast_func *func) {
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_IN) {
         stack_parser_show_expected(parser, STACK_TOKEN_IN, token.kind);
-        return_defer(1);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
     }
 
     do {
@@ -848,11 +856,22 @@ static int stack_parser_parse_func(stack_parser *parser, stack_ast_func *func) {
 
         stack_ast_expr expr = {0};
         if (stack_parser_parse_expr(parser, &expr) != 0) {
-            stack_parser_show_expected(parser, STACK_TOKEN_END, token.kind);
-            return_defer(1);
+            if (token.kind == STACK_TOKEN_ILLEGAL) {
+                stack_parser_show_errorf(parser, "");
+                stack_parser_read(parser);
+                parser->failed = true;
+                continue;
+            } else {
+                stack_parser_show_expected(parser, STACK_TOKEN_END, token.kind);
+                return_defer(1);
+            }
         }
         ds_dynamic_array_append(&func->body, &expr);
     } while (true);
+
+    if (parser->failed) {
+        return_defer(1);
+    }
 
 defer:
     return result;
@@ -893,15 +912,17 @@ static int stack_parser_parse_import(stack_parser *parser, stack_ast_import *imp
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_IMPORT) {
         stack_parser_show_expected(parser, STACK_TOKEN_IMPORT, token.kind);
-        return_defer(1);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
     }
 
     token = stack_parser_read(parser);
     if (token.kind != STACK_TOKEN_NAME) {
         stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
-        return_defer(1);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
     }
     import->name = STACK_AST_NODE(token.value, parser, token.pos);
+
+    return_defer(0);
 
 defer:
     return result;
@@ -930,22 +951,32 @@ int stack_parser_parse(stack_parser *parser, stack_ast_prog *prog) {
         stack_token token = stack_parser_peek(parser);
         if (token.kind == STACK_TOKEN_DATA) {
             stack_ast_data data = {0};
-            stack_parser_parse_data(parser, &data);
+            if (stack_parser_parse_data(parser, &data) != 0) {
+                continue;
+            }
             DS_EXPECT(ds_dynamic_array_append(&prog->datas, &data), OOM_ERROR);
         } else if (token.kind == STACK_TOKEN_FUNC) {
             stack_ast_func func = {0};
-            stack_parser_parse_func(parser, &func);
+            if (stack_parser_parse_func(parser, &func) != 0) {
+                continue;
+            }
             DS_EXPECT(ds_dynamic_array_append(&prog->funcs, &func), OOM_ERROR);
         } else if (token.kind == STACK_TOKEN_IMPORT) {
             stack_ast_import import = {0};
-            stack_parser_parse_import(parser, &import);
+            if (stack_parser_parse_import(parser, &import) != 0) {
+                continue;
+            }
             DS_EXPECT(ds_dynamic_array_append(&prog->imports, &import), OOM_ERROR);
         } else if (token.kind == STACK_TOKEN_EOF) {
             break;
         } else {
             stack_parser_show_expected_3(parser, STACK_TOKEN_DATA, STACK_TOKEN_FUNC, STACK_TOKEN_EOF, token.kind);
-            return_defer(1);
+            DS_PANIC("TODO: RECOVER FROM ERROR");
         }
+    }
+
+    if (parser->failed) {
+        return_defer(1);
     }
 
 defer:
@@ -961,7 +992,7 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
 
         fprintf(stdout, "@import %.*s\n", import.name.value.len, import.name.value.str);
     }
-    fprintf(stdout, "\n");
+    if (prog->imports.count > 0) fprintf(stdout, "\n");
 
     for (unsigned int i = 0; i < prog->datas.count; i++) {
         stack_ast_data data = {0};
