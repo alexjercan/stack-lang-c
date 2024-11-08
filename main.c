@@ -6,6 +6,16 @@
 #include "ds.h"
 
 #define OOM_ERROR "Buy more RAM!"
+#define UNREACHABLE "unreachable"
+
+#define DS_EXPECT(result, message)                                             \
+  do {                                                                         \
+    if ((result) != DS_OK) {                                                   \
+      DS_PANIC(message);                                                       \
+    }                                                                          \
+  } while (0)
+
+#define DS_UNREACHABLE(result) DS_EXPECT((result), UNREACHABLE)
 
 /// LEXER
 
@@ -112,6 +122,7 @@ typedef struct {
     unsigned int read_pos;
     char ch;
 
+    /// References to string literals that were alloc'd during lexer
     ds_dynamic_array _strings; // char *
 } stack_lexer;
 
@@ -156,6 +167,21 @@ int stack_lexer_init(stack_lexer *lexer, char *buffer, unsigned int buffer_len) 
     ds_dynamic_array_init(&lexer->_strings, sizeof(char *));
 
     return 0;
+}
+
+void stack_lexer_free(stack_lexer *lexer) {
+    lexer->buffer = NULL;
+    lexer->buffer_len = 0;
+    lexer->pos = 0;
+    lexer->read_pos = 0;
+    lexer->ch = 0;
+
+    for (unsigned int i = 0; i < lexer->_strings.count; i++) {
+        char *buffer = NULL;
+        DS_UNREACHABLE(ds_dynamic_array_get(&lexer->_strings, i, &buffer));
+        DS_FREE(NULL, buffer);
+    }
+    ds_dynamic_array_free(&lexer->_strings);
 }
 
 stack_token stack_lexer_next(stack_lexer *lexer) {
@@ -235,21 +261,15 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
                 }
             }
 
-            if (ds_string_builder_appendc(&sb, ch) != 0) {
-                DS_PANIC(OOM_ERROR);
-            }
-
+            DS_EXPECT(ds_string_builder_appendc(&sb, ch), OOM_ERROR);
             stack_lexer_read(lexer);
         }
 
         stack_lexer_read(lexer);
 
-        if (ds_string_builder_build(&sb, &buffer) != 0) {
-            DS_PANIC(OOM_ERROR);
-        }
-
+        DS_EXPECT(ds_string_builder_build(&sb, &buffer), OOM_ERROR);
+        DS_EXPECT(ds_dynamic_array_append(&lexer->_strings, &buffer), OOM_ERROR);
         ds_string_builder_free(&sb);
-        ds_dynamic_array_append(&lexer->_strings, &buffer);
         return STACK_TOKEN(STACK_TOKEN_STRING, DS_STRING_SLICE(buffer), position);
     } else if (isname(lexer->ch)) {
         ds_string_slice slice = { .str = (char *)lexer->buffer + lexer->pos, .len = 0 };
@@ -325,21 +345,6 @@ int stack_lexer_pos_to_lc(stack_lexer *lexer, unsigned int pos, unsigned int *li
 
 defer:
     return result;
-}
-
-void stack_lexer_free(stack_lexer *lexer) {
-    lexer->buffer = NULL;
-    lexer->buffer_len = 0;
-    lexer->pos = 0;
-    lexer->read_pos = 0;
-    lexer->ch = 0;
-
-    for (unsigned int i = 0; i < lexer->_strings.count; i++) {
-        char *buffer = NULL;
-        ds_dynamic_array_get(&lexer->_strings, i, &buffer);
-        DS_FREE(NULL, buffer);
-    }
-    ds_dynamic_array_free(&lexer->_strings);
 }
 
 /// PARSER
@@ -611,9 +616,7 @@ static int stack_parser_parse_cond(stack_parser *parser, stack_ast_cond *cond) {
         if (stack_parser_parse_expr(parser, &expr) != 0) {
             return_defer(1);
         }
-        if (ds_dynamic_array_append(&cond->if_, &expr) != 0) {
-            DS_PANIC(OOM_ERROR);
-        }
+        DS_EXPECT(ds_dynamic_array_append(&cond->if_, &expr), OOM_ERROR);
     } while (true);
 
     do {
@@ -627,9 +630,7 @@ static int stack_parser_parse_cond(stack_parser *parser, stack_ast_cond *cond) {
         if (stack_parser_parse_expr(parser, &expr) != 0) {
             return_defer(1);
         }
-        if (ds_dynamic_array_append(&cond->else_, &expr) != 0) {
-            DS_PANIC(OOM_ERROR);
-        }
+        DS_EXPECT(ds_dynamic_array_append(&cond->else_, &expr), OOM_ERROR);
     } while (true);
 
     stack_parser_show_expected(parser, STACK_TOKEN_FI, token.kind);
@@ -682,13 +683,13 @@ static void stack_ast_cond_dump(stack_ast_cond *cond, FILE* stdout, unsigned int
     fprintf(stdout, "%*sIF\n", indent, "");
     for (unsigned int i = 0; i < cond->if_.count; i++) {
         stack_ast_expr expr = {0};
-        ds_dynamic_array_get(&cond->if_, i, &expr);
+        DS_UNREACHABLE(ds_dynamic_array_get(&cond->if_, i, &expr));
         stack_ast_expr_dump(&expr, stdout, indent + INDENT_INCREMENT);
     }
     fprintf(stdout, "%*sELSE\n", indent, "");
     for (unsigned int i = 0; i < cond->else_.count; i++) {
         stack_ast_expr expr = {0};
-        ds_dynamic_array_get(&cond->else_, i, &expr);
+        DS_UNREACHABLE(ds_dynamic_array_get(&cond->else_, i, &expr));
         stack_ast_expr_dump(&expr, stdout, indent + INDENT_INCREMENT);
     }
     fprintf(stdout, "%*sFI\n", indent, "");
@@ -729,12 +730,12 @@ static void stack_ast_expr_dump(stack_ast_expr *expr, FILE* stdout, unsigned int
 static void stack_ast_cond_free(stack_ast_cond *cond) {
     for (unsigned int i = 0; i < cond->if_.count; i++) {
         stack_ast_expr *expr = NULL;
-        ds_dynamic_array_get_ref(&cond->if_, i, (void **)&expr);
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&cond->if_, i, (void **)&expr));
         stack_ast_expr_free(expr);
     }
     for (unsigned int i = 0; i < cond->else_.count; i++) {
         stack_ast_expr *expr = NULL;
-        ds_dynamic_array_get_ref(&cond->else_, i, (void **)&expr);
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&cond->else_, i, (void **)&expr));
         stack_ast_expr_free(expr);
     }
     ds_dynamic_array_free(&cond->if_);
@@ -861,21 +862,21 @@ static void stack_ast_func_free(stack_ast_func *func) {
     stack_ast_node_free(&func->name);
     for (unsigned int i = 0; i < func->args.count; i++) {
         stack_ast_node *arg = NULL;
-        ds_dynamic_array_get_ref(&func->args, i, (void **)&arg);
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&func->args, i, (void **)&arg));
         stack_ast_node_free(arg);
     }
     ds_dynamic_array_free(&func->args);
 
     for (unsigned int i = 0; i < func->rets.count; i++) {
         stack_ast_node *ret = NULL;
-        ds_dynamic_array_get_ref(&func->rets, i, (void **)&ret);
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&func->rets, i, (void **)&ret));
         stack_ast_node_free(ret);
     }
     ds_dynamic_array_free(&func->rets);
 
     for (unsigned int i = 0; i < func->body.count; i++) {
         stack_ast_expr *expr = NULL;
-        ds_dynamic_array_get_ref(&func->body, i, (void **)&expr);
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&func->body, i, (void **)&expr));
         stack_ast_expr_free(expr);
     }
     ds_dynamic_array_free(&func->body);
@@ -930,15 +931,15 @@ int stack_parser_parse(stack_parser *parser, stack_ast_prog *prog) {
         if (token.kind == STACK_TOKEN_DATA) {
             stack_ast_data data = {0};
             stack_parser_parse_data(parser, &data);
-            ds_dynamic_array_append(&prog->datas, &data);
+            DS_EXPECT(ds_dynamic_array_append(&prog->datas, &data), OOM_ERROR);
         } else if (token.kind == STACK_TOKEN_FUNC) {
             stack_ast_func func = {0};
             stack_parser_parse_func(parser, &func);
-            ds_dynamic_array_append(&prog->funcs, &func);
+            DS_EXPECT(ds_dynamic_array_append(&prog->funcs, &func), OOM_ERROR);
         } else if (token.kind == STACK_TOKEN_IMPORT) {
             stack_ast_import import = {0};
             stack_parser_parse_import(parser, &import);
-            ds_dynamic_array_append(&prog->imports, &import);
+            DS_EXPECT(ds_dynamic_array_append(&prog->imports, &import), OOM_ERROR);
         } else if (token.kind == STACK_TOKEN_EOF) {
             break;
         } else {
@@ -956,7 +957,7 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
 
     for (unsigned int i = 0; i < prog->imports.count; i++) {
         stack_ast_import import = {0};
-        ds_dynamic_array_get(&prog->imports, i, &import);
+        DS_UNREACHABLE(ds_dynamic_array_get(&prog->imports, i, &import));
 
         fprintf(stdout, "@import %.*s\n", import.name.value.len, import.name.value.str);
     }
@@ -964,7 +965,7 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
 
     for (unsigned int i = 0; i < prog->datas.count; i++) {
         stack_ast_data data = {0};
-        ds_dynamic_array_get(&prog->datas, i, &data);
+        DS_UNREACHABLE(ds_dynamic_array_get(&prog->datas, i, &data));
 
         fprintf(stdout, "data %.*s\n", data.name.value.len, data.name.value.str);
         for (unsigned int i = 0; i < data.fields.count; i++) {
@@ -978,18 +979,18 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
 
     for (unsigned int i = 0; i < prog->funcs.count; i++) {
         stack_ast_func func = {0};
-        ds_dynamic_array_get(&prog->funcs, i, &func);
+        DS_UNREACHABLE(ds_dynamic_array_get(&prog->funcs, i, &func));
 
         fprintf(stdout, "func %.*s\n", func.name.value.len, func.name.value.str);
         for (unsigned int j = 0; j < func.args.count; j++) {
             stack_ast_node arg = {0};
-            ds_dynamic_array_get(&func.args, j, &arg);
+            DS_UNREACHABLE(ds_dynamic_array_get(&func.args, j, &arg));
 
             fprintf(stdout, "%*sarg%d: %.*s\n", indent, "", j, arg.value.len, arg.value.str);
         }
         for (unsigned int j = 0; j < func.rets.count; j++) {
             stack_ast_node ret = {0};
-            ds_dynamic_array_get(&func.rets, j, &ret);
+            DS_UNREACHABLE(ds_dynamic_array_get(&func.rets, j, &ret));
 
             fprintf(stdout, "%*sret%d: %.*s\n", indent, "", j, ret.value.len, ret.value.str);
         }
@@ -997,7 +998,7 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
         fprintf(stdout, "%*sbody:\n", indent, "");
         for (unsigned int j = 0; j < func.body.count; j++) {
             stack_ast_expr expr = {0};
-            ds_dynamic_array_get(&func.body, j, &expr);
+            DS_UNREACHABLE(ds_dynamic_array_get(&func.body, j, &expr));
 
             stack_ast_expr_dump(&expr, stdout, indent + INDENT_INCREMENT);
         }
@@ -1008,21 +1009,21 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
 void stack_ast_free(stack_ast_prog *prog) {
     for (unsigned int i = 0; i < prog->datas.count; i++) {
         stack_ast_data *data = NULL;
-        ds_dynamic_array_get_ref(&prog->datas, i, (void **)&data);
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&prog->datas, i, (void **)&data));
         stack_ast_data_free(data);
     }
     ds_dynamic_array_free(&prog->datas);
 
     for (unsigned int i = 0; i < prog->funcs.count; i++) {
         stack_ast_func *func = NULL;
-        ds_dynamic_array_get_ref(&prog->funcs, i, (void **)&func);
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&prog->funcs, i, (void **)&func));
         stack_ast_func_free(func);
     }
     ds_dynamic_array_free(&prog->funcs);
 
     for (unsigned int i = 0; i < prog->imports.count; i++) {
         stack_ast_import *import = NULL;
-        ds_dynamic_array_get_ref(&prog->imports, i, (void **)&import);
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&prog->imports, i, (void **)&import));
         stack_ast_import_free(import);
     }
     ds_dynamic_array_free(&prog->imports);
@@ -1045,21 +1046,21 @@ void stack_preprocessor_init(stack_preprocessor *preprocessor) {
 void stack_preprocessor_free(stack_preprocessor *preprocessor) {
     for (unsigned int i = 0; i < preprocessor->_lexers.count; i++) {
         stack_lexer lexer = {0};
-        ds_dynamic_array_get(&preprocessor->_lexers, i, &lexer);
+        DS_UNREACHABLE(ds_dynamic_array_get(&preprocessor->_lexers, i, &lexer));
         stack_lexer_free(&lexer);
     }
     ds_dynamic_array_free(&preprocessor->_lexers);
 
     for (unsigned int i = 0; i < preprocessor->_parsers.count; i++) {
         stack_parser parser = {0};
-        ds_dynamic_array_get(&preprocessor->_parsers, i, &parser);
+        DS_UNREACHABLE(ds_dynamic_array_get(&preprocessor->_parsers, i, &parser));
         stack_parser_free(&parser);
     }
     ds_dynamic_array_free(&preprocessor->_parsers);
 
     for (unsigned int i = 0; i < preprocessor->_buffers.count; i++) {
         char *buffer = NULL;
-        ds_dynamic_array_get(&preprocessor->_buffers, i, &buffer);
+        DS_UNREACHABLE(ds_dynamic_array_get(&preprocessor->_buffers, i, &buffer));
         DS_FREE(NULL, buffer);
     }
     ds_dynamic_array_free(&preprocessor->_buffers);
@@ -1074,6 +1075,7 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
     // TODO: BUILD DEP GRAPH
     // TODO: Make sure no cycle import
     // TODO: memory hadling
+    // WIP
     for (unsigned int i = 0; i < prog->imports.count; i++) {
         char *buffer = NULL;
         char *filename = NULL;
@@ -1084,9 +1086,9 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
         ds_dynamic_array_get(&prog->imports, i, &import);
 
         ds_string_builder_init(&sb);
-        ds_string_builder_append(&sb, "lib/%.*s.sl", import.name.value.len, import.name.value.str);
-        ds_string_builder_build(&sb, &filename);
-        ds_dynamic_array_append(&preprocessor->_buffers, &filename);
+        DS_EXPECT(ds_string_builder_append(&sb, "lib/%.*s.sl", import.name.value.len, import.name.value.str), OOM_ERROR);
+        DS_EXPECT(ds_string_builder_build(&sb, &filename), OOM_ERROR);
+        DS_EXPECT(ds_dynamic_array_append(&preprocessor->_buffers, &filename), OOM_ERROR);
 
         buffer_len = ds_io_read(filename, &buffer, "r");
         if (buffer_len < 0) {
@@ -1094,18 +1096,20 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
             return_defer(1);
         }
 
-        ds_dynamic_array_append(&preprocessor->_buffers, &buffer);
+        DS_EXPECT(ds_dynamic_array_append(&preprocessor->_buffers, &buffer), OOM_ERROR);
 
         stack_lexer_init(&lexer, buffer, buffer_len);
 
         stack_parser_init(&parser, &lexer, filename);
-        ds_dynamic_array_append(&preprocessor->_parsers, &parser);
+        DS_EXPECT(ds_dynamic_array_append(&preprocessor->_parsers, &parser), OOM_ERROR);
 
+        // TODO: will probably have multiple prog's
         if (stack_parser_parse(&parser, prog) != 0) {
             return_defer(1);
         }
+
         // TODO: Fix this by using references better
-        ds_dynamic_array_append(&preprocessor->_lexers, &lexer);
+        DS_EXPECT(ds_dynamic_array_append(&preprocessor->_lexers, &lexer), OOM_ERROR);
 
         ds_string_builder_free(&sb);
     }
@@ -1212,6 +1216,7 @@ typedef struct {
     ds_dynamic_array constants; // stack_const_expr
     unsigned int if_counter;
 
+    // buffers that are alloc'd by the assembler for function names
     ds_dynamic_array _buffers; // char *
     FILE *stdout;
 } stack_assembler;
@@ -1232,7 +1237,7 @@ void stack_assembler_free(stack_assembler *assembler) {
 
     for (unsigned int i = 0; i < assembler->_buffers.count; i++) {
         char *buffer = NULL;
-        ds_dynamic_array_get(&assembler->_buffers, i, &buffer);
+        DS_UNREACHABLE(ds_dynamic_array_get(&assembler->_buffers, i, &buffer));
         DS_FREE(NULL, buffer);
     }
     ds_dynamic_array_free(&assembler->_buffers);
@@ -1242,20 +1247,20 @@ void stack_assembler_free(stack_assembler *assembler) {
 static unsigned long stack_assembler_func_map(stack_assembler *assembler, ds_string_slice* name) {
     for (unsigned int i = 0; i < assembler->func_map.count; i++) {
         ds_string_slice item = {0};
-        ds_dynamic_array_get(&assembler->func_map, i, &item);
+        DS_UNREACHABLE(ds_dynamic_array_get(&assembler->func_map, i, &item));
         if (ds_string_slice_equals(name, &item)) {
             return i;
         }
     }
 
-    ds_dynamic_array_append(&assembler->func_map, name);
+    DS_EXPECT(ds_dynamic_array_append(&assembler->func_map, name), OOM_ERROR);
     return assembler->func_map.count - 1;
 }
 
 static unsigned int stack_assembler_constants_map(stack_assembler *assembler, stack_const_expr *expr) {
     for (unsigned int i = 0; i < assembler->constants.count; i++) {
         stack_const_expr item = {0};
-        ds_dynamic_array_get(&assembler->constants, i, &item);
+        DS_UNREACHABLE(ds_dynamic_array_get(&assembler->constants, i, &item));
         if (expr->kind == item.kind && ds_string_slice_equals(&expr->value, &item.value)) {
             return i;
         }
@@ -2138,30 +2143,13 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("");
 }
 
-int ds_itoa(int number, char **buffer) {
-    int result = 0;
-    ds_string_builder sb = {0};
-    ds_string_builder_init(&sb);
-
-    if (ds_string_builder_append(&sb, "%d", number) != 0) {
-        return_defer(1);
-    }
-    if (ds_string_builder_build(&sb, buffer) != 0) {
-        return_defer(1);
-    }
-
-defer:
-    ds_string_builder_free(&sb);
-    return result;
-}
-
 static void stack_assembler_emit_constants(stack_assembler *assembler) {
     EMIT("section '.data'");
     EMIT("");
 
     for (unsigned int i = 0; i < assembler->constants.count; i++) {
         stack_const_expr expr = {0};
-        ds_dynamic_array_get(&assembler->constants, i, &expr);
+        DS_UNREACHABLE(ds_dynamic_array_get(&assembler->constants, i, &expr));
 
         switch (expr.kind) {
         case STACK_CONST_EXPR_INT:
@@ -2207,7 +2195,7 @@ static void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data
 
     for (unsigned int i = 0; i < data->fields.count; i++) {
         stack_ast_data_field field = {0};
-        ds_dynamic_array_get(&data->fields, i, &field);
+        DS_UNREACHABLE(ds_dynamic_array_get(&data->fields, i, &field));
 
         EMIT("    ; *t0.%.*s <- pop", field.name.value.len, field.name.value.str);
         EMIT("    call    stack_pop");
@@ -2230,17 +2218,13 @@ static void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data
         ds_string_slice slice = {0};
         stack_ast_data_field field = {0};
 
-        ds_dynamic_array_get(&data->fields, i, &field);
+        DS_UNREACHABLE(ds_dynamic_array_get(&data->fields, i, &field));
 
         // TODO: maybe can use the context to not allocate it again
         ds_string_builder_init(&sb);
-        if (ds_string_builder_append(&sb, "%.*s.%.*s", data->name.value.len, data->name.value.str, field.name.value.len, field.name.value.str) != 0) {
-            DS_PANIC(OOM_ERROR);
-        }
-        if (ds_string_builder_build(&sb, &buffer) != 0) {
-            DS_PANIC(OOM_ERROR);
-        }
-        ds_dynamic_array_append(&assembler->_buffers, &buffer);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%.*s", data->name.value.len, data->name.value.str, field.name.value.len, field.name.value.str), OOM_ERROR);
+        DS_EXPECT(ds_string_builder_build(&sb, &buffer), OOM_ERROR);
+        DS_EXPECT(ds_dynamic_array_append(&assembler->_buffers, &buffer), OOM_ERROR);
 
         slice = DS_STRING_SLICE(buffer);
 
@@ -2299,14 +2283,14 @@ static void stack_assembler_emit_expr_cond(stack_assembler *assembler, stack_ast
     EMIT(".else%d:", if_counter);
     for (unsigned int i = 0; i < cond->else_.count; i++) {
         stack_ast_expr expr = {0};
-        ds_dynamic_array_get(&cond->else_, i, &expr);
+        DS_UNREACHABLE(ds_dynamic_array_get(&cond->else_, i, &expr));
         stack_assembler_emit_expr(assembler, &expr);
     }
     EMIT("    jmp    .fi%d", if_counter);
     EMIT(".if%d:", if_counter);
     for (unsigned int i = 0; i < cond->if_.count; i++) {
         stack_ast_expr expr = {0};
-        ds_dynamic_array_get(&cond->if_, i, &expr);
+        DS_UNREACHABLE(ds_dynamic_array_get(&cond->if_, i, &expr));
         stack_assembler_emit_expr(assembler, &expr);
     }
     EMIT(".fi%d:", if_counter);
@@ -2339,7 +2323,7 @@ static void stack_assembler_emit_func(stack_assembler *assembler, stack_ast_func
 
     for (unsigned int i = 0; i < func->body.count; i++) {
         stack_ast_expr expr = {0};
-        ds_dynamic_array_get(&func->body, i, &expr);
+        DS_UNREACHABLE(ds_dynamic_array_get(&func->body, i, &expr));
         stack_assembler_emit_expr(assembler, &expr);
     }
 
@@ -2354,13 +2338,13 @@ static void stack_assembler_emit_program(stack_assembler *assembler, stack_ast_p
 
     for (unsigned int i = 0; i < prog->datas.count; i++) {
         stack_ast_data data = {0};
-        ds_dynamic_array_get(&prog->datas, i, &data);
+        DS_UNREACHABLE(ds_dynamic_array_get(&prog->datas, i, &data));
         stack_assembler_emit_data(assembler, &data);
     }
 
     for (unsigned int i = 0; i < prog->funcs.count; i++) {
         stack_ast_func func = {0};
-        ds_dynamic_array_get(&prog->funcs, i, &func);
+        DS_UNREACHABLE(ds_dynamic_array_get(&prog->funcs, i, &func));
         stack_assembler_emit_func(assembler, &func);
     }
 }
@@ -2381,6 +2365,7 @@ typedef struct {
     char *filename;
     bool lexer;
     bool parser;
+    bool preprocessor;
     bool typecheck;
     bool assembler;
 } t_args;
@@ -2410,6 +2395,17 @@ static int argparse(int argc, char **argv, t_args *args) {
         .required = 0,
     }) != 0) {
         DS_LOG_ERROR("Failed to add argument `parser`");
+        return_defer(1);
+    }
+
+    if (ds_argparse_add_argument(&argparser, (ds_argparse_options){
+        .short_name = 'P',
+        .long_name = "preprocessor",
+        .description = "flag to stop on the preprocessor phase",
+        .type = ARGUMENT_TYPE_FLAG,
+        .required = 0,
+    }) != 0) {
+        DS_LOG_ERROR("Failed to add argument `preprocessor`");
         return_defer(1);
     }
 
@@ -2454,6 +2450,7 @@ static int argparse(int argc, char **argv, t_args *args) {
     args->filename = ds_argparse_get_value(&argparser, "input");
     args->lexer = ds_argparse_get_flag(&argparser, "lexer");
     args->parser = ds_argparse_get_flag(&argparser, "parser");
+    args->preprocessor = ds_argparse_get_flag(&argparser, "preprocessor");
     args->typecheck = ds_argparse_get_flag(&argparser, "typecheck");
     args->assembler = ds_argparse_get_flag(&argparser, "assembler");
 
@@ -2506,6 +2503,11 @@ int main(int argc, char **argv) {
     stack_preprocessor_init(&preprocessor);
     if (stack_preprocessor_run(&preprocessor, &prog) != 0) {
         return_defer(1);
+    }
+
+    if (args.preprocessor) {
+        stack_ast_dump(&prog, stdout);
+        return_defer(0);
     }
 
     stack_context_init(&context);

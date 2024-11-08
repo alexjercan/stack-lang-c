@@ -70,6 +70,9 @@
 
 // BASIC UTILS
 
+#define DS_OK 0
+#define DS_ERR 1
+
 typedef int bool;
 const bool true = 1;
 const bool false = 0;
