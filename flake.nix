@@ -41,20 +41,25 @@
             set +o errexit
             set +o pipefail
 
+            MEMCHECKER=valgrind
             MAIN=main
             TESTS_DIR=tests
             TOTAL_TESTS=0
             PASSED_TESTS=0
             EXT=sl
 
+            ARG1="all"
+            MEMCHECK=0
+
             analyzer() {
-                if [ "$#" -ne 2 ]; then
-                    echo "Usage: $0 <tests_dir> <exec_arg>"
+                if [ "$#" -ne 3 ]; then
+                    echo "Usage: $0 <tests_dir> <exec_arg> <memcheck>"
                     exit 1
                 fi
 
                 tests_dir=$TESTS_DIR/$1
                 exec_arg=$2
+                memcheck=$3
 
                 echo "Running tests for $1"
 
@@ -68,7 +73,16 @@
                     file_name=$(basename "$file_path")
                     echo -en "Testing $file_name ... "
 
-                    if ./"$MAIN" "$exec_arg" "$file_path" 2>&1 | diff - "$ref_path" > /dev/null 2>&1; then
+                    memcheck_result=1
+                    if [[ "$memcheck" -eq 1 ]]; then
+                        if "$MEMCHECKER" --leak-check=full --error-exitcode=1 ./"$MAIN" "$exec_arg" "$file_path" > /dev/null 2>&1; then
+                            memcheck_result=1
+                        else
+                            memcheck_result=0
+                        fi
+                    fi
+
+                    if  ./"$MAIN" "$exec_arg" "$file_path" 2>&1 | diff - "$ref_path" > /dev/null 2>&1 && [ "$memcheck_result" -eq 1 ]; then
                         echo -e "\e[32mPASSED\e[0m"
                         passed=$((passed + 1))
                     else
@@ -82,21 +96,46 @@
             }
 
             usage() {
-                echo "Usage: $0 [--all | --lexer]"
+                echo "Usage: $0 [--all | --lexer] [--memcheck] [-h | --help]"
+                echo
+                echo "Options:"
+                echo "  --all           Enable 'all' mode."
+                echo "  --lexer         Enable 'lexer' mode."
+                echo "  --memcheck      Enable memory check."
+                echo "  -h, --help      Show this help message and exit."
             }
 
             main() {
                 make clean && make
 
-                if [[ $# -eq 0 ]]; then
-                    ARG1="--all"
-                else
-                    ARG1=$1
-                fi
+                while [[ $# -gt 0 ]]; do
+                    case "$1" in
+                        --all)
+                            ARG1="all"
+                            shift
+                            ;;
+                        --lexer)
+                            ARG1="lexer"
+                            shift
+                            ;;
+                        --memcheck)
+                            MEMCHECK=1
+                            shift
+                            ;;
+                        -h|--help)
+                            usage
+                            exit 0
+                            ;;
+                        *)
+                            usage
+                            exit 1
+                            ;;
+                    esac
+                done
 
-                if [[ "$ARG1" == "--lexer" || "$ARG1" == "--all" ]]; then
+                if [[ "$ARG1" == "lexer" || "$ARG1" == "all" ]]; then
                     echo -e "\e[33mTesting the lexical analyzer\e[0m"
-                    analyzer "01-lexer" "--lexer"
+                    analyzer "01-lexer" "--lexer" "$MEMCHECK"
                 else
                     usage
                     exit 1
