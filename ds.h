@@ -184,6 +184,7 @@ typedef struct ds_string_slice {
         struct ds_allocator *allocator;
         char *str;
         unsigned int len;
+        bool allocd;
 } ds_string_slice;
 
 #define DS_STRING_SLICE(string) ((ds_string_slice){.str = string, .len = strlen((string))})
@@ -208,6 +209,8 @@ DSHDEF bool ds_string_slice_starts_with_pred(ds_string_slice *ss, bool (*predica
 DSHDEF int ds_string_slice_step(ds_string_slice *ss, int count);
 DSHDEF bool ds_string_slice_empty(ds_string_slice *ss);
 DSHDEF void ds_string_slice_free(ds_string_slice *ss);
+
+DSHDEF void ds_string_builder_to_slice(ds_string_builder *sb, ds_string_slice *ss);
 
 // (DOUBLY) LINKED LIST
 //
@@ -1226,6 +1229,8 @@ DSHDEF void ds_dynamic_array_free(ds_dynamic_array *da) {
     if (da->items != NULL) {
         DS_FREE(da->allocator, da->items);
     }
+
+    da->allocator = NULL;
     da->items = NULL;
     da->count = 0;
     da->capacity = 0;
@@ -1472,6 +1477,14 @@ defer:
     return result;
 }
 
+// Consumes the string builder into a string slice
+DSHDEF void ds_string_builder_to_slice(ds_string_builder *sb, ds_string_slice *ss) {
+    ss->str = (char *)sb->items.items;
+    ss->len = sb->items.count;
+    ss->allocator = sb->items.allocator;
+    ss->allocd = true;
+}
+
 // Free the string builder
 DSHDEF void ds_string_builder_free(ds_string_builder *sb) {
     ds_dynamic_array_free(&sb->items);
@@ -1487,6 +1500,7 @@ DSHDEF void ds_string_slice_init_allocator(ds_string_slice *ss, char *str,
     ss->allocator = allocator;
     ss->str = str;
     ss->len = len;
+    ss->allocd = false;
 }
 
 // Initialize the string slice
@@ -1685,8 +1699,12 @@ DSHDEF bool ds_string_slice_empty(ds_string_slice *ss) {
 
 // Free the string slice
 DSHDEF void ds_string_slice_free(ds_string_slice *ss) {
+    if (ss->allocd && ss->str != NULL) DS_FREE(ss->allocator, ss->str);
+
+    ss->allocator = NULL;
     ss->str = NULL;
     ss->len = 0;
+    ss->allocd = false;
 }
 
 #endif // DS_SS_IMPLEMENTATION
@@ -1883,6 +1901,9 @@ DSHDEF void ds_linked_list_free(ds_linked_list *ll) {
         DS_FREE(ll->allocator, node);
         node = next;
     }
+
+    ll->allocator = NULL;
+    ll->item_size = 0;
     ll->head = NULL;
     ll->tail = NULL;
 }
@@ -2034,6 +2055,12 @@ DSHDEF void ds_hashmap_free(ds_hashmap *map) {
     if (map->buckets != NULL) {
         DS_FREE(map->allocator, map->buckets);
     }
+
+    map->allocator = NULL;
+    map->buckets = NULL;
+    map->capacity = 0;
+    map->hash = NULL;
+    map->compare = NULL;
 }
 
 #endif // DS_HM_IMPLEMENTATION
@@ -2627,6 +2654,11 @@ DSHDEF void ds_argparse_print_version(ds_argparse_parser *parser) {
 // - parser: argument parser
 DSHDEF void ds_argparse_parser_free(ds_argparse_parser *parser) {
     ds_dynamic_array_free(&parser->arguments);
+
+    parser->allocator = NULL;
+    parser->name = NULL;
+    parser->description = NULL;
+    parser->version = NULL;
 }
 
 #endif // DS_AP_IMPLEMENTATION

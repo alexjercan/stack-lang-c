@@ -1,2 +1,2 @@
-STRING(Hello, World)
+STRING("Hello, World")
 <EOF>

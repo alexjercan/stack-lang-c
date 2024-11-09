@@ -1,5 +1,7 @@
 @import stdlib
 
+data test (int x)
+
 func fizzbuzz& (int) () in
     dup 15 mod 0 = if pop "fizzbuzz\n" string.out else
     dup 5 mod 0 = if pop "buzz\n" string.out else
