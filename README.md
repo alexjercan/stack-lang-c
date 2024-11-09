@@ -374,6 +374,28 @@ end
 The main function is expected to have one `int` on the stack that represents
 the exit code.
 
+#### 1.7. Preprocessor
+
+##### 1.7.1 Imports
+
+To import another file in a stack program you can use the `@import` macro and
+then specify the name of the module.
+
+```stack
+@import stdlib
+```
+
+Stack will look for the module file in the current folders in order:
+- `.` in the current directory
+- `lib` in the lib folder of the current project
+- `/usr/lib` in the lib folder of the os or where stack is installed (this is WIP)
+
+Supports adding multiple paths by using the `STACK_PATH` environment variable.
+
+```console
+export STACK_PATH=mymodule:lib2:$STACK_PATH
+```
+
 ### 2. Quickstart
 
 You can use `nix` to easily build the stack compiler.
