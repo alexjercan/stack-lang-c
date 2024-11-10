@@ -42,6 +42,14 @@ func <= (int, int) (bool) in
     dup2 < if pop2 true else = if true else false fi fi
 end
 
+func not (bool) (bool) in
+    if false else true fi
+end
+
 func and (bool, bool) (bool) in
-    if if true else false fi else false fi
+    if else pop false fi
+end
+
+func or (bool, bool) (bool) in
+    if pop true else fi
 end

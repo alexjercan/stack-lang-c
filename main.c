@@ -5,6 +5,8 @@
 #define DS_DA_IMPLEMENTATION
 #include "ds.h"
 
+// TODO: Update ds.h
+
 #define OOM_ERROR "Buy more RAM!"
 #define UNREACHABLE "unreachable"
 
@@ -1156,6 +1158,10 @@ defer:
 #define STACK_FUNC_CONCAT "string.concat"
 #define STACK_FUNC_SUBSTR "string.substr"
 
+#define STACK_FUNC_MEMORY_ALLOCATE "memory.allocate"
+#define STACK_FUNC_MEMORY_STORE "memory.@"
+#define STACK_FUNC_MEMORY_DEREF "memory.!!"
+
 typedef struct {
     // TODO: implement data structure for the context:
     // - list with functions
@@ -1394,7 +1400,7 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("");
     EMIT("    mov     rsi, qword [stack_pos]");
     EMIT("    mov     qword [rsi], rdi");
-    EMIT("    add     qword [stack_pos], stack_sz");
+    EMIT("    add     qword [stack_pos], %d", STACK_WORD_SZ);
     EMIT("");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
@@ -1411,7 +1417,7 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("");
     EMIT("    mov     rax, qword [stack_pos]");
-    EMIT("    mov     rax, qword [rax - stack_sz]");
+    EMIT("    mov     rax, qword [rax - %d]", STACK_WORD_SZ);
     EMIT("");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
@@ -1428,8 +1434,8 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("");
     EMIT("    mov     rax, qword [stack_pos]");
-    EMIT("    mov     rax, qword [rax - stack_sz]");
-    EMIT("    sub     qword [stack_pos], stack_sz");
+    EMIT("    mov     rax, qword [rax - %d]", STACK_WORD_SZ);
+    EMIT("    sub     qword [stack_pos], %d", STACK_WORD_SZ);
     EMIT("");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
@@ -2158,6 +2164,99 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    call    stack_push");
     EMIT("");
     EMIT("    add     rsp, 40                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // MEMORY ALLOCATE
+    EMIT(";");
+    EMIT(";");
+    EMIT("; memory allocate");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_MEMORY_ALLOCATE), NULL), STACK_FUNC_MEMORY_ALLOCATE);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    shl     rax, 3");
+    EMIT("");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    allocate");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // MEMORY STORE
+    EMIT(";");
+    EMIT(";");
+    EMIT("; memory store");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_MEMORY_STORE), NULL), STACK_FUNC_MEMORY_STORE);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 24                    ; allocate 3 local variables");
+    EMIT("");
+    EMIT("    ; t0 <- a");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     qword [rbp - loc_0], rax");
+    EMIT("");
+    EMIT("    ; t1 <- offset");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    shl     rax, 3");
+    EMIT("    mov     qword [rbp - loc_1], rax");
+    EMIT("");
+    EMIT("    ; t2 <- memory");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     qword [rbp - loc_2], rax");
+    EMIT("");
+    EMIT("    ; memory[offset] <- a");
+    EMIT("    mov     rax, qword [rbp - loc_2]");
+    EMIT("    mov     rdi, qword [rbp - loc_1]");
+    EMIT("    add     rax, rdi");
+    EMIT("    mov     rdi, qword [rbp - loc_0]");
+    EMIT("    mov     qword [rax], rdi");
+    EMIT("");
+    EMIT("    mov     rdi, qword [rbp - loc_2]");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 24                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // MEMORY DEREF
+    EMIT(";");
+    EMIT(";");
+    EMIT("; memory store");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &DS_STRING_SLICE(STACK_FUNC_MEMORY_DEREF), NULL), STACK_FUNC_MEMORY_DEREF);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 24                    ; allocate 3 local variables");
+    EMIT("");
+    EMIT("    ; t0 <- offset");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    shl     rax, 3");
+    EMIT("    mov     qword [rbp - loc_0], rax");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rdi, qword [rbp - loc_0]");
+    EMIT("    add     rax, rdi");
+    EMIT("    mov     rdi, [rax]");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 24                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
