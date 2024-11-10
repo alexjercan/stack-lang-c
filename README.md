@@ -44,6 +44,11 @@ defined using the `"` (quotes). Strings can be escaped using the `\`
 (backslash) character. For example `"Hello, World\n"` is a valid string in
 stack.
 
+##### 1.3.4. memory
+
+The `memory` data type is part of the stack compiler. The memory is a C
+pointer. It has special functions to initialize and use.
+
 #### 1.4. Functions
 
 Functions are defined using the `func` keyword. After the `func` keyword comes
@@ -234,6 +239,42 @@ The show function will create a string with the value of an int.
 5 show
 -- "5"
 ```
+
+##### 1.4.12. `memory.allocate`
+
+```stack
+func memory.allocate (int) (memory) in
+    ...
+end
+```
+
+The allocate function will initialize a memory buffer with size given as
+argument. The size is given in words (8 byte words) so it is best used for
+arrays.
+
+##### 1.4.13. `memory.@`
+
+```stack
+func memory.@ (memory, int, a) (memory) in
+    ...
+end
+```
+
+The store function is used to set a value in the memory buffer at location
+given as arugment. The function will return the memory back.
+
+-- memory.!! (memory, int) (a)
+
+##### 1.4.14. `memory.!!`
+
+```stack
+func memory.!! (memory, int) (a) in
+    ...
+end
+```
+
+The deref function is used to access an item from the memory buffer at the
+location given as an argument.
 
 #### 1.5. Expressions
 
