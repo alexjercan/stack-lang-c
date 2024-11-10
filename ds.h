@@ -70,6 +70,7 @@
 
 // BASIC UTILS
 
+// TODO: Update with OK and ERR
 #define DS_OK 0
 #define DS_ERR 1
 
@@ -184,7 +185,6 @@ typedef struct ds_string_slice {
         struct ds_allocator *allocator;
         char *str;
         unsigned int len;
-        bool allocd;
 } ds_string_slice;
 
 #define DS_STRING_SLICE(string) ((ds_string_slice){.str = string, .len = strlen((string))})
@@ -590,6 +590,18 @@ static inline void *ds_realloc(void *a, void *ptr, unsigned int old_sz,
         DS_EXIT(1);                                                            \
     } while (0)
 #endif
+
+#define DS_ERROR_OOM "Buy more RAM!"
+#define DS_ERROR_UNREACHABLE "unreachable"
+
+#define DS_EXPECT(result, message)                                             \
+  do {                                                                         \
+    if ((result) != DS_OK) {                                                   \
+      DS_PANIC(message);                                                       \
+    }                                                                          \
+  } while (0)
+
+#define DS_UNREACHABLE(result) DS_EXPECT((result), DS_ERROR_UNREACHABLE)
 
 // DYNAMIC ARRAY
 //
@@ -1482,7 +1494,6 @@ DSHDEF void ds_string_builder_to_slice(ds_string_builder *sb, ds_string_slice *s
     ss->str = (char *)sb->items.items;
     ss->len = sb->items.count;
     ss->allocator = sb->items.allocator;
-    ss->allocd = true;
 }
 
 // Free the string builder
@@ -1500,7 +1511,6 @@ DSHDEF void ds_string_slice_init_allocator(ds_string_slice *ss, char *str,
     ss->allocator = allocator;
     ss->str = str;
     ss->len = len;
-    ss->allocd = false;
 }
 
 // Initialize the string slice
@@ -1699,12 +1709,9 @@ DSHDEF bool ds_string_slice_empty(ds_string_slice *ss) {
 
 // Free the string slice
 DSHDEF void ds_string_slice_free(ds_string_slice *ss) {
-    if (ss->allocd && ss->str != NULL) DS_FREE(ss->allocator, ss->str);
-
     ss->allocator = NULL;
     ss->str = NULL;
     ss->len = 0;
-    ss->allocd = false;
 }
 
 #endif // DS_SS_IMPLEMENTATION
