@@ -1,3 +1,4 @@
+#include <stdio.h>
 #define DS_IO_IMPLEMENTATION
 #define DS_AP_IMPLEMENTATION
 #define DS_SS_IMPLEMENTATION
@@ -31,6 +32,7 @@
 #define SLICE_ELSE DS_STRING_SLICE("else")
 #define SLICE_FI DS_STRING_SLICE("fi")
 #define SLICE_IMPORT DS_STRING_SLICE("@import")
+#define SLICE_EXTERN DS_STRING_SLICE("extern")
 
 typedef enum {
     STACK_ILLEGAL_NO_ERROR,
@@ -67,6 +69,7 @@ typedef enum {
     STACK_TOKEN_IF,
     STACK_TOKEN_ELSE,
     STACK_TOKEN_FI,
+    STACK_TOKEN_EXTERN,
     STACK_TOKEN_EOF,
     STACK_TOKEN_ILLEGAL,
 } stack_token_kind;
@@ -88,6 +91,7 @@ static const char* stack_token_kind_map(stack_token_kind kind) {
     case STACK_TOKEN_IF: return "IF";
     case STACK_TOKEN_ELSE: return "ELSE";
     case STACK_TOKEN_FI: return "FI";
+    case STACK_TOKEN_EXTERN: return "EXTERN";
     case STACK_TOKEN_EOF: return "<EOF>";
     case STACK_TOKEN_ILLEGAL: return "ILLEGAL";
     }
@@ -260,6 +264,8 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
             return STACK_TOKEN(STACK_TOKEN_ELSE, (ds_string_slice){0}, position);
         } else if (ds_string_slice_equals(&slice, &SLICE_FI)) {
             return STACK_TOKEN(STACK_TOKEN_FI, (ds_string_slice){0}, position);
+        } else if (ds_string_slice_equals(&slice, &SLICE_EXTERN)) {
+            return STACK_TOKEN(STACK_TOKEN_EXTERN, (ds_string_slice){0}, position);
         } else {
             return STACK_TOKEN(STACK_TOKEN_NAME, slice, position);
         }
@@ -462,6 +468,7 @@ static void stack_ast_data_field_free(stack_ast_data_field *field) {
 typedef struct {
     stack_ast_node name;
     ds_dynamic_array fields; // stack_ast_data_field
+    bool extern_;
 } stack_ast_data;
 
 static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
@@ -485,34 +492,40 @@ static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
     data->name = STACK_AST_NODE(token.value, parser, token.pos);
 
     token = stack_parser_read(parser);
-    if (token.kind != STACK_TOKEN_LPAREN) {
-        stack_parser_show_expected(parser, STACK_TOKEN_LPAREN, token.kind);
+    if (token.kind == STACK_TOKEN_EXTERN) {
+        data->extern_ = true;
+
+        return_defer(0);
+    } else if (token.kind == STACK_TOKEN_LPAREN) {
+        data->extern_ = false;
+
+        token = stack_parser_peek(parser);
+        if (token.kind == STACK_TOKEN_RPAREN) {
+            stack_parser_read(parser);
+            return_defer(0);
+        }
+
+        do {
+            stack_ast_data_field field = {0};
+            if (stack_parser_parse_data_field(parser, &field) != 0) {
+                DS_PANIC("TODO: RECOVER FROM ERROR");
+            }
+            ds_dynamic_array_append(&data->fields, &field);
+
+            token = stack_parser_read(parser);
+            if (token.kind == STACK_TOKEN_RPAREN) {
+                break;
+            } else if (token.kind == STACK_TOKEN_COMMA) {
+                continue;
+            } else {
+                stack_parser_show_expected_2(parser, STACK_TOKEN_COMMA, STACK_TOKEN_RPAREN, token.kind);
+                DS_PANIC("TODO: RECOVER FROM ERROR");
+            }
+        } while (true);
+    } else {
+        stack_parser_show_expected_2(parser, STACK_TOKEN_LPAREN, STACK_TOKEN_EXTERN, token.kind);
         DS_PANIC("TODO: RECOVER FROM ERROR");
     }
-
-    token = stack_parser_peek(parser);
-    if (token.kind == STACK_TOKEN_RPAREN) {
-        stack_parser_read(parser);
-        return_defer(0);
-    }
-
-    do {
-        stack_ast_data_field field = {0};
-        if (stack_parser_parse_data_field(parser, &field) != 0) {
-            DS_PANIC("TODO: RECOVER FROM ERROR");
-        }
-        ds_dynamic_array_append(&data->fields, &field);
-
-        token = stack_parser_read(parser);
-        if (token.kind == STACK_TOKEN_RPAREN) {
-            break;
-        } else if (token.kind == STACK_TOKEN_COMMA) {
-            continue;
-        } else {
-            stack_parser_show_expected_2(parser, STACK_TOKEN_COMMA, STACK_TOKEN_RPAREN, token.kind);
-            DS_PANIC("TODO: RECOVER FROM ERROR");
-        }
-    } while (true);
 
 defer:
     return result;
@@ -742,6 +755,7 @@ typedef struct {
     ds_dynamic_array args; // stack_ast_node
     ds_dynamic_array rets; // stack_ast_node
     ds_dynamic_array body; // stack_ast_expr
+    bool extern_;
 } stack_ast_func;
 
 static int stack_parser_parse_func_nodes(stack_parser *parser, ds_dynamic_array *nodes /* stack_ast_node */) {
@@ -809,32 +823,35 @@ static int stack_parser_parse_func(stack_parser *parser, stack_ast_func *func) {
     stack_parser_parse_func_nodes(parser, &func->rets);
 
     token = stack_parser_read(parser);
-    if (token.kind != STACK_TOKEN_IN) {
-        stack_parser_show_expected(parser, STACK_TOKEN_IN, token.kind);
+    if (token.kind == STACK_TOKEN_EXTERN) {
+        func->extern_ = true;
+        return_defer(0);
+    } else if (token.kind == STACK_TOKEN_IN) {
+        do {
+            token = stack_parser_peek(parser);
+            if (token.kind == STACK_TOKEN_END) {
+                stack_parser_read(parser);
+                return_defer(0);
+            }
+
+            stack_ast_expr expr = {0};
+            if (stack_parser_parse_expr(parser, &expr) != 0) {
+                if (token.kind == STACK_TOKEN_ILLEGAL) {
+                    stack_parser_show_errorf(parser, "");
+                    stack_parser_read(parser);
+                    parser->failed = true;
+                    continue;
+                } else {
+                    stack_parser_show_expected(parser, STACK_TOKEN_END, token.kind);
+                    DS_PANIC("TODO: RECOVER FROM ERROR");
+                }
+            }
+            ds_dynamic_array_append(&func->body, &expr);
+        } while (true);
+    } else {
+        stack_parser_show_expected_2(parser, STACK_TOKEN_IN, STACK_TOKEN_EXTERN, token.kind);
         DS_PANIC("TODO: RECOVER FROM ERROR");
     }
-
-    do {
-        token = stack_parser_peek(parser);
-        if (token.kind == STACK_TOKEN_END) {
-            stack_parser_read(parser);
-            return_defer(0);
-        }
-
-        stack_ast_expr expr = {0};
-        if (stack_parser_parse_expr(parser, &expr) != 0) {
-            if (token.kind == STACK_TOKEN_ILLEGAL) {
-                stack_parser_show_errorf(parser, "");
-                stack_parser_read(parser);
-                parser->failed = true;
-                continue;
-            } else {
-                stack_parser_show_expected(parser, STACK_TOKEN_END, token.kind);
-                DS_PANIC("TODO: RECOVER FROM ERROR");
-            }
-        }
-        ds_dynamic_array_append(&func->body, &expr);
-    } while (true);
 
     if (parser->failed) {
         return_defer(1);
@@ -965,13 +982,21 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
         stack_ast_data data = {0};
         DS_UNREACHABLE(ds_dynamic_array_get(&prog->datas, i, &data));
 
-        fprintf(stdout, "data %.*s\n", data.name.value.len, data.name.value.str);
-        for (unsigned int i = 0; i < data.fields.count; i++) {
-            stack_ast_data_field field = {0};
-            ds_dynamic_array_get(&data.fields, i, &field);
-
-            fprintf(stdout, "%*s%.*s: %.*s\n", indent, "", field.name.value.len, field.name.value.str, field.type.value.len, field.type.value.str);
+        fprintf(stdout, "data %.*s", data.name.value.len, data.name.value.str);
+        if (data.extern_) {
+            fprintf(stdout, " extern");
         }
+        fprintf(stdout, "\n");
+
+        if (!data.extern_) {
+            for (unsigned int i = 0; i < data.fields.count; i++) {
+                stack_ast_data_field field = {0};
+                ds_dynamic_array_get(&data.fields, i, &field);
+
+                fprintf(stdout, "%*s%.*s: %.*s\n", indent, "", field.name.value.len, field.name.value.str, field.type.value.len, field.type.value.str);
+            }
+        }
+
         fprintf(stdout, "\n");
     }
 
@@ -979,7 +1004,12 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
         stack_ast_func func = {0};
         DS_UNREACHABLE(ds_dynamic_array_get(&prog->funcs, i, &func));
 
-        fprintf(stdout, "func %.*s\n", func.name.value.len, func.name.value.str);
+        fprintf(stdout, "func %.*s", func.name.value.len, func.name.value.str);
+        if (func.extern_) {
+            fprintf(stdout, " extern");
+        }
+        fprintf(stdout, "\n");
+
         for (unsigned int j = 0; j < func.args.count; j++) {
             stack_ast_node arg = {0};
             DS_UNREACHABLE(ds_dynamic_array_get(&func.args, j, &arg));
@@ -993,13 +1023,16 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
             fprintf(stdout, "%*sret%d: %.*s\n", indent, "", j, ret.value.len, ret.value.str);
         }
 
-        fprintf(stdout, "%*sbody:\n", indent, "");
-        for (unsigned int j = 0; j < func.body.count; j++) {
-            stack_ast_expr expr = {0};
-            DS_UNREACHABLE(ds_dynamic_array_get(&func.body, j, &expr));
+        if (!func.extern_) {
+            fprintf(stdout, "%*sbody:\n", indent, "");
+            for (unsigned int j = 0; j < func.body.count; j++) {
+                stack_ast_expr expr = {0};
+                DS_UNREACHABLE(ds_dynamic_array_get(&func.body, j, &expr));
 
-            stack_ast_expr_dump(&expr, stdout, indent + INDENT_INCREMENT);
+                stack_ast_expr_dump(&expr, stdout, indent + INDENT_INCREMENT);
+            }
         }
+
         fprintf(stdout, "\n");
     }
 }
@@ -1037,23 +1070,25 @@ typedef struct {
 } stack_preprocessor;
 
 void stack_preprocessor_init(stack_preprocessor *preprocessor) {
-    ds_dynamic_array_init(&preprocessor->_lexers, sizeof(stack_lexer));
-    ds_dynamic_array_init(&preprocessor->_parsers, sizeof(stack_parser));
+    ds_dynamic_array_init(&preprocessor->_lexers, sizeof(stack_lexer *));
+    ds_dynamic_array_init(&preprocessor->_parsers, sizeof(stack_parser *));
     ds_dynamic_array_init(&preprocessor->_buffers, sizeof(char *));
 }
 
 void stack_preprocessor_free(stack_preprocessor *preprocessor) {
     for (unsigned int i = 0; i < preprocessor->_lexers.count; i++) {
-        stack_lexer lexer = {0};
+        stack_lexer *lexer = NULL;
         DS_UNREACHABLE(ds_dynamic_array_get(&preprocessor->_lexers, i, &lexer));
-        stack_lexer_free(&lexer);
+        stack_lexer_free(lexer);
+        DS_FREE(NULL, lexer);
     }
     ds_dynamic_array_free(&preprocessor->_lexers);
 
     for (unsigned int i = 0; i < preprocessor->_parsers.count; i++) {
-        stack_parser parser = {0};
+        stack_parser *parser = NULL;
         DS_UNREACHABLE(ds_dynamic_array_get(&preprocessor->_parsers, i, &parser));
-        stack_parser_free(&parser);
+        stack_parser_free(parser);
+        DS_FREE(NULL, parser);
     }
     ds_dynamic_array_free(&preprocessor->_parsers);
 
@@ -1066,6 +1101,9 @@ void stack_preprocessor_free(stack_preprocessor *preprocessor) {
 }
 
 int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *prog) {
+    stack_ast_prog prog_new = {0};
+    stack_ast_init(&prog_new);
+
     ds_string_builder sb = {0};
     unsigned int buffer_len = 0;
     int result = 0;
@@ -1078,10 +1116,10 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
     for (unsigned int i = 0; i < prog->imports.count; i++) {
         char *buffer = NULL;
         char *filename = NULL;
-        stack_lexer lexer = {0};
-        stack_parser parser = {0};
-        stack_ast_import import = {0};
+        stack_lexer *lexer = DS_MALLOC(NULL, sizeof(stack_lexer));
+        stack_parser *parser = DS_MALLOC(NULL, sizeof(stack_parser));
 
+        stack_ast_import import = {0};
         ds_dynamic_array_get(&prog->imports, i, &import);
 
         ds_string_builder_init(&sb);
@@ -1097,13 +1135,13 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
 
         DS_EXPECT(ds_dynamic_array_append(&preprocessor->_buffers, &buffer), DS_ERROR_OOM);
 
-        stack_lexer_init(&lexer, buffer, buffer_len);
+        stack_lexer_init(lexer, buffer, buffer_len);
 
-        stack_parser_init(&parser, &lexer, filename);
+        stack_parser_init(parser, lexer, filename);
         DS_EXPECT(ds_dynamic_array_append(&preprocessor->_parsers, &parser), DS_ERROR_OOM);
 
         // TODO: will probably have multiple prog's
-        if (stack_parser_parse(&parser, prog) != 0) {
+        if (stack_parser_parse(parser, &prog_new) != 0) {
             return_defer(1);
         }
 
@@ -1113,8 +1151,21 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
         ds_string_builder_free(&sb);
     }
 
+    DS_EXPECT(ds_dynamic_array_append_many(&prog_new.datas, prog->datas.items, prog->datas.count), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append_many(&prog_new.funcs, prog->funcs.items, prog->funcs.count), DS_ERROR_OOM);
+
+    ds_dynamic_array tmp = prog_new.datas;
+    prog_new.datas = prog->datas;
+    prog->datas = tmp;
+
+    tmp = prog_new.funcs;
+    prog_new.funcs = prog->funcs;
+    prog->funcs = tmp;
+
 defer:
     ds_string_builder_free(&sb);
+    ds_dynamic_array_free(&prog_new.datas);
+    ds_dynamic_array_free(&prog_new.funcs);
     return result;
 }
 
@@ -1128,7 +1179,6 @@ defer:
 #define STACK_FUNC_DUP "dup"
 #define STACK_FUNC_SWP "swp"
 #define STACK_FUNC_ROT "rot"
-#define STACK_FUNC_ROTP "rot'"
 #define STACK_FUNC_POP "pop"
 
 #define STACK_FUNC_PLUS "+"
@@ -1149,46 +1199,176 @@ defer:
 #define STACK_FUNC_MEMORY_DEREF "memory.!!"
 
 typedef struct {
-    // TODO: implement data structure for the context:
-    // - list with functions
-    // - list with data structures
-    int a;
+    ds_string_slice name;
+} stack_context_data;
+
+static void stack_context_data_free(stack_context_data *data) {
+    ds_string_slice_free(&data->name);
+}
+
+typedef struct {
+    ds_string_slice name;
+    ds_dynamic_array args; // ds_string_slice
+    ds_dynamic_array rets; // ds_string_slice
+} stack_context_func;
+
+static void stack_context_func_free(stack_context_func *func) {
+    ds_string_slice_free(&func->name);
+    for (unsigned int i = 0; i < func->args.count; i++) {
+        ds_string_slice *arg = NULL;
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&func->args, i, (void **)&arg));
+        ds_string_slice_free(arg);
+    }
+    ds_dynamic_array_free(&func->args);
+
+    for (unsigned int i = 0; i < func->rets.count; i++) {
+        ds_string_slice *ret = NULL;
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&func->rets, i, (void **)&ret));
+        ds_string_slice_free(ret);
+    }
+    ds_dynamic_array_free(&func->rets);
+}
+
+typedef struct {
+    ds_dynamic_array datas; // stack_context_data
+    ds_dynamic_array funcs; // stack_context_func
 } stack_context;
 
 // TODO: add functions to add new funcs and datas
 
 void stack_context_init(stack_context *context) {
-    // TODO: add the implicit functions: +, *, dup...
-    // TODO: add the implicit data types with associated functions (cons and get)
+    ds_dynamic_array_init(&context->datas, sizeof(stack_context_data));
+    ds_dynamic_array_init(&context->funcs, sizeof(stack_context_func));
 }
 
 void stack_context_free(stack_context *context) {
-    // TODO: implement free
+    for (unsigned int i = 0; i < context->datas.count; i++) {
+        stack_context_data *data = NULL;
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&context->datas, i, (void **)&data));
+        stack_context_data_free(data);
+    }
+    ds_dynamic_array_free(&context->datas);
+
+    for (unsigned int i = 0; i < context->funcs.count; i++) {
+        stack_context_func *func = NULL;
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&context->funcs, i, (void **)&func));
+        stack_context_func_free(func);
+    }
+    ds_dynamic_array_free(&context->funcs);
 }
 
 typedef struct {
-    char *filename;
+    int failed;
 } stack_typechecker;
 
-void stack_typechecker_init(stack_typechecker *typechecker, char *filename) {
-    typechecker->filename = filename;
+void stack_typechecker_init(stack_typechecker *typechecker) {
+    typechecker->failed = 0;
 }
+
+void stack_typechecker_free(stack_typechecker *typechecker) {
+}
+
+static void stack_typechecker_show_errorf(stack_parser *parser, unsigned int pos, const char *format, ...) {
+    unsigned int line = 0;
+    unsigned int col = 0;
+    stack_lexer_pos_to_lc(parser->lexer, pos, &line, &col);
+
+    if (parser->filename != NULL) {
+        fprintf(stderr, "%s", parser->filename);
+    }
+
+    fprintf(stderr, ":%d:%d, ", line, col);
+    fprintf(stderr, "Semantic error: ");
+
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+
+    fprintf(stderr, "\n");
+}
+
+static bool stack_typechecker_is_data_redefined(stack_context *context, ds_string_slice name) {
+    for (unsigned int i = 0; i < context->datas.count; i++) {
+        stack_context_data item = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&context->datas, i, &item));
+        if (ds_string_slice_equals(&name, &item.name)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+#define stack_typechecker_error_data_exists(node)                              \
+  stack_typechecker_show_errorf(node.parser, node.pos,                         \
+                                "data %.*s is redefined", node.value.len,      \
+                                node.value.str)
+
+static bool stack_typechecker_is_func_redefined(stack_context *context, ds_string_slice name) {
+    for (unsigned int i = 0; i < context->funcs.count; i++) {
+        stack_context_func item = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&context->funcs, i, &item));
+        if (ds_string_slice_equals(&name, &item.name)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+#define stack_typechecker_error_func_exists(node)                              \
+  stack_typechecker_show_errorf(node.parser, node.pos,                         \
+                                "func %.*s is redefined", node.value.len,      \
+                                node.value.str)
 
 int stack_typechecker_check(stack_typechecker *typechecker, stack_ast_prog *prog, stack_context *context) {
     int result = 0;
+
+    stack_context_init(context);
+
+    for (unsigned int i = 0; i < prog->datas.count; i++) {
+        stack_context_data cdata = {0};
+        stack_ast_data data = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&prog->datas, i, &data));
+        if (stack_typechecker_is_data_redefined(context, data.name.value)) {
+            typechecker->failed = 1;
+            stack_typechecker_error_data_exists(data.name);
+            continue;
+        }
+
+        cdata.name = data.name.value;
+
+        // TODO: add constructor and field getters as for datas that are not external
+
+        DS_EXPECT(ds_dynamic_array_append(&context->datas, &cdata), DS_ERROR_OOM);
+    }
+
+    for (unsigned int i = 0; i < prog->funcs.count; i++) {
+        stack_context_func cfunc = {0};
+        stack_ast_func func = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&prog->funcs, i, &func));
+        if (stack_typechecker_is_func_redefined(context, func.name.value)) {
+            typechecker->failed = 1;
+            stack_typechecker_error_func_exists(func.name);
+            continue;
+        }
+
+        cfunc.name = func.name.value;
+
+        // TODO: add args and rets + types can be generic so no check if exists yet
+
+        DS_EXPECT(ds_dynamic_array_append(&context->funcs, &cfunc), DS_ERROR_OOM);
+    }
 
     // TODO: implement
     // - simulate the stack with types.
     // - how about generic types? dup is func (a) (a a) => inference
     // - how about "traits" Eq, Cmp, etc.
-    return_defer(0);
+    return_defer(typechecker->failed);
 
 defer:
     return result;
-}
-
-void stack_typechecker_free(stack_typechecker *typechecker) {
-    typechecker->filename = NULL;
 }
 
 /// ASSEMBLER
@@ -1611,48 +1791,6 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("");
     EMIT("    ; push C");
     EMIT("    mov     rdi, [rbp - loc_2]");
-    EMIT("    call    stack_push");
-    EMIT("");
-    EMIT("    add     rsp, 32                    ; deallocate local variables");
-    EMIT("    pop     rbp                        ; restore return address");
-    EMIT("    ret");
-    EMIT("");
-    // ROT'
-    EMIT(";");
-    EMIT(";");
-    EMIT("; rot'");
-    EMIT(";");
-    EMIT(";   INPUT: nothing");
-    EMIT(";   OUTPUT: nothing");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_ROTP)), NULL), STACK_FUNC_ROTP);
-    EMIT("    push    rbp                        ; save return address");
-    EMIT("    mov     rbp, rsp                   ; set up stack frame");
-    EMIT("    sub     rsp, 32                    ; allocate 4 local variables");
-    EMIT("");
-    EMIT("    ; (A B C) -> (C A B)");
-    EMIT("");
-    EMIT("    ; t0 <- C");
-    EMIT("    call    stack_pop");
-    EMIT("    mov     qword [rbp - loc_0], rax");
-    EMIT("");
-    EMIT("    ; t1 <- B");
-    EMIT("    call    stack_pop");
-    EMIT("    mov     qword [rbp - loc_1], rax");
-    EMIT("");
-    EMIT("    ; t2 <- A");
-    EMIT("    call    stack_pop");
-    EMIT("    mov     qword [rbp - loc_2], rax");
-    EMIT("");
-    EMIT("    ; push C");
-    EMIT("    mov     rdi, [rbp - loc_0]");
-    EMIT("    call    stack_push");
-    EMIT("");
-    EMIT("    ; push A");
-    EMIT("    mov     rdi, [rbp - loc_2]");
-    EMIT("    call    stack_push");
-    EMIT("");
-    EMIT("    ; push B");
-    EMIT("    mov     rdi, [rbp - loc_1]");
     EMIT("    call    stack_push");
     EMIT("");
     EMIT("    add     rsp, 32                    ; deallocate local variables");
@@ -2490,13 +2628,17 @@ static void stack_assembler_emit_program(stack_assembler *assembler, stack_ast_p
     for (unsigned int i = 0; i < prog->datas.count; i++) {
         stack_ast_data data = {0};
         DS_UNREACHABLE(ds_dynamic_array_get(&prog->datas, i, &data));
-        stack_assembler_emit_data(assembler, &data);
+        if (!data.extern_) {
+            stack_assembler_emit_data(assembler, &data);
+        }
     }
 
     for (unsigned int i = 0; i < prog->funcs.count; i++) {
         stack_ast_func func = {0};
         DS_UNREACHABLE(ds_dynamic_array_get(&prog->funcs, i, &func));
-        stack_assembler_emit_func(assembler, &func);
+        if (!func.extern_) {
+            stack_assembler_emit_func(assembler, &func);
+        }
     }
 }
 
@@ -2661,8 +2803,7 @@ int main(int argc, char **argv) {
         return_defer(0);
     }
 
-    stack_context_init(&context);
-    stack_typechecker_init(&typechecker, args.filename);
+    stack_typechecker_init(&typechecker);
     if (stack_typechecker_check(&typechecker, &prog, &context) != 0) {
         return_defer(1);
     }
@@ -2679,6 +2820,7 @@ int main(int argc, char **argv) {
 
 defer:
     stack_assembler_free(&assembler);
+    stack_context_free(&context);
     stack_typechecker_free(&typechecker);
     stack_preprocessor_free(&preprocessor);
     stack_ast_free(&prog);

@@ -1,0 +1,13 @@
+DATA
+NAME(something)
+EXTERN
+FUNC
+NAME(stuff)
+(
+NAME(something)
+)
+(
+NAME(int)
+)
+EXTERN
+<EOF>

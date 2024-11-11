@@ -124,6 +124,10 @@
                             ARG1="parser"
                             shift
                             ;;
+                        --typecheck)
+                            ARG1="typecheck"
+                            shift
+                            ;;
                         --memcheck)
                             MEMCHECK=1
                             shift
@@ -147,6 +151,11 @@
                 if [[ "$ARG1" == "parser" || "$ARG1" == "all" ]]; then
                     echo -e "\e[33mTesting the parser\e[0m"
                     analyzer "02-parser" "--parser" "$MEMCHECK"
+                fi
+
+                if [[ "$ARG1" == "typecheck" || "$ARG1" == "all" ]]; then
+                    echo -e "\e[33mTesting the parser\e[0m"
+                    analyzer "03-typecheck" "--typecheck" "$MEMCHECK"
                 fi
 
                 if [ $PASSED_TESTS -eq $TOTAL_TESTS ]; then

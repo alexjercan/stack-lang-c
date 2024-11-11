@@ -1,3 +1,29 @@
+data int extern
+data bool extern
+data string extern
+
+func dup (a) (a, a) extern
+func swp (a, b) (b, a) extern
+func rot (a, b, c) (b, c, a) extern
+func pop (a) () extern
+
+func + (int, int) (int) extern
+func - (int, int) (int) extern
+func * (int, int) (int) extern
+func / (int, int) (int) extern
+func % (int, int) (int) extern
+func > (int, int) (bool) extern
+func < (int, int) (bool) extern
+func = (int, int) (bool) extern
+func string.out (string) () extern
+func string.len (string) (int) extern
+func string.concat (string, string) (string) extern
+func string.substr (string, int, int) (string) extern
+
+func rot' (a, b, c) (c, a, b) in
+    rot rot
+end
+
 func dup2 (a, b) (a, b, a, b) in
     swp dup rot dup rot'
 end
