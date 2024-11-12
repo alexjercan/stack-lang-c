@@ -1,17 +1,13 @@
 @import stdlib
 
--- memory.allocate (int) (memory)
--- memory.@ (memory, int, a) (memory)
--- memory.!! (memory, int) (a)
-
-func rule110.match000 (int) (int) in 0 end
-func rule110.match001 (int) (int) in 1 end
-func rule110.match010 (int) (int) in 1 end
-func rule110.match011 (int) (int) in 1 end
-func rule110.match100 (int) (int) in 0 end
-func rule110.match101 (int) (int) in 1 end
-func rule110.match110 (int) (int) in 1 end
-func rule110.match111 (int) (int) in 0 end
+func rule110.match000 () (int) in 0 end
+func rule110.match001 () (int) in 1 end
+func rule110.match010 () (int) in 1 end
+func rule110.match011 () (int) in 1 end
+func rule110.match100 () (int) in 0 end
+func rule110.match101 () (int) in 1 end
+func rule110.match110 () (int) in 1 end
+func rule110.match111 () (int) in 0 end
 
 func rule110.match_00 (int) (int) in
     0 = if rule110.match000 else rule110.match100 fi

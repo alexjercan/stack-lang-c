@@ -1,6 +1,7 @@
 data int extern
 data bool extern
 data string extern
+data memory extern
 
 func dup (a) (a, a) extern
 func swp (a, b) (b, a) extern
@@ -19,6 +20,11 @@ func string.out (string) () extern
 func string.len (string) (int) extern
 func string.concat (string, string) (string) extern
 func string.substr (string, int, int) (string) extern
+func memory.allocate (int) (memory) extern
+-- func memory.@ (memory, int, a) (memory) extern
+func memory.@ (memory, int, int) (memory) extern
+-- func memory.!! (memory, int) (a) extern
+func memory.!! (memory, int) (int) extern
 
 func rot' (a, b, c) (c, a, b) in
     rot rot

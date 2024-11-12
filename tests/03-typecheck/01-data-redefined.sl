@@ -1,4 +1,4 @@
-@import stdlib
+data int extern
 
 data int (something x)
 data ivec2 (int a, int b)

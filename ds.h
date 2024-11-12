@@ -1111,7 +1111,7 @@ defer:
 DSHDEF int ds_dynamic_array_copy(ds_dynamic_array *da, ds_dynamic_array *copy) {
     int result = 0;
 
-    copy->items = DS_MALLOC(da->allocator, da->capacity * da->item_size);
+    copy->items = DS_REALLOC(da->allocator, copy->items, copy->capacity * da->item_size, da->capacity * da->item_size);
     if (copy->items == NULL) {
         DS_LOG_ERROR("Failed to allocate dynamic array items");
         return_defer(1);

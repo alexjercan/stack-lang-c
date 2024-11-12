@@ -1,1 +1,1 @@
-tests/03-typecheck/02-func-redefined.sl:7:6, Semantic error: func sum is redefined
+tests/03-typecheck/02-func-redefined.sl:4:6, Semantic error: func sum is redefined

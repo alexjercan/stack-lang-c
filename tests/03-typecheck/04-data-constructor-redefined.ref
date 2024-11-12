@@ -1,0 +1,1 @@
+tests/03-typecheck/04-data-constructor-redefined.sl:3:6, Semantic error: func ivec2 is redefined
