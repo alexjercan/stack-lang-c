@@ -1190,7 +1190,8 @@ defer:
 #define STACK_FUNC_GT ">"
 #define STACK_FUNC_LT "<"
 #define STACK_FUNC_EQ "="
-#define STACK_FUNC_OUT "string.out"
+#define STACK_FUNC_STRING_INIT "string.init"
+#define STACK_FUNC_STRING_MEMORY "string.memory"
 #define STACK_FUNC_STRING_LEN "string.len"
 #define STACK_FUNC_STRING_CONCAT "string.concat"
 #define STACK_FUNC_STRING_SUBSTR "string.substr"
@@ -1198,6 +1199,8 @@ defer:
 #define STACK_FUNC_MEMORY_ALLOCATE "memory.allocate"
 #define STACK_FUNC_MEMORY_STORE "memory.@"
 #define STACK_FUNC_MEMORY_DEREF "memory.!!"
+
+#define STACK_FUNC_SYSCALL3 "syscall3"
 
 /// TYPE CHECKER
 
@@ -2714,38 +2717,6 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
-    // STRING OUT
-    EMIT(";");
-    EMIT(";");
-    EMIT("; out");
-    EMIT(";");
-    EMIT(";   INPUT: nothing");
-    EMIT(";   OUTPUT: nothing");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_OUT)), NULL), STACK_FUNC_OUT);
-    EMIT("    push    rbp                        ; save return address");
-    EMIT("    mov     rbp, rsp                   ; set up stack frame");
-    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
-    EMIT("");
-    EMIT("    ; t0 <- string");
-    EMIT("    call    stack_pop");
-    EMIT("    mov     qword [rbp - loc_0], rax");
-    EMIT("");
-    EMIT("    ; rdx <- t0.len");
-    EMIT("    mov     rdx, [rbp - loc_0]");
-    EMIT("    mov     rdx, [rdx]");
-    EMIT("");
-    EMIT("    ; rsi <- t0.str");
-    EMIT("    mov     rsi, [rbp - loc_0]");
-    EMIT("    lea     rsi, [rsi + 8]");
-    EMIT("");
-    EMIT("    mov     rdi, 1");
-    EMIT("    mov     rax, 1");
-    EMIT("    syscall");
-    EMIT("");
-    EMIT("    add     rsp, 16                    ; deallocate local variables");
-    EMIT("    pop     rbp                        ; restore return address");
-    EMIT("    ret");
-    EMIT("");
     // STRING LENGTH
     EMIT(";");
     EMIT(";");
@@ -2760,6 +2731,81 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("");
     EMIT("    call    stack_pop");
     EMIT("    mov     rdi, [rax]");
+    EMIT("    call    func.%s", STACK_DATA_INT);
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // STRING INIT
+    EMIT(";");
+    EMIT(";");
+    EMIT("; string.init");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_STRING_INIT)), NULL), STACK_FUNC_STRING_INIT);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 32                    ; allocate 4 local variables");
+    EMIT("");
+    EMIT("    ; t1 <- m");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, [rax]");
+    EMIT("    mov     qword [rbp - loc_1], rax");
+    EMIT("");
+    EMIT("    ; t0 <- L");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, [rax]");
+    EMIT("    mov     qword [rbp - loc_0], rax");
+    EMIT("");
+    EMIT("    ; t2 <- (t0 + 7) >> 3 << 3 + 8");
+    EMIT("    mov     rax, qword [rbp - loc_0]");
+    EMIT("    add     rax, 7");
+    EMIT("    shr     rax, 3");
+    EMIT("    shl     rax, 3");
+    EMIT("    add     rax, 8");
+    EMIT("    mov     qword [rbp - loc_2], rax");
+    EMIT("");
+    EMIT("    ; t3 <- allocate(t2)");
+    EMIT("    mov     rdi, qword [rbp - loc_2]");
+    EMIT("    call    allocate");
+    EMIT("    mov     qword [rbp - loc_3], rax");
+    EMIT("");
+    EMIT("    ; t3.len <- t0");
+    EMIT("    mov     rax, qword [rbp - loc_3]");
+    EMIT("    mov     rdi, qword [rbp - loc_0]");
+    EMIT("    mov     [rax], rdi");
+    EMIT("");
+    EMIT("    ; rdi = t3.str, rsi = t1, rdx = t0");
+    EMIT("    mov     rsi, qword [rbp - loc_1]");
+    EMIT("    mov     rax, qword [rbp - loc_3]");
+    EMIT("    lea     rdi, [rax + 8]");
+    EMIT("    mov     rdx, qword [rbp - loc_0]");
+    EMIT("    call    memcpy");
+    EMIT("");
+    EMIT("    ; push t3");
+    EMIT("    mov     rdi, [rbp - loc_3]");
+    EMIT("    call    stack_push");
+    EMIT("    add     rsp, 32                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // STRING MEMORY
+    EMIT(";");
+    EMIT(";");
+    EMIT("; string.memory");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_STRING_MEMORY)), NULL), STACK_FUNC_STRING_MEMORY);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    lea     rax, [rax + 8]");
+    EMIT("    mov     rdi, rax");
     EMIT("    call    func.%s", STACK_DATA_INT);
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
@@ -2925,7 +2971,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    mov     rdi, rax");
     EMIT("    call    allocate");
     EMIT("    mov     rdi, rax");
-    EMIT("    call    stack_push");
+    EMIT("    call    func.%s", STACK_DATA_INT);
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -2957,13 +3003,15 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    call    stack_pop");
     EMIT("    mov     qword [rbp - loc_2], rax");
     EMIT("");
-    EMIT("    ; memory[offset] <- a");
+    EMIT("    ; *memory[offset] <- a");
     EMIT("    mov     rax, qword [rbp - loc_2]");
+    EMIT("    mov     rax, qword [rax]");
     EMIT("    mov     rdi, qword [rbp - loc_1]");
     EMIT("    add     rax, rdi");
     EMIT("    mov     rdi, qword [rbp - loc_0]");
     EMIT("    mov     qword [rax], rdi");
     EMIT("");
+    EMIT("    ; push t2");
     EMIT("    mov     rdi, qword [rbp - loc_2]");
     EMIT("    call    stack_push");
     EMIT("");
@@ -2990,12 +3038,59 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    mov     qword [rbp - loc_0], rax");
     EMIT("");
     EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
     EMIT("    mov     rdi, qword [rbp - loc_0]");
     EMIT("    add     rax, rdi");
     EMIT("    mov     rdi, [rax]");
     EMIT("    call    stack_push");
     EMIT("");
     EMIT("    add     rsp, 24                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    /// SYSCALL3
+    EMIT(";");
+    EMIT(";");
+    EMIT("; syscall3");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: nothing");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_SYSCALL3)), NULL), STACK_FUNC_SYSCALL3);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 32                    ; allocate 4 local variables");
+    EMIT("");
+    EMIT("    ; t0 <- int");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    mov     qword [rbp - loc_0], rax");
+    EMIT("");
+    EMIT("    ; t1 <- c");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    mov     qword [rbp - loc_1], rax");
+    EMIT("");
+    EMIT("    ; t2 <- b");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    mov     qword [rbp - loc_2], rax");
+    EMIT("");
+    EMIT("    ; t3 <- a");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rax, qword [rax]");
+    EMIT("    mov     qword [rbp - loc_3], rax");
+    EMIT("");
+    EMIT("    ; syscall3(t0) t3 t2 t1");
+    EMIT("    mov     rax, qword [rbp - loc_0]");
+    EMIT("    mov     rdi, qword [rbp - loc_3]");
+    EMIT("    mov     rsi, qword [rbp - loc_2]");
+    EMIT("    mov     rdx, qword [rbp - loc_1]");
+    EMIT("    syscall");
+    EMIT("");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    func.%s", STACK_DATA_INT);
+    EMIT("");
+    EMIT("    add     rsp, 32                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
