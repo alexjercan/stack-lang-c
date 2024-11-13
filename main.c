@@ -1191,14 +1191,14 @@ defer:
 #define STACK_FUNC_LT "<"
 #define STACK_FUNC_EQ "="
 #define STACK_FUNC_STRING_INIT "string.init"
-#define STACK_FUNC_STRING_MEMORY "string.memory"
+#define STACK_FUNC_STRING_PTR "string.ptr"
 #define STACK_FUNC_STRING_LEN "string.len"
 #define STACK_FUNC_STRING_CONCAT "string.concat"
 #define STACK_FUNC_STRING_SUBSTR "string.substr"
 
-#define STACK_FUNC_MEMORY_ALLOCATE "memory.allocate"
-#define STACK_FUNC_MEMORY_STORE "memory.@"
-#define STACK_FUNC_MEMORY_DEREF "memory.!!"
+#define STACK_FUNC_PTR_ALLOCATE "ptr.allocate"
+#define STACK_FUNC_PTR_STORE "ptr.@"
+#define STACK_FUNC_PTR_DEREF "ptr.!!"
 
 #define STACK_FUNC_SYSCALL3 "syscall3"
 
@@ -2791,14 +2791,14 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
-    // STRING MEMORY
+    // STRING PTR
     EMIT(";");
     EMIT(";");
     EMIT("; string.memory");
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_STRING_MEMORY)), NULL), STACK_FUNC_STRING_MEMORY);
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_STRING_PTR)), NULL), STACK_FUNC_STRING_PTR);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -2952,14 +2952,14 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
-    // MEMORY ALLOCATE
+    // PTR ALLOCATE
     EMIT(";");
     EMIT(";");
     EMIT("; memory allocate");
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_MEMORY_ALLOCATE)), NULL), STACK_FUNC_MEMORY_ALLOCATE);
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_ALLOCATE)), NULL), STACK_FUNC_PTR_ALLOCATE);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
@@ -2977,14 +2977,14 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
-    // MEMORY STORE
+    // PTR STORE
     EMIT(";");
     EMIT(";");
     EMIT("; memory store");
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_MEMORY_STORE)), NULL), STACK_FUNC_MEMORY_STORE);
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_STORE)), NULL), STACK_FUNC_PTR_STORE);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 24                    ; allocate 3 local variables");
@@ -3019,14 +3019,14 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
-    // MEMORY DEREF
+    // PTR DEREF
     EMIT(";");
     EMIT(";");
     EMIT("; memory store");
     EMIT(";");
     EMIT(";   INPUT: nothing");
     EMIT(";   OUTPUT: nothing");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_MEMORY_DEREF)), NULL), STACK_FUNC_MEMORY_DEREF);
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_DEREF)), NULL), STACK_FUNC_PTR_DEREF);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 24                    ; allocate 3 local variables");

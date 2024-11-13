@@ -64,17 +64,17 @@ func range.wrap_inc (range) (int) in
     fi
 end
 
-func rule110.xyz (memory, range) (int, int, int) in
+func rule110.xyz (ptr, range) (int, int, int) in
     dup2 -- (m, r, m, r)
     range.wrap_dec -- (m, r, m, i-1)
-    memory.!! -- (m, r, x)
+    ptr.!! -- (m, r, x)
     rot' -- (x, m, r)
     dup2 -- (x, m, r, m, r)
     range.i -- (x, m, r, m, i)
-    memory.!! -- (x, m, r, y)
+    ptr.!! -- (x, m, r, y)
     rot' -- (x, y, m, r)
     range.wrap_inc -- (x, y, m, i+1)
-    memory.!! -- (x, y, z)
+    ptr.!! -- (x, y, z)
 end
 
 func rule110' (rule110.buffer, range) () in
@@ -91,7 +91,7 @@ func rule110' (rule110.buffer, range) () in
     rule110.buffer.m' -- (v, i, m')
     rot' -- (m', v, i)
     swp -- (m', i, v)
-    memory.@ -- (m')
+    ptr.@ -- (m')
     pop -- ()
 end
 
@@ -108,10 +108,10 @@ func rule110.rec (rule110.buffer, range) () in
     fi
 end
 
-data rule110.buffer (memory m, memory m')
+data rule110.buffer (ptr m, ptr m')
 
-func rule110 (memory, int) (memory) in
-    dup memory.allocate -- (m, n, m')
+func rule110 (ptr, int) (ptr) in
+    dup ptr.allocate -- (m, n, m')
     swp -- (m, m', n)
     0 swp range -- (m, m', r)
     rot' -- (r, m, m')
@@ -122,16 +122,16 @@ func rule110 (memory, int) (memory) in
     rule110.rec -- (m')
 end
 
-func memory.out (memory, int, int) () in
+func ptr.out (ptr, int, int) () in
     dup2 -- (xs, i, n, i, n)
     < if -- (xs, i, n)
         rot' -- (n, xs, i)
         dup2 -- (n, xs, i, xs, i)
-        memory.!! -- (n, xs, i, a)
+        ptr.!! -- (n, xs, i, a)
         show string.out -- (n, xs, i)
         1 + -- (n, xs, i + 1)
         rot -- (xs, i + 1, n)
-        memory.out -- ()
+        ptr.out -- ()
     else -- (xs, i, n)
         "\n" string.out
         pop pop pop
@@ -149,44 +149,44 @@ func range.step (range) (range) in
 end
 
 func main () (int) in
-    14 memory.allocate -- (memory)
+    14 ptr.allocate -- (ptr)
 
-    0  0 memory.@
-    1  0 memory.@
-    2  0 memory.@
-    3  1 memory.@
-    4  0 memory.@
-    5  0 memory.@
-    6  1 memory.@
-    7  1 memory.@
-    8  0 memory.@
-    9  1 memory.@
-    10 1 memory.@
-    11 1 memory.@
-    12 1 memory.@
-    13 1 memory.@
-    dup 0 14 memory.out -- (memory)
+    0  0 ptr.@
+    1  0 ptr.@
+    2  0 ptr.@
+    3  1 ptr.@
+    4  0 ptr.@
+    5  0 ptr.@
+    6  1 ptr.@
+    7  1 ptr.@
+    8  0 ptr.@
+    9  1 ptr.@
+    10 1 ptr.@
+    11 1 ptr.@
+    12 1 ptr.@
+    13 1 ptr.@
+    dup 0 14 ptr.out -- (ptr)
 
-    14 rule110 -- (memory)
-    dup 0 14 memory.out -- (memory)
-    14 rule110 -- (memory)
-    dup 0 14 memory.out -- (memory)
-    14 rule110 -- (memory)
-    dup 0 14 memory.out -- (memory)
-    14 rule110 -- (memory)
-    dup 0 14 memory.out -- (memory)
-    14 rule110 -- (memory)
-    dup 0 14 memory.out -- (memory)
-    14 rule110 -- (memory)
-    dup 0 14 memory.out -- (memory)
-    14 rule110 -- (memory)
-    dup 0 14 memory.out -- (memory)
-    14 rule110 -- (memory)
-    dup 0 14 memory.out -- (memory)
-    14 rule110 -- (memory)
-    dup 0 14 memory.out -- (memory)
-    14 rule110 -- (memory)
-    dup 0 14 memory.out -- (memory)
+    14 rule110 -- (ptr)
+    dup 0 14 ptr.out -- (ptr)
+    14 rule110 -- (ptr)
+    dup 0 14 ptr.out -- (ptr)
+    14 rule110 -- (ptr)
+    dup 0 14 ptr.out -- (ptr)
+    14 rule110 -- (ptr)
+    dup 0 14 ptr.out -- (ptr)
+    14 rule110 -- (ptr)
+    dup 0 14 ptr.out -- (ptr)
+    14 rule110 -- (ptr)
+    dup 0 14 ptr.out -- (ptr)
+    14 rule110 -- (ptr)
+    dup 0 14 ptr.out -- (ptr)
+    14 rule110 -- (ptr)
+    dup 0 14 ptr.out -- (ptr)
+    14 rule110 -- (ptr)
+    dup 0 14 ptr.out -- (ptr)
+    14 rule110 -- (ptr)
+    dup 0 14 ptr.out -- (ptr)
 
     pop
 

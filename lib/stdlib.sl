@@ -1,7 +1,7 @@
 data int extern
 data bool extern
 data string extern
-data memory extern
+data ptr extern
 
 func dup (a) (a, a) extern
 func swp (a, b) (b, a) extern
@@ -17,31 +17,33 @@ func > (int, int) (bool) extern
 func < (int, int) (bool) extern
 func = (int, int) (bool) extern
 
-func string.init (int, memory) (string) extern
+func string.init (int, ptr) (string) extern
 func string.len (string) (int) extern
-func string.memory (string) (memory) extern
+func string.ptr (string) (ptr) extern
 func string.concat (string, string) (string) extern
 func string.substr (string, int, int) (string) extern
 
-func memory.allocate (int) (memory) extern
--- func memory.@ (memory, int, a) (memory) extern
-func memory.@ (memory, int, a) (memory) extern
--- func memory.!! (memory, int) (a) extern
-func memory.!! (memory, int) (int) extern
+func ptr.allocate (int) (ptr) extern
+-- func ptr.@ (ptr, int, a) (ptr) extern
+func ptr.@ (ptr, int, a) (ptr) extern
+-- func ptr.!! (ptr, int) (a) extern
+func ptr.!! (ptr, int) (int) extern
 
 func syscall3 (a, b, c, int) (int) extern
 
+-- TODO: generic data types
 data tuple (int fst, int snd)
 
-func sys.read (int, memory, int) (int) in 0 syscall3 end
-func sys.write (int, memory, int) (int) in 1 syscall3 end
+func sys.read (int, ptr, int) (int) in 0 syscall3 end
+func sys.write (int, ptr, int) (int) in 1 syscall3 end
 
 func string.read (int, int) (string) in
+    -- read a string (int fd, int len)
     dup -- fd, n, n
     rot -- n, n, fd
     tuple -- n, (n, fd)
     swp -- (n, fd), n
-    memory.allocate -- (n, fd), m
+    ptr.allocate -- (n, fd), m
     dup -- (n, fd), m, m
     rot -- m, m, (n, fd)
     dup -- m, m, (n, fd), (n, fd)
@@ -57,7 +59,8 @@ func string.read (int, int) (string) in
 end
 
 func string.write (int, string) (int) in
-    dup string.memory swp string.len sys.write
+    -- write a string (int fd, string str)
+    dup string.ptr swp string.len sys.write
 end
 
 func string.out (string) () in
