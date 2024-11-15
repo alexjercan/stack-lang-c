@@ -1,1 +1,0 @@
-tests/03-typecheck/05-data-field-redefined.sl:3:6, Semantic error: func ivec2.x is redefined

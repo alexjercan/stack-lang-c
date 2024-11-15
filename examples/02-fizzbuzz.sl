@@ -1,10 +1,10 @@
 @import stdlib
 
 func fizzbuzz& (int) () in
-    dup 15 mod 0 = if pop "fizzbuzz\n" string.out else
-    dup 5 mod 0 = if pop "buzz\n" string.out else
-    dup 3 mod 0 = if pop "fizz\n" string.out else
-    show "\n" string.concat string.out
+    dup 15 mod 0 = if pop "fizzbuzz\n" string.stdout else
+    dup 5 mod 0 = if pop "buzz\n" string.stdout else
+    dup 3 mod 0 = if pop "fizz\n" string.stdout else
+    int.show "\n" string.concat string.stdout
     fi fi fi
 end
 

@@ -1,1 +1,0 @@
-tests/03-typecheck/06-if-else.sl:2:5, Semantic error: stack mismatch lhs execution (..., string) rhs execution (..., int)

@@ -37,157 +37,121 @@ func rule110.match (int, int, int) (int) in
     0 = if rule110.match__0 else rule110.match__1 fi
 end
 
-func range.wrap_dec (range) (int) in
-    -- (r)
-    dup -- (r, r)
-    range.i -- (r, i)
-    0 = if -- (r)
-        range.j -- (int)
-    else -- (r)
-        range.i -- (int)
-    fi
-    1 - -- (int)
-end
-
-func range.wrap_inc (range) (int) in
-    -- (r)
-    dup -- (r, r)
-    dup -- (r, r, r)
-    range.i -- (r, r, i)
-    swp -- (r, i, r)
-    range.j -- (r, i, n)
-    1 - -- (r, i, n-1)
-    = if -- (r)
-        pop 0 -- (int)
-    else -- (r)
-        range.i 1 + -- (int)
-    fi
-end
-
 func rule110.xyz (ptr, range) (int, int, int) in
-    dup2 -- (m, r, m, r)
-    range.wrap_dec -- (m, r, m, i-1)
-    ptr.!! -- (m, r, x)
-    rot' -- (x, m, r)
-    dup2 -- (x, m, r, m, r)
-    range.i -- (x, m, r, m, i)
-    ptr.!! -- (x, m, r, y)
-    rot' -- (x, y, m, r)
-    range.wrap_inc -- (x, y, m, i+1)
-    ptr.!! -- (x, y, z)
+    dup2 range.wrap_dec -- xs, r, xs, i-1
+    swp ptr.int + int.ptr ptr.@byte -- xs, r, x
+    rot' dup2 range.i -- (x, xs, r, xs, i)
+    swp ptr.int + int.ptr ptr.@byte -- x, xs, r, y
+    rot' range.wrap_inc -- x, y, xs, i+1
+    swp ptr.int + int.ptr ptr.@byte -- x, y, z
 end
 
-func rule110' (rule110.buffer, range) () in
-    -- (b, r)
-    dup2 -- (b, r, b, r)
-    swp -- (b, r, r, b)
-    rule110.buffer.m -- (b, r, r, m)
-    swp -- (b, r, m, r)
-    rule110.xyz -- (b, r, x, y, z)
-    rule110.match -- (b, r, v)
-    swp -- (b, v, r)
-    range.i -- (b, v, i)
-    rot -- (v, i, b)
-    rule110.buffer.m' -- (v, i, m')
-    rot' -- (m', v, i)
-    swp -- (m', i, v)
-    ptr.@ -- (m')
-    pop -- ()
+func rule110' (ptr, ptr, range) () in -- xs', xs, r
+    dup rot' -- xs', r, xs, r
+    rule110.xyz -- xs', r, x, y, z
+    rule110.match -- xs', r, v
+    swp range.i -- xs', v, i
+    rot ptr.int + int.ptr -- v, xs'+i
+    swp ptr.!byte -- ()
 end
 
-func rule110.rec (rule110.buffer, range) () in
-    -- (b, r)
-    dup2 -- (b, r, b, r)
-    dup -- (b, r, b, r, r)
-    range.< if  -- (b, r, b, r)
-        rule110' -- (b, r)
-        range.step -- (b, r)
-        rule110.rec -- ()
-    else  -- (b, r, b, r)
-        pop2 pop2 -- ()
-    fi
-end
-
-data rule110.buffer (ptr m, ptr m')
-
-func rule110 (ptr, int) (ptr) in
-    dup ptr.allocate -- (m, n, m')
-    swp -- (m, m', n)
-    0 swp range -- (m, m', r)
-    rot' -- (r, m, m')
-    rule110.buffer -- (r, b)
-    dup rule110.buffer.m' -- (r, b, m')
-    rot' -- (m', r, b)
-    swp -- (m', b, r)
-    rule110.rec -- (m')
-end
-
-func ptr.out (ptr, int, int) () in
-    dup2 -- (xs, i, n, i, n)
-    < if -- (xs, i, n)
-        rot' -- (n, xs, i)
-        dup2 -- (n, xs, i, xs, i)
-        ptr.!! -- (n, xs, i, a)
-        show string.out -- (n, xs, i)
-        1 + -- (n, xs, i + 1)
-        rot -- (xs, i + 1, n)
-        ptr.out -- ()
-    else -- (xs, i, n)
-        "\n" string.out
+func rule110.rec (ptr, ptr, range) () in -- xs', xs, r
+    dup range.< if -- xs', xs, r
+        dup3 rule110' range.step rule110.rec
+    else
         pop pop pop
-    fi
+    fi -- ()
+end
+
+func rule110 (ptr, int) (ptr) in -- xs, n
+    dup ptr.alloc -- xs, n, xs'
+    dup rot4' rot' -- xs', xs', xs, n
+    0 swp range.init -- xs', xs', xs, r
+    rule110.rec -- xs'
+end
+
+func ptr.out (ptr, int, int) () in -- xs, i, n
+    dup2 < if -- xs, i, n
+        rot' dup2 swp ptr.int + int.ptr -- n, xs, i, xs+i
+        ptr.@byte int.show string.stdout -- n, xs, i
+        1 + rot ptr.out
+    else
+        "\n" string.stdout pop pop pop
+    fi -- ()
 end
 
 data range (int i, int j)
+
+func range.init (int, int) (range) in
+    16 ptr.alloc -- i, j, ptr
+    dup ptr.int 8 + int.ptr rot ptr.!int -- i, ptr
+    dup                     rot ptr.!int -- ptr
+    ptr.range -- range
+end
+
+func range.i (range) (int) in
+    range.ptr ptr.int 0 + int.ptr ptr.@int
+end
+
+func range.j (range) (int) in
+    range.ptr ptr.int 8 + int.ptr ptr.@int
+end
 
 func range.< (range) (bool) in
     dup range.i swp range.j <
 end
 
 func range.step (range) (range) in
-    dup range.i 1 + swp range.j range
+    dup range.i 1 + swp range.j range.init
+end
+
+
+func range.wrap_dec (range) (int) in
+    dup range.i 0 = if range.j else range.i fi 1 -
+end
+
+func range.wrap_inc (range) (int) in
+    dup dup range.i swp range.j 1 - = if pop 0 else range.i 1 + fi
 end
 
 func main () (int) in
-    14 ptr.allocate -- (ptr)
+    14 ptr.alloc -- (ptr)
 
-    0  0 ptr.@
-    1  0 ptr.@
-    2  0 ptr.@
-    3  1 ptr.@
-    4  0 ptr.@
-    5  0 ptr.@
-    6  1 ptr.@
-    7  1 ptr.@
-    8  0 ptr.@
-    9  1 ptr.@
-    10 1 ptr.@
-    11 1 ptr.@
-    12 1 ptr.@
-    13 1 ptr.@
-    dup 0 14 ptr.out -- (ptr)
+    dup ptr.int 0  + int.ptr 0 ptr.!byte
+    dup ptr.int 1  + int.ptr 0 ptr.!byte
+    dup ptr.int 2  + int.ptr 0 ptr.!byte
+    dup ptr.int 3  + int.ptr 1 ptr.!byte
+    dup ptr.int 4  + int.ptr 0 ptr.!byte
+    dup ptr.int 5  + int.ptr 0 ptr.!byte
+    dup ptr.int 6  + int.ptr 1 ptr.!byte
+    dup ptr.int 7  + int.ptr 1 ptr.!byte
+    dup ptr.int 8  + int.ptr 0 ptr.!byte
+    dup ptr.int 9  + int.ptr 1 ptr.!byte
+    dup ptr.int 10 + int.ptr 1 ptr.!byte
+    dup ptr.int 11 + int.ptr 1 ptr.!byte
+    dup ptr.int 12 + int.ptr 1 ptr.!byte
+    dup ptr.int 13 + int.ptr 1 ptr.!byte
 
-    14 rule110 -- (ptr)
-    dup 0 14 ptr.out -- (ptr)
-    14 rule110 -- (ptr)
-    dup 0 14 ptr.out -- (ptr)
-    14 rule110 -- (ptr)
-    dup 0 14 ptr.out -- (ptr)
-    14 rule110 -- (ptr)
-    dup 0 14 ptr.out -- (ptr)
-    14 rule110 -- (ptr)
-    dup 0 14 ptr.out -- (ptr)
-    14 rule110 -- (ptr)
-    dup 0 14 ptr.out -- (ptr)
-    14 rule110 -- (ptr)
-    dup 0 14 ptr.out -- (ptr)
-    14 rule110 -- (ptr)
-    dup 0 14 ptr.out -- (ptr)
-    14 rule110 -- (ptr)
-    dup 0 14 ptr.out -- (ptr)
-    14 rule110 -- (ptr)
-    dup 0 14 ptr.out -- (ptr)
-
+    dup 0 14 ptr.out -- ptr
+    14 rule110 -- ptr
+    dup 0 14 ptr.out -- ptr
+    14 rule110 -- ptr
+    dup 0 14 ptr.out -- ptr
+    14 rule110 -- ptr
+    dup 0 14 ptr.out -- ptr
+    14 rule110 -- ptr
+    dup 0 14 ptr.out -- ptr
+    14 rule110 -- ptr
+    dup 0 14 ptr.out -- ptr
+    14 rule110 -- ptr
+    dup 0 14 ptr.out -- ptr
+    14 rule110 -- ptr
+    dup 0 14 ptr.out -- ptr
+    14 rule110 -- ptr
+    dup 0 14 ptr.out -- ptr
+    14 rule110 -- ptr
+    dup 0 14 ptr.out -- ptr
+    14 rule110 -- ptr
     pop
 
     0

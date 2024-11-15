@@ -12,6 +12,8 @@ then write them back on the stack.
 
 ### 1. Language Spec
 
+- TODO: update to latest
+
 This is still in progress. Just trying to come up with something that is both
 fun and easy to code in.
 

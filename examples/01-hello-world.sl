@@ -1,6 +1,6 @@
 @import stdlib
 
 func main () (int) in
-    "Hello, World!\n" string.out
+    "STACK Hello" 6 5 string.substr ", World!" string.concat string.stdout
     0
 end
