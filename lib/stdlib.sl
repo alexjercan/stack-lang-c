@@ -114,6 +114,10 @@ func <= (int, int) (bool) in
     dup2 < if pop2 true else = fi
 end
 
+func >= (int, int) (bool) in
+    dup2 > if pop2 true else = fi
+end
+
 func not (bool) (bool) in
     if false else true fi
 end
@@ -188,6 +192,13 @@ func string.write (int, string) (int) in -- fd, s
     dup string.str -- fd, s, ptr
     swp string.len -- fd, ptr, L
     sys.write -- int
+end
+
+func string.stdin () (string) in -- ()
+    0 1024 string.read
+    dup string.len dup
+    0 <= if pop
+    else 1024 >= if string.stdin string.concat fi fi
 end
 
 func string.stdout (string) () in -- s
