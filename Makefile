@@ -16,7 +16,7 @@ install:
 	mkdir -p $(BINDIR)
 	mkdir -p $(LIBDIR)
 	cp main $(BINDIR)/slc
-	cp lib $(LIBDIR)
+	cp -r lib $(LIBDIR)
 
 clean:
 	rm -rf main
