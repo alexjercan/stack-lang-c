@@ -292,6 +292,9 @@ the exit code.
 
 ##### 1.7.1 Imports
 
+WIP: Currently the imports are work in progress and should not be used. I need
+them only to keep common code in stdlib.
+
 To import another file in a stack program you can use the `@import` macro and
 then specify the name of the module.
 
