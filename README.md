@@ -48,8 +48,9 @@ stack.
 
 ##### 1.3.4. ptr
 
-The `ptr` data type is part of the stack compiler. The ptr is a C pointer. It
-has special functions to initialize and use.
+The `ptr` data type is used to represent a pointer. It's value is an int64. All
+data types will be able to be converted between and into `ptr` for easy memory
+management.
 
 #### 1.4. Functions
 
@@ -108,17 +109,16 @@ end
 The rotate (clockwise) function can be used to rotate  the first three items on
 the stack. Rotate will take the last item and put it in the front.
 
-##### 1.4.3. `rot'`
+##### 1.4.3. `rot4`
 
 ```stack
 func rot' (a, b, c) (c, a, b) in
-    ...
+    rot rot
 end
 ```
 
-The rotate' (counter clockwise) function can be used to rotate the first three
-items on the stack. Rotate' will take the first item and push it behind the
-first two.
+The rotate4 (clockwise) function can be used to rotate the first four items on
+the stack.
 
 ##### 1.4.4. `pop`
 
@@ -130,153 +130,73 @@ end
 
 The pop function can be used to remove items from the stack.
 
-##### 1.4.5. `+`
+##### 1.4.5. `ptr.alloc`
 
 ```stack
-func + (int, int) (int) in
+func ptr.alloc (int) (ptr) in
     ...
 end
 ```
 
-The `+` plus function will consume 2 int's on the stack and produce an int on
-the stack by adding the values of them.
+The allocate function will initialize a ptr buffer with size given as argument.
+The size is given in bytes.
 
-##### 1.4.6. `*`
+##### 1.4.6. `ptr.!byte`
 
 ```stack
-func * (int, int) (int) in
+func ptr.!byte (ptr, int) () in
     ...
 end
 ```
 
-The `*` plus function will consume 2 int's on the stack and produce an int on
-the stack by multiplying the values of them.
+The store byte function is used to set a value in the ptr buffer from an int
+value. This sets 1 byte in memory. It will use the lower part of the int's
+value (basically modulo 255).
 
-##### 1.4.7. `>`
+##### 1.4.7. `ptr.!int`
 
 ```stack
-func > (int, int) (bool) in
+func ptr.!int (ptr, int) () in
     ...
 end
 ```
 
-The `>` "greater than" function will compare two int values from the stack.
-That said, `1 0 >` will return `true`.
+The store int function is used to set a value in the ptr buffer from an int value.
+This sets 8 bytes in memory.
 
-##### 1.4.8. `<`
+##### 1.4.8. `ptr.@byte`
 
 ```stack
-func < (int, int) (bool) in
+func ptr.@byte (ptr) (int) in
     ...
 end
 ```
 
-The `<` "less than" function will compare two int values from the stack. That
-said, `0 1 <` will return `true`.
+The deref byte function is used to access an item from the ptr buffer. The
+function will read one byte in the lower part of the int.
 
-##### 1.4.9. `=`
+##### 1.4.9. `ptr.@int`
 
 ```stack
-func = (int, int) (bool) in
+func ptr.@int (ptr) (int) in
     ...
 end
 ```
 
-The `=` "equals" function will compare two int values from the stack. That
-said, `1 1 =` will return `true`.
+The deref int function is used to access an item from the ptr buffer. The
+function will read 8 bytes from the memory.
 
-##### 1.4.10. `string.out`
+##### 1.4.10. `syscall3`
+
+There are syscall function implemented for all number of argument in a syscall.
 
 ```stack
-func string.out (string) () in
+func syscall3 (a, b, c, int) (int) in
     ...
 end
 ```
 
-The out function will print a `string` to stdout.
-
-##### 1.4.11. `string.concat`
-
-```stack
-func string.concat (string, string) (string) in
-    ...
-end
-```
-
-The concat function will print concatenate the two strings in order and put the
-result on the stack.
-
-```stack
-"Hello, " "World\n" string.concat
--- "Hello, World\n"
-```
-
-##### 1.4.11. `string.substr`
-
-```stack
-func string.substr (string, int, int) (string) in
-    ...
-end
-```
-
-The substr function will create a substring starting at `i` with length `L` and
-put it on the stack.
-
-```stack
-"Hello, World\n" 1 3 string.substr
--- "ell"
-```
-
-##### 1.4.11. `show`
-
-```stack
-func show (int) (string) in
-    ...
-end
-```
-
-The show function will create a string with the value of an int.
-
-```stack
-5 show
--- "5"
-```
-
-##### 1.4.12. `ptr.allocate`
-
-```stack
-func ptr.allocate (int) (ptr) in
-    ...
-end
-```
-
-The allocate function will initialize a ptr buffer with size given as
-argument. The size is given in words (8 byte words) so it is best used for
-arrays.
-
-##### 1.4.13. `ptr.@`
-
-```stack
-func ptr.@ (ptr, int, a) (ptr) in
-    ...
-end
-```
-
-The store function is used to set a value in the ptr buffer at location
-given as arugment. The function will return the ptr back.
-
--- ptr.!! (ptr, int) (a)
-
-##### 1.4.14. `ptr.!!`
-
-```stack
-func ptr.!! (ptr, int) (a) in
-    ...
-end
-```
-
-The deref function is used to access an item from the ptr buffer at the
-location given as an argument.
+The last argument of a syscall function is the syscall number.
 
 #### 1.5. Expressions
 
@@ -318,34 +238,7 @@ if the condition is met. Some examples
 ```stack
 -- the abs function returns the absolute value
 func abs (int) (int) in
-    dup 0 >
-    if -1 * fi
-end
-```
-
-The `if` statement can be used to get a rudimentary for loop using recursion.
-This is an example of a function that shows the characters from `i` to `n`.
-
-```stack
--- this function will be used to recurse
--- args: i, n
-func show_n (int, int) () in
-    dup -- i, n, n
-    rot -- n, n, i
-    dup -- n, n, i, i
-    rot -- n, i, i, n
-    > -- n, i, bool
-    if -- n, i
-        dup -- n, i, i
-        show -- n, i, i
-        string.out -- n, i
-        1 + -- n, (i + 1)
-        swp -- (i + 1), n
-        show_n -- ()
-    else -- n, i
-        -- making sure the type is the same
-        pop pop -- ()
-    fi
+    dup 0 < if 0 swp - fi
 end
 ```
 
@@ -359,49 +252,29 @@ We can look at an example of implementing the `ivec2` data structure.
 data ivec2 (int x, int y)
 ```
 
-The stack compiler will automatically generate a few functions for your
-structure.
-
-To create a new `ivec2` you will need to push 2 `int`'s on the stack and then
-call the constructor.
+The stack compiler will create functions that convert the data type from and to
+a `ptr`. This way you can easily implement the `init` and `getters` of the data
+type.
 
 ```stack
--- (int int) (ivec2)
-1 2 ivec2
-```
-
-The compiler will automatically generate accessor functions for the fields of a
-structure. All the structures and types are immutable.
-
-You can think of the accessors as
-
-```stack
--- take the first field of the structure aka `x`
-func ivec2.x (ivec2) (int) in
+func ptr.ivec2 (ptr) (ivec2) in
     ...
 end
 
--- take the first field of the structure aka `y`
-func ivec2.y (ivec2) (int) in
+func ivec2.ptr (ivec2) (ptr) in
     ...
 end
 ```
 
-The convention is to prefix the name of the function with the name of the data
-type and `.` since this makes it look like most programming languages.
-
-Example of using the created data structure
+Some examples of using these `ptr` conversions are offseting the data pointer
+to access fields (or initialize them). The pattern is usually
 
 ```stack
--- dot product on ivec2 structure; it returns an int
-func ivec2.dot (ivec2 ivec2) (int) in
-    dup ivec2.x swp ivec2.y rot
-    dup ivec2.x swp ivec2.y rot
-    * swp rot
-    *
-    +
-end
+ivec2.ptr ptr.int 0 + int.ptr
 ```
+
+which gives you the pointer to the first field. Then you can use store and
+deref to modify or read the value.
 
 #### 1.6. Entrypoint
 
