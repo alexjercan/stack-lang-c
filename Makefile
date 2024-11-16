@@ -1,5 +1,6 @@
 PREFIX=/usr/local
 BINDIR=$(PREFIX)/bin
+LIBDIR=$(BINDIR)/lib
 
 CC=clang
 CFLAGS=-Wall -Wextra -Werror -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -g
@@ -13,7 +14,9 @@ build:
 
 install:
 	mkdir -p $(BINDIR)
+	mkdir -p $(LIBDIR)
 	cp main $(BINDIR)/slc
+	cp lib/*.sl $(LIBDIR)
 
 clean:
 	rm -rf main
