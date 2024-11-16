@@ -9,33 +9,13 @@ func rule110.match101 () (int) in 1 end
 func rule110.match110 () (int) in 1 end
 func rule110.match111 () (int) in 0 end
 
-func rule110.match_00 (int) (int) in
-    0 = if rule110.match000 else rule110.match100 fi
-end
-
-func rule110.match_01 (int) (int) in
-    0 = if rule110.match001 else rule110.match101 fi
-end
-
-func rule110.match_10 (int) (int) in
-    0 = if rule110.match010 else rule110.match110 fi
-end
-
-func rule110.match_11 (int) (int) in
-    0 = if rule110.match011 else rule110.match111 fi
-end
-
-func rule110.match__0 (int, int) (int) in
-    0 = if rule110.match_00 else rule110.match_10 fi
-end
-
-func rule110.match__1 (int, int) (int) in
-    0 = if rule110.match_01 else rule110.match_11 fi
-end
-
-func rule110.match (int, int, int) (int) in
-    0 = if rule110.match__0 else rule110.match__1 fi
-end
+func rule110.match_00 (int) (int) in 0 = if rule110.match000 else rule110.match100 fi end
+func rule110.match_01 (int) (int) in 0 = if rule110.match001 else rule110.match101 fi end
+func rule110.match_10 (int) (int) in 0 = if rule110.match010 else rule110.match110 fi end
+func rule110.match_11 (int) (int) in 0 = if rule110.match011 else rule110.match111 fi end
+func rule110.match__0 (int, int) (int) in 0 = if rule110.match_00 else rule110.match_10 fi end
+func rule110.match__1 (int, int) (int) in 0 = if rule110.match_01 else rule110.match_11 fi end
+func rule110.match (int, int, int) (int) in 0 = if rule110.match__0 else rule110.match__1 fi end
 
 func rule110.xyz (ptr, range) (int, int, int) in
     dup2 range.wrap_dec -- xs, r, xs, i-1
@@ -89,30 +69,15 @@ func range.init (int, int) (range) in
     ptr.range -- range
 end
 
-func range.i (range) (int) in
-    range.ptr ptr.int 0 + int.ptr ptr.@int
-end
+func range.i (range) (int) in range.ptr ptr.int 0 + int.ptr ptr.@int end
+func range.j (range) (int) in range.ptr ptr.int 8 + int.ptr ptr.@int end
 
-func range.j (range) (int) in
-    range.ptr ptr.int 8 + int.ptr ptr.@int
-end
+func range.< (range) (bool) in dup range.i swp range.j < end
 
-func range.< (range) (bool) in
-    dup range.i swp range.j <
-end
+func range.step (range) (range) in dup range.i 1 + swp range.j range.init end
 
-func range.step (range) (range) in
-    dup range.i 1 + swp range.j range.init
-end
-
-
-func range.wrap_dec (range) (int) in
-    dup range.i 0 = if range.j else range.i fi 1 -
-end
-
-func range.wrap_inc (range) (int) in
-    dup dup range.i swp range.j 1 - = if pop 0 else range.i 1 + fi
-end
+func range.wrap_dec (range) (int) in dup range.i 0 = if range.j else range.i fi 1 - end
+func range.wrap_inc (range) (int) in dup dup range.i swp range.j 1 - = if pop 0 else range.i 1 + fi end
 
 func main () (int) in
     14 ptr.alloc -- (ptr)
