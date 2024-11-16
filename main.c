@@ -2247,6 +2247,7 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("    add     rax, rdi");
     EMIT("    mov     qword [rbp - loc_1], rax");
     EMIT("");
+    EMIT(".alloc_do:");
     EMIT("    ; cmp t1 <= heap_end");
     EMIT("    mov     rax, qword [rbp - loc_1]");
     EMIT("    cmp     rax, qword [heap_end]");
@@ -2258,6 +2259,7 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("    syscall");
     EMIT("");
     EMIT("    mov     [heap_end], rax            ; save the new end of the heap");
+    EMIT("    jmp     .alloc_do");
     EMIT("");
     EMIT(".alloc_ok:");
     EMIT("");
