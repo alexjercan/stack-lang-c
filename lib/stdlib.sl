@@ -197,7 +197,7 @@ end
 func string.stdin () (string) in -- ()
     0 1024 string.read
     dup string.len dup
-    0 <= if pop
+    0 <= if sys.exit
     else 1024 >= if string.stdin string.concat fi fi
 end
 
