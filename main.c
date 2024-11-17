@@ -1125,8 +1125,13 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
         stack_ast_import import = {0};
         ds_dynamic_array_get(&prog->imports, i, &import);
 
+        char *stack_home = getenv("STACK_HOME");
+        if (stack_home == NULL) {
+            stack_home = ".";
+        }
+
         ds_string_builder_init(&sb);
-        DS_EXPECT(ds_string_builder_append(&sb, "lib/%.*s.sl", import.name.value.len, import.name.value.str), DS_ERROR_OOM);
+        DS_EXPECT(ds_string_builder_append(&sb, "%s/lib/%.*s.sl", stack_home, import.name.value.len, import.name.value.str), DS_ERROR_OOM);
         DS_EXPECT(ds_string_builder_build(&sb, &filename), DS_ERROR_OOM);
         DS_EXPECT(ds_dynamic_array_append(&preprocessor->_buffers, &filename), DS_ERROR_OOM);
 
