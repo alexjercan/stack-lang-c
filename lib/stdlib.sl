@@ -64,6 +64,31 @@ func ptr.memcpy (ptr, ptr, int) (ptr) in -- dst, src, sz
     rot dup rot4' rot4' ptr.memcpy'
 end
 
+func ptr.memcmp' (ptr, ptr, int) (int) in -- s1, s2, n
+    dup 0 <= if -- s1, s2, n
+        pop pop pop 0
+    else
+        rot' -- n, s1, s2
+
+        dup2 -- n, s1, s2, s1, s2
+        ptr.@byte swp ptr.@byte swp -- n, s1, s2, b1, b2
+        - -- n, s1, s2, b1-b2
+        dup 0 = if -- n, s1, s2, b1-b2
+            pop -- n, s1, s2
+            ptr.int 1 + int.ptr -- n, s1, s2+1
+            swp ptr.int 1 + int.ptr swp -- n, s1+1, s2+1
+            rot 1 - -- s1+1, s2+1, n-1
+            ptr.memcmp' -- int
+        else
+            rot4' pop3 -- b1-b2
+        fi
+    fi
+end
+
+func ptr.memcmp (ptr, ptr, int) (int) in -- s1, s2, n
+    ptr.memcmp'
+end
+
 -- DATA INT
 data int extern
 
@@ -105,6 +130,10 @@ func int.show (int) (string) in
     else int.show' fi
 end
 
+func byte.isdigit (int) (bool) in -- chr
+    dup 48 >= swp 57 <= and
+end
+
 -- DATA BOOL
 data bool extern
 
@@ -137,7 +166,6 @@ data string (int len, ptr str)
 
 const string.len.offset 0
 const string.str.offset 8
-const string.max_line 1024
 
 const STDIN 0
 const STDOUT 1
@@ -183,42 +211,36 @@ func string.substr (string, int, int) (string) in -- s, i, n
     ptr.string -- string
 end
 
-func string.read (int, int) (string) in -- fd, L
-    dup string.memory-needed ptr.alloc -- fd, L, ptr
-    dup rot4' ptr.int string.str.offset + int.ptr -- ptr, fd, L, ptr8
-    swp -- ptr, fd, ptr8, L
-    sys.read -- ptr, L
-    dup -- ptr, L, L
-    0 < if -- ptr, L
-        pop dup 0 -- ptr, ptr, 0
-    else
-        swp dup rot -- ptr, ptr, L
-    fi
-    ptr.!int -- ptr
-    ptr.string -- string
+func string.!! (string, int) (int) in -- s, i
+    swp -- i, s
+    string.str ptr.int + int.ptr -- str+i
+    ptr.@byte -- chr
 end
 
-func string.write (int, string) (int) in -- fd, s
-    dup string.str -- fd, s, ptr
-    swp string.len -- fd, ptr, L
-    sys.write -- int
+func string.= (string, string) (bool) in -- s1, s2
+    dup2 string.len swp string.len swp -- s1, s2, L1, L2
+    dup rot' = if -- s1, s2, L
+        rot' string.str swp string.str swp rot -- s1.str, s2.str, L
+        ptr.memcmp -- int
+        0 = -- bool
+    else
+        pop3 false
+    fi -- bool
 end
 
 func string.stdin () (string) in -- ()
-    STDIN string.max_line string.read
-    dup string.len dup
-    0 <= if sys.exit
-    else string.max_line >= if string.stdin string.concat fi fi
+    STDIN stdlib.fread.<eof> -- s, ok
+    not if panic fi -- s
 end
 
 func string.stdout (string) () in -- s
-    STDOUT swp string.write -- int
-    dup 0 < if sys.exit else pop fi
+    STDOUT swp stdlib.fwrite -- bool
+    not if panic fi
 end
 
 func string.stderr (string) () in -- s
-    STDERR swp string.write -- int
-    dup 0 < if sys.exit else pop fi
+    STDERR swp stdlib.fwrite -- bool
+    not if panic fi
 end
 
 -- SYSCALLS
@@ -228,4 +250,82 @@ func syscall3 (a, b, c, int) (int) extern
 
 func sys.read (int, ptr, int) (int) in 0 syscall3 end
 func sys.write (int, ptr, int) (int) in 1 syscall3 end
+func sys.open (ptr, int, int) (int) in 2 syscall3 end
+func sys.close (int) (int) in 3 syscall1 end
 func sys.exit (int) () in 60 syscall1 pop end
+
+const O_RDONLY 0
+const O_WRONLY 1
+const O_RDWR   2
+
+const O_0644   420
+
+-- STDLIB
+
+const stdlib.MAX_LINE 1024
+
+func abort () () in
+    1 sys.exit
+end
+
+func panic () () in
+    "panic" STDERR swp stdlib.fwrite pop abort
+end
+
+func stdlib.fopen (string, string) (int, bool) in -- fn, md
+    swp string.str swp
+    dup "r" string.= if -- fn, md
+        pop O_RDONLY O_0644 sys.open true
+    else dup "w" string.= if -- fn, md
+        pop O_WRONLY O_0644 sys.open true
+    else
+        pop2 0 false
+    fi fi -- int, ok
+end
+
+func stdlib.fclose (int) (bool) in -- fd
+    sys.close 0 =
+end
+
+func stdlib.fread (int, int) (string, bool) in -- fd, L
+    dup string.memory-needed ptr.alloc -- fd, L, ptr
+    dup rot4' ptr.int string.str.offset + int.ptr -- ptr, fd, L, ptr8
+    swp -- ptr, fd, ptr8, L
+    sys.read -- ptr, L
+    dup -- ptr, L, L
+    0 < if -- ptr, L
+        pop2 "" false
+    else
+        swp dup rot -- ptr, ptr, L
+        ptr.!int -- ptr
+        ptr.string true
+    fi -- s, ok
+end
+
+func stdlib.fread.<eof> (int) (string, bool) in -- fd
+    dup stdlib.MAX_LINE stdlib.fread -- fd, s, ok
+    not if -- fd, s
+        pop2 "" false
+    else
+        dup string.len -- fd, s, L
+        dup 0 <= if -- fd, s, L
+            pop3 "" false
+        else stdlib.MAX_LINE >= if -- fd, s
+            swp stdlib.fread.<eof> -- s1, s2, ok
+            not if -- s1, s2
+                pop2 "" false
+            else
+                string.concat true
+            fi -- s, ok
+        else -- fd, s
+            swp pop true
+        fi fi -- s, ok
+    fi -- s, ok
+end
+
+func stdlib.fwrite (int, string) (bool) in -- fd, s
+    dup string.str -- fd, s, ptr
+    swp string.len -- fd, ptr, L
+    sys.write -- int
+    0 >= -- bool
+end
