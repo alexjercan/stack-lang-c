@@ -1,6 +1,6 @@
 PREFIX=/usr/local
 BINDIR=$(PREFIX)/bin
-LIBDIR=$(PREFIX)/lib
+LIBDIR=$(PREFIX)
 
 CC=clang
 CFLAGS=-Wall -Wextra -Werror -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -g
