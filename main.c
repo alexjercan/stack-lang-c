@@ -33,6 +33,7 @@
 #define SLICE_FI DS_STRING_SLICE("fi")
 #define SLICE_IMPORT DS_STRING_SLICE("@import")
 #define SLICE_EXTERN DS_STRING_SLICE("extern")
+#define SLICE_CONST DS_STRING_SLICE("const")
 
 typedef enum {
     STACK_ILLEGAL_NO_ERROR,
@@ -57,6 +58,7 @@ typedef enum {
     STACK_TOKEN_IMPORT,
     STACK_TOKEN_DATA,
     STACK_TOKEN_NAME,
+    STACK_TOKEN_CONST,
     STACK_TOKEN_LPAREN,
     STACK_TOKEN_RPAREN,
     STACK_TOKEN_COMMA,
@@ -79,6 +81,7 @@ static const char* stack_token_kind_map(stack_token_kind kind) {
     case STACK_TOKEN_IMPORT: return "IMPORT";
     case STACK_TOKEN_DATA: return "DATA";
     case STACK_TOKEN_NAME: return "NAME";
+    case STACK_TOKEN_CONST: return "CONST";
     case STACK_TOKEN_LPAREN: return "(";
     case STACK_TOKEN_RPAREN: return ")";
     case STACK_TOKEN_COMMA: return ",";
@@ -266,6 +269,8 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
             return STACK_TOKEN(STACK_TOKEN_FI, (ds_string_slice){0}, position);
         } else if (ds_string_slice_equals(&slice, &SLICE_EXTERN)) {
             return STACK_TOKEN(STACK_TOKEN_EXTERN, (ds_string_slice){0}, position);
+        } else if (ds_string_slice_equals(&slice, &SLICE_CONST)) {
+            return STACK_TOKEN(STACK_TOKEN_CONST, (ds_string_slice){0}, position);
         } else {
             return STACK_TOKEN(STACK_TOKEN_NAME, slice, position);
         }
@@ -660,7 +665,6 @@ static int stack_parser_parse_expr(stack_parser *parser, stack_ast_expr *expr) {
         return_defer(0);
     }
     default:
-        stack_parser_read(parser);
         return_defer(1);
     }
 
@@ -920,15 +924,65 @@ static void stack_ast_import_free(stack_ast_import *import) {
 }
 
 typedef struct {
+    stack_ast_node name;
+    ds_dynamic_array exprs; /* stack_ast_expr */
+} stack_ast_const;
+
+static int stack_parser_parse_const(stack_parser *parser, stack_ast_const *const_) {
+    stack_token token = {0};
+    int result = 0;
+
+    token = stack_parser_read(parser);
+    if (token.kind != STACK_TOKEN_CONST) {
+        stack_parser_show_expected(parser, STACK_TOKEN_IMPORT, token.kind);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
+    }
+
+    token = stack_parser_read(parser);
+    if (token.kind != STACK_TOKEN_NAME) {
+        stack_parser_show_expected(parser, STACK_TOKEN_NAME, token.kind);
+        DS_PANIC("TODO: RECOVER FROM ERROR");
+    }
+    const_->name = STACK_AST_NODE(token.value, parser, token.pos);
+
+    ds_dynamic_array_init(&const_->exprs, sizeof(stack_ast_expr));
+
+    do {
+        stack_ast_expr expr = {0};
+        if (stack_parser_parse_expr(parser, &expr) != 0) {
+            break;
+        }
+        DS_EXPECT(ds_dynamic_array_append(&const_->exprs, &expr), DS_ERROR_OOM);
+    } while (true);
+
+    return_defer(0);
+
+defer:
+    return result;
+}
+
+static void stack_ast_const_free(stack_ast_const *const_) {
+    stack_ast_node_free(&const_->name);
+    for (unsigned int i = 0; i < const_->exprs.count; i++) {
+        stack_ast_expr *expr = NULL;
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&const_->exprs, i, (void **)&expr));
+        stack_ast_expr_free(expr);
+    }
+    ds_dynamic_array_free(&const_->exprs);
+}
+
+typedef struct {
     ds_dynamic_array datas; // stack_ast_data
     ds_dynamic_array funcs; // stack_ast_func
     ds_dynamic_array imports; // stack_ast_import
+    ds_dynamic_array consts; // stack_ast_const
 } stack_ast_prog;
 
 void stack_ast_init(stack_ast_prog *prog) {
     ds_dynamic_array_init(&prog->datas, sizeof(stack_ast_data));
     ds_dynamic_array_init(&prog->funcs, sizeof(stack_ast_func));
     ds_dynamic_array_init(&prog->imports, sizeof(stack_ast_import));
+    ds_dynamic_array_init(&prog->consts, sizeof(stack_ast_const));
 }
 
 int stack_parser_parse(stack_parser *parser, stack_ast_prog *prog) {
@@ -954,6 +1008,12 @@ int stack_parser_parse(stack_parser *parser, stack_ast_prog *prog) {
                 continue;
             }
             DS_EXPECT(ds_dynamic_array_append(&prog->imports, &import), DS_ERROR_OOM);
+        } else if (token.kind == STACK_TOKEN_CONST) {
+            stack_ast_const const_ = {0};
+            if (stack_parser_parse_const(parser, &const_) != 0) {
+                continue;
+            }
+            DS_EXPECT(ds_dynamic_array_append(&prog->consts, &const_), DS_ERROR_OOM);
         } else if (token.kind == STACK_TOKEN_EOF) {
             break;
         } else {
@@ -978,6 +1038,23 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
         DS_UNREACHABLE(ds_dynamic_array_get(&prog->imports, i, &import));
 
         fprintf(stdout, "@import %.*s\n", import.name.value.len, import.name.value.str);
+    }
+    if (prog->imports.count > 0) fprintf(stdout, "\n");
+
+    for (unsigned int i = 0; i < prog->consts.count; i++) {
+        stack_ast_const const_ = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&prog->consts, i, &const_));
+
+        fprintf(stdout, "const %.*s\n", const_.name.value.len, const_.name.value.str);
+
+        for (unsigned int j = 0; j < const_.exprs.count; j++) {
+            stack_ast_expr expr = {0};
+            DS_UNREACHABLE(ds_dynamic_array_get(&const_.exprs, j, &expr));
+
+            stack_ast_expr_dump(&expr, stdout, indent + INDENT_INCREMENT);
+        }
+
+        fprintf(stdout, "\n");
     }
     if (prog->imports.count > 0) fprintf(stdout, "\n");
 
@@ -1061,6 +1138,13 @@ void stack_ast_free(stack_ast_prog *prog) {
         stack_ast_import_free(import);
     }
     ds_dynamic_array_free(&prog->imports);
+
+    for (unsigned int i = 0; i < prog->consts.count; i++) {
+        stack_ast_const *const_ = NULL;
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&prog->consts, i, (void **)&const_));
+        stack_ast_const_free(const_);
+    }
+    ds_dynamic_array_free(&prog->consts);
 }
 
 /// PREPROCESSOR
@@ -1159,6 +1243,7 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
         ds_string_builder_free(&sb);
     }
 
+    DS_EXPECT(ds_dynamic_array_append_many(&prog_new.consts, prog->consts.items, prog->consts.count), DS_ERROR_OOM);
     DS_EXPECT(ds_dynamic_array_append_many(&prog_new.datas, prog->datas.items, prog->datas.count), DS_ERROR_OOM);
     DS_EXPECT(ds_dynamic_array_append_many(&prog_new.funcs, prog->funcs.items, prog->funcs.count), DS_ERROR_OOM);
 
@@ -1169,6 +1254,10 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
     tmp = prog_new.funcs;
     prog_new.funcs = prog->funcs;
     prog->funcs = tmp;
+
+    tmp = prog_new.consts;
+    prog_new.consts = prog->consts;
+    prog->consts = tmp;
 
 defer:
     ds_string_builder_free(&sb);
@@ -1183,6 +1272,16 @@ defer:
 #define STACK_DATA_PTR "ptr"
 
 /// TYPE CHECKER
+
+typedef struct {
+    ds_string_slice name;
+    ds_string_slice type;
+} stack_context_const;
+
+static void stack_context_const_free(stack_context_const *const_) {
+    ds_string_slice_free(&const_->name);
+    ds_string_slice_free(&const_->type);
+}
 
 typedef struct {
     ds_string_slice name;
@@ -1226,75 +1325,95 @@ static void stack_context_func_free(stack_context_func *func) {
     ds_dynamic_array_free(&func->rets);
 }
 
+typedef enum {
+    STACK_CONTEXT_SYMBOL_CONST,
+    STACK_CONTEXT_SYMBOL_DATA,
+    STACK_CONTEXT_SYMBOL_FUNC,
+} stack_context_symbol_kind;
+
 typedef struct {
-    ds_dynamic_array datas; // stack_context_data
-    ds_dynamic_array funcs; // stack_context_func
+    stack_context_symbol_kind kind;
+    union {
+        stack_context_const const_;
+        stack_context_data data;
+        stack_context_func func;
+    };
+} stack_context_symbol;
+
+static void stack_context_symbol_free(stack_context_symbol *symbol) {
+    switch (symbol->kind) {
+    case STACK_CONTEXT_SYMBOL_CONST:
+        stack_context_const_free(&symbol->const_);
+        break;
+    case STACK_CONTEXT_SYMBOL_DATA:
+        stack_context_data_free(&symbol->data);
+        break;
+    case STACK_CONTEXT_SYMBOL_FUNC:
+        stack_context_func_free(&symbol->func);
+        break;
+    }
+}
+
+typedef struct {
+    ds_dynamic_array symbols; // stack_context_symbol
 
     int failed;
 } stack_context;
 
 void stack_context_init(stack_context *context) {
-    ds_dynamic_array_init(&context->datas, sizeof(stack_context_data));
-    ds_dynamic_array_init(&context->funcs, sizeof(stack_context_func));
+    ds_dynamic_array_init(&context->symbols, sizeof(stack_context_symbol));
 
     context->failed = 0;
 }
 
 void stack_context_free(stack_context *context) {
-    for (unsigned int i = 0; i < context->datas.count; i++) {
-        stack_context_data *data = NULL;
-        DS_UNREACHABLE(ds_dynamic_array_get_ref(&context->datas, i, (void **)&data));
-        stack_context_data_free(data);
+    for (unsigned int i = 0; i < context->symbols.count; i++) {
+        stack_context_symbol *symbol = NULL;
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&context->symbols, i, (void **)&symbol));
+        stack_context_symbol_free(symbol);
     }
-    ds_dynamic_array_free(&context->datas);
+    ds_dynamic_array_free(&context->symbols);
+}
 
-    for (unsigned int i = 0; i < context->funcs.count; i++) {
-        stack_context_func *func = NULL;
-        DS_UNREACHABLE(ds_dynamic_array_get_ref(&context->funcs, i, (void **)&func));
-        stack_context_func_free(func);
+static int stack_context_symbol_get(stack_context *context, ds_string_slice name, stack_context_symbol *symbol) {
+    int result = 0;
+
+    for (unsigned int i = 0; i < context->symbols.count; i++) {
+        stack_context_symbol item = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&context->symbols, i, &item));
+
+        ds_string_slice item_name = {0};
+        switch (item.kind) {
+        case STACK_CONTEXT_SYMBOL_CONST:
+            item_name = item.const_.name;
+            break;
+        case STACK_CONTEXT_SYMBOL_DATA:
+            item_name = item.data.name;
+            break;
+        case STACK_CONTEXT_SYMBOL_FUNC:
+            item_name = item.func.name;
+            break;
+        }
+
+        if (ds_string_slice_equals(&item_name, &name)) {
+            if (symbol != NULL) *symbol = item;
+            return_defer(0);
+        }
     }
-    ds_dynamic_array_free(&context->funcs);
+
+    return_defer(1);
+
+defer:
+    return result;
 }
 
 static int stack_context_typecheck_exprs(stack_context *context,
                                          ds_dynamic_array *stack,
                                          ds_dynamic_array *exprs);
 
-static int stack_context_data_get(stack_context *context, ds_string_slice name, stack_context_data *data) {
-    int result = 0;
-
-    for (unsigned int i = 0; i < context->datas.count; i++) {
-        stack_context_data item = {0};
-        DS_UNREACHABLE(ds_dynamic_array_get(&context->datas, i, &item));
-        if (ds_string_slice_equals(&item.name, &name)) {
-            *data = item;
-            return_defer(0);
-        }
-    }
-
-    return_defer(1);
-
-defer:
-    return result;
-}
-
-static int stack_context_func_get(stack_context *context, ds_string_slice name, stack_context_func *func) {
-    int result = 0;
-
-    for (unsigned int i = 0; i < context->funcs.count; i++) {
-        stack_context_func item = {0};
-        DS_UNREACHABLE(ds_dynamic_array_get(&context->funcs, i, &item));
-        if (ds_string_slice_equals(&item.name, &name)) {
-            *func = item;
-            return_defer(0);
-        }
-    }
-
-    return_defer(1);
-
-defer:
-    return result;
-}
+static int stack_context_typecheck_expr(stack_context *context,
+                                        ds_dynamic_array *stack,
+                                        stack_ast_expr *expr);
 
 static void stack_context_show_errorf(stack_parser *parser, unsigned int pos, const char *format, ...) {
     unsigned int line = 0;
@@ -1316,34 +1435,22 @@ static void stack_context_show_errorf(stack_parser *parser, unsigned int pos, co
     fprintf(stderr, "\n");
 }
 
-static bool stack_context_is_data_redefined(stack_context *context, ds_string_slice name) {
-    for (unsigned int i = 0; i < context->datas.count; i++) {
-        stack_context_data item = {0};
-        DS_UNREACHABLE(ds_dynamic_array_get(&context->datas, i, &item));
-
-        if (ds_string_slice_equals(&name, &item.name)) {
+static bool stack_context_is_symbol_redefined(stack_context *context, ds_string_slice name, stack_context_symbol *symbol) {
+    for (unsigned int i = 0; i < context->symbols.count; i++) {
+        if (stack_context_symbol_get(context, name, symbol) == 0) {
             return true;
         }
     }
 
     return false;
+}
+
+static void stack_context_is_const_redefined_errorf(stack_ast_node node) {
+    stack_context_show_errorf(node.parser, node.pos, "const %.*s is redefined", node.value.len, node.value.str);
 }
 
 static void stack_context_is_data_redefined_errorf(stack_ast_node node) {
     stack_context_show_errorf(node.parser, node.pos, "data %.*s is redefined", node.value.len, node.value.str);
-}
-
-static bool stack_context_is_func_redefined(stack_context *context, ds_string_slice name) {
-    for (unsigned int i = 0; i < context->funcs.count; i++) {
-        stack_context_func item = {0};
-        DS_UNREACHABLE(ds_dynamic_array_get(&context->funcs, i, &item));
-
-        if (ds_string_slice_equals(&name, &item.name)) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 static void stack_context_is_func_redefined_errorf(stack_ast_node node) {
@@ -1352,6 +1459,41 @@ static void stack_context_is_func_redefined_errorf(stack_ast_node node) {
 
 static void stack_context_is_func_defined_errorf(stack_ast_node node) {
     stack_context_show_errorf(node.parser, node.pos, "func %.*s is not defined", node.value.len, node.value.str);
+}
+
+static bool stack_context_is_stack_const_valid(stack_context *context, ds_dynamic_array stack /* ds_string_slice */) {
+    return true;
+}
+
+static void stack_context_is_stack_const_valid_errorf(stack_ast_const *const_, ds_dynamic_array stack /* ds_string_slice */) {
+
+    // func ... has non matching return, expected ... but got ...
+    ds_string_builder sb = {0};
+    ds_string_slice slice = {0};
+    ds_string_builder_init(&sb);
+
+    DS_EXPECT(ds_string_builder_append(
+                  &sb, "const %.*s has non valid stack type, found (",
+                  const_->name.value.len, const_->name.value.str),
+              DS_ERROR_OOM);
+
+    for (unsigned int i = 0; i < stack.count; i++) {
+        ds_string_slice slice = {0};
+
+        DS_UNREACHABLE(ds_dynamic_array_get(&stack, i, &slice));
+
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s", slice.len, slice.str), DS_ERROR_OOM);
+
+        if (i < stack.count - 1) {
+            DS_EXPECT(ds_string_builder_append(&sb, ", "), DS_ERROR_OOM);
+        }
+    }
+
+    DS_EXPECT(ds_string_builder_append(&sb, ")"), DS_ERROR_OOM);
+
+    ds_string_builder_to_slice(&sb, &slice);
+    stack_context_show_errorf(const_->name.parser, const_->name.pos, "%.*s", slice.len, slice.str);
+    DS_FREE(slice.allocator, slice.str);
 }
 
 static bool stack_context_is_stack_eq_rets(stack_context *context,
@@ -1454,20 +1596,18 @@ static int stack_context_type_inference(stack_context *context, ds_dynamic_array
     for (unsigned int i = 0; i < args.count; i++) {
         ds_string_slice stack_slice = {0};
         ds_string_slice arg_slice = {0};
-        stack_context_data arg_data = {0};
-        stack_context_data stack_data = {0};
 
         DS_UNREACHABLE(ds_dynamic_array_get(stack, i + stack->count - args.count, &stack_slice));
         DS_UNREACHABLE(ds_dynamic_array_get(&args, i, &arg_slice));
 
-        if (stack_context_data_get(context, arg_slice, &arg_data) != 0) {
+        if (stack_context_symbol_get(context, arg_slice, NULL) != 0) {
             ds_string_slice value = {0};
             if (string_slice_kv_get(args_map, arg_slice, &value) != 0) {
                 DS_EXPECT(ds_dynamic_array_append(args_map, &(string_slice_kv){.key = arg_slice, .value = stack_slice }), DS_ERROR_OOM);
             } else if (!ds_string_slice_equals(&stack_slice, &value)) {
                 return_defer(1);
             }
-        } else if (stack_context_data_get(context, stack_slice, &stack_data) != 0) {
+        } else if (stack_context_symbol_get(context, stack_slice, NULL) != 0) {
             return_defer(1);
         } else if (!ds_string_slice_equals(&stack_slice, &arg_slice)) {
             return_defer(1);
@@ -1641,6 +1781,38 @@ static void stack_context_are_stack_eq_errorf(stack_context *context,
     DS_FREE(slice.allocator, slice.str);
 }
 
+static int stack_context_typecheck_const_def(stack_context *context, stack_ast_const *const_) {
+    ds_dynamic_array stack = {0}; // ds_string_slice
+    stack_context_const symbol = {0};
+    int result = 0;
+
+    if (stack_context_is_symbol_redefined(context, const_->name.value, NULL)) {
+        stack_context_is_const_redefined_errorf(const_->name);
+        return_defer(1);
+    }
+
+    symbol.name = const_->name.value;
+
+    ds_dynamic_array_init(&stack, sizeof(ds_string_slice));
+
+    if (stack_context_typecheck_exprs(context, &stack, &const_->exprs) != 0) {
+        return_defer(1);
+    }
+
+    if (!stack_context_is_stack_const_valid(context, stack)) {
+        stack_context_is_stack_const_valid_errorf(const_, stack);
+        return_defer(1);
+    }
+
+    DS_UNREACHABLE(ds_dynamic_array_get(&stack, 0, &symbol.type));
+
+    DS_EXPECT(ds_dynamic_array_append(&context->symbols, &(stack_context_symbol){ .kind = STACK_CONTEXT_SYMBOL_CONST, .const_ = symbol}), DS_ERROR_OOM);
+
+defer:
+    ds_dynamic_array_free(&stack);
+    return result;
+}
+
 static int stack_context_typecheck_data_ptr_data(stack_context *context, stack_ast_data *data) {
     ds_string_slice slice = {0};
     ds_string_builder sb = {0};
@@ -1653,7 +1825,7 @@ static int stack_context_typecheck_data_ptr_data(stack_context *context, stack_a
     DS_EXPECT(ds_string_builder_append(&sb, "%s.%.*s", STACK_DATA_PTR, data->name.value.len, data->name.value.str), DS_ERROR_OOM);
     ds_string_builder_to_slice(&sb, &slice);
 
-    if (stack_context_is_func_redefined(context, slice)) {
+    if (stack_context_is_symbol_redefined(context, slice, NULL)) {
         stack_context_is_func_redefined_errorf(data->name);
         DS_FREE(slice.allocator, slice.str);
         return_defer(1);
@@ -1664,7 +1836,7 @@ static int stack_context_typecheck_data_ptr_data(stack_context *context, stack_a
     DS_EXPECT(ds_dynamic_array_append(&symbol.args, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
     DS_EXPECT(ds_dynamic_array_append(&symbol.rets, &data->name.value), DS_ERROR_OOM);
 
-    DS_EXPECT(ds_dynamic_array_append(&context->funcs, &symbol), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&context->symbols, &(stack_context_symbol){ .kind = STACK_CONTEXT_SYMBOL_FUNC, .func = symbol}), DS_ERROR_OOM);
 
 defer:
     return result;
@@ -1682,7 +1854,7 @@ static int stack_context_typecheck_data_data_ptr(stack_context *context, stack_a
     DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%s", data->name.value.len, data->name.value.str, STACK_DATA_PTR), DS_ERROR_OOM);
     ds_string_builder_to_slice(&sb, &slice);
 
-    if (stack_context_is_func_redefined(context, slice)) {
+    if (stack_context_is_symbol_redefined(context, slice, NULL)) {
         stack_context_is_func_redefined_errorf(data->name);
         DS_FREE(slice.allocator, slice.str);
         return_defer(1);
@@ -1693,7 +1865,7 @@ static int stack_context_typecheck_data_data_ptr(stack_context *context, stack_a
     DS_EXPECT(ds_dynamic_array_append(&symbol.args, &data->name.value), DS_ERROR_OOM);
     DS_EXPECT(ds_dynamic_array_append(&symbol.rets, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
 
-    DS_EXPECT(ds_dynamic_array_append(&context->funcs, &symbol), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&context->symbols, &(stack_context_symbol){ .kind = STACK_CONTEXT_SYMBOL_FUNC, .func = symbol}), DS_ERROR_OOM);
 
 defer:
     return result;
@@ -1703,14 +1875,14 @@ static int stack_context_typecheck_data_def(stack_context *context, stack_ast_da
     stack_context_data symbol = {0};
     int result = 0;
 
-    if (stack_context_is_data_redefined(context, data->name.value)) {
+    if (stack_context_is_symbol_redefined(context, data->name.value, NULL)) {
         stack_context_is_data_redefined_errorf(data->name);
         return_defer(1);
     }
 
     symbol.name = data->name.value;
 
-    DS_EXPECT(ds_dynamic_array_append(&context->datas, &symbol), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&context->symbols, &(stack_context_symbol){ .kind = STACK_CONTEXT_SYMBOL_DATA, .data = symbol}), DS_ERROR_OOM);
 
     if (ds_string_slice_equals(&data->name.value, &DS_STRING_SLICE(STACK_DATA_PTR))) {
         return_defer(0);
@@ -1738,7 +1910,7 @@ static int stack_context_typecheck_func_def(stack_context *context, stack_ast_fu
 
     stack_context_func_init(&symbol);
 
-    if (stack_context_is_func_redefined(context, func->name.value)) {
+    if (stack_context_is_symbol_redefined(context, func->name.value, NULL)) {
         stack_context_is_func_redefined_errorf(func->name);
         return_defer(1);
     }
@@ -1757,25 +1929,21 @@ static int stack_context_typecheck_func_def(stack_context *context, stack_ast_fu
         DS_EXPECT(ds_dynamic_array_append(&symbol.rets, &ret.value), DS_ERROR_OOM);
     }
 
-    DS_EXPECT(ds_dynamic_array_append(&context->funcs, &symbol), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&context->symbols, &(stack_context_symbol){ .kind = STACK_CONTEXT_SYMBOL_FUNC, .func = symbol}), DS_ERROR_OOM);
 
 defer:
     return result;
 }
 
-static int stack_context_typecheck_expr_name(stack_context *context,
-                                             ds_dynamic_array *stack,
-                                             stack_ast_node *name) {
+static int stack_context_typecheck_expr_name_func(stack_context *context,
+                                                  ds_dynamic_array *stack,
+                                                  stack_context_func symbol,
+                                                  stack_ast_node *name) {
+
     ds_dynamic_array args_map; // string_slice_kv
     int result = 0;
 
     ds_dynamic_array_init(&args_map, sizeof(string_slice_kv));
-
-    stack_context_func symbol = {0};
-    if (stack_context_func_get(context, name->value, &symbol) != 0) {
-        stack_context_is_func_defined_errorf(*name);
-        return_defer(1);
-    }
 
     if (stack_context_type_inference(context, stack, symbol.args, &args_map) != 0) {
         stack_context_type_inference_errorf(context, *name, stack, symbol.args);
@@ -1800,6 +1968,43 @@ static int stack_context_typecheck_expr_name(stack_context *context,
 
 defer:
     ds_dynamic_array_free(&args_map);
+    return result;
+}
+
+static int stack_context_typecheck_expr_name_const(stack_context *context,
+                                                   ds_dynamic_array *stack,
+                                                   stack_context_const symbol,
+                                                   stack_ast_node *name) {
+    DS_UNUSED(context);
+    DS_UNUSED(name);
+    DS_EXPECT(ds_dynamic_array_append(stack, &symbol.type), DS_ERROR_OOM);
+
+    return 0;
+}
+
+static int stack_context_typecheck_expr_name(stack_context *context,
+                                             ds_dynamic_array *stack,
+                                             stack_ast_node *name) {
+    stack_context_symbol symbol = {0};
+    int result = 0;
+
+    if (stack_context_symbol_get(context, name->value, &symbol) != 0) {
+        stack_context_is_func_defined_errorf(*name);
+        return_defer(1);
+    }
+
+    switch (symbol.kind) {
+    case STACK_CONTEXT_SYMBOL_CONST:
+        result = stack_context_typecheck_expr_name_const(context, stack, symbol.const_, name);
+        break;
+    case STACK_CONTEXT_SYMBOL_DATA:
+        return_defer(1);
+    case STACK_CONTEXT_SYMBOL_FUNC:
+        result = stack_context_typecheck_expr_name_func(context, stack, symbol.func, name);
+        break;
+    }
+
+defer:
     return result;
 }
 
@@ -1940,6 +2145,16 @@ int stack_context_typecheck(stack_context *context, stack_ast_prog *prog) {
         }
     }
 
+    for (unsigned int i = 0; i < prog->consts.count; i++) {
+        stack_ast_const const_ = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&prog->consts, i, &const_));
+
+        if (stack_context_typecheck_const_def(context, &const_) != 0) {
+            result = 1;
+            continue;
+        }
+    }
+
     for (unsigned int i = 0; i < prog->funcs.count; i++) {
         stack_ast_func func = {0};
         DS_UNREACHABLE(ds_dynamic_array_get(&prog->funcs, i, &func));
@@ -2027,6 +2242,8 @@ void stack_const_func_free(stack_const_func *func) {
 #define STACK_CONST_FUNC_ALLOCD(v) (stack_const_func){.name = (v), .allocd = true}
 
 typedef struct {
+    stack_context *context;
+
     ds_dynamic_array func_map; // stack_const_func
     ds_dynamic_array constants; // stack_const_expr
     unsigned int if_counter;
@@ -2034,7 +2251,9 @@ typedef struct {
     FILE *stdout;
 } stack_assembler;
 
-void stack_assembler_init(stack_assembler *assembler, FILE *stdout) {
+void stack_assembler_init(stack_assembler *assembler, stack_context *context, FILE *stdout) {
+    assembler->context = context;
+
     ds_dynamic_array_init(&assembler->func_map, sizeof(stack_const_func));
     ds_dynamic_array_init(&assembler->constants, sizeof(stack_const_expr));
     assembler->if_counter = 0;
@@ -2043,6 +2262,8 @@ void stack_assembler_init(stack_assembler *assembler, FILE *stdout) {
 }
 
 void stack_assembler_free(stack_assembler *assembler) {
+    assembler->context = NULL;
+
     for (unsigned int i = 0; i < assembler->func_map.count; i++) {
         stack_const_func func = {0};
         ds_dynamic_array_get(&assembler->func_map, i, &func);
@@ -3044,7 +3265,20 @@ static void stack_assembler_emit_expr_string(stack_assembler *assembler, stack_a
 }
 
 static void stack_assembler_emit_expr_name(stack_assembler *assembler, stack_ast_node *node) {
-    EMIT("    call    func.%lu ; %.*s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(node->value), NULL), node->value.len, node->value.str);
+    stack_context_symbol symbol = {0};
+    DS_UNREACHABLE(stack_context_symbol_get(assembler->context, node->value, &symbol));
+
+    switch (symbol.kind) {
+    case STACK_CONTEXT_SYMBOL_CONST:
+        EMIT("    call    const.%lu ; %.*s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(node->value), NULL), node->value.len, node->value.str);
+        break;
+    case STACK_CONTEXT_SYMBOL_DATA:
+        break;
+    case STACK_CONTEXT_SYMBOL_FUNC:
+        EMIT("    call    func.%lu ; %.*s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(node->value), NULL), node->value.len, node->value.str);
+        break;
+    }
+
 }
 
 static void stack_assembler_emit_expr_cond(stack_assembler *assembler, stack_ast_cond *cond) {
@@ -3105,6 +3339,22 @@ static void stack_assembler_emit_func(stack_assembler *assembler, stack_ast_func
     EMIT("");
 }
 
+static void stack_assembler_emit_const(stack_assembler *assembler, stack_ast_const *const_) {
+    EMIT("const.%lu: ; %.*s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(const_->name.value), NULL), const_->name.value.len, const_->name.value.str);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+
+    for (unsigned int i = 0; i < const_->exprs.count; i++) {
+        stack_ast_expr expr = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&const_->exprs, i, &expr));
+        stack_assembler_emit_expr(assembler, &expr);
+    }
+
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+}
+
 static void stack_assembler_emit_program(stack_assembler *assembler, stack_ast_prog *prog) {
     EMIT("section '.text' executable");
     EMIT("");
@@ -3122,9 +3372,15 @@ static void stack_assembler_emit_program(stack_assembler *assembler, stack_ast_p
             stack_assembler_emit_func(assembler, &func);
         }
     }
+
+    for (unsigned int i = 0; i < prog->consts.count; i++) {
+        stack_ast_const const_ = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&prog->consts, i, &const_));
+        stack_assembler_emit_const(assembler, &const_);
+    }
 }
 
-void stack_assembler_emit(stack_assembler *assembler, stack_ast_prog *prog, stack_context *context) {
+void stack_assembler_emit(stack_assembler *assembler, stack_ast_prog *prog) {
     EMIT("format ELF64");
     EMIT("");
     stack_assembler_emit_allocator(assembler);
@@ -3293,9 +3549,9 @@ int main(int argc, char **argv) {
         return_defer(0);
     }
 
-    stack_assembler_init(&assembler, stdout);
+    stack_assembler_init(&assembler, &context, stdout);
     if (args.assembler) {
-        stack_assembler_emit(&assembler, &prog, &context);
+        stack_assembler_emit(&assembler, &prog);
         return_defer(0);
     }
 

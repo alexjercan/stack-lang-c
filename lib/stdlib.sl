@@ -1,5 +1,7 @@
 -- This is the standard library of `stack`.
 
+const INT_SIZE 8
+
 -- BASE FUNCTIONS
 
 func dup (a) (a, a) extern                      -- duplicate the first item
@@ -133,24 +135,32 @@ end
 -- DATA STRING
 data string (int len, ptr str)
 
+const string.len.offset 0
+const string.str.offset 8
+const string.max_line 1024
+
+const STDIN 0
+const STDOUT 1
+const STDERR 2
+
 func string.len (string) (int) in
-    string.ptr ptr.int 0 + int.ptr ptr.@int
+    string.ptr ptr.int string.len.offset + int.ptr ptr.@int
 end
 
 func string.str (string) (ptr) in
-    string.ptr ptr.int 8 + int.ptr
+    string.ptr ptr.int string.str.offset + int.ptr
 end
 
 -- compute how much memory you need to allocate for the string structure
 -- taking into account memory alignment by 8
-func string.memory-needed (int) (int) in
+func string.memory-needed (int) (int) in -- sz
     7 + 8 / 8 * 8 +
 end
 
 func string.concat (string, string) (string) in -- s1, s2
     dup2 string.len swp string.len + -- s1, s2, L
     dup rot4' string.memory-needed ptr.alloc -- L, s1, s2, ptr
-    dup rot4' ptr.int 8 + int.ptr -- L, ptr, s1, s2, ptr8
+    dup rot4' ptr.int string.str.offset + int.ptr -- L, ptr, s1, s2, ptr8
     rot dup string.str swp string.len dup rot4' ptr.memcpy -- L, ptr, s2, L1, ptr8
     ptr.int + int.ptr -- L, ptr, s2, ptr8+L1
     swp dup string.str swp string.len ptr.memcpy -- L, ptr, ptr8+L1
@@ -164,7 +174,7 @@ func string.substr (string, int, int) (string) in -- s, i, n
     string.str -- i, n, str
     ptr.int rot + int.ptr swp -- str+i, n
     dup string.memory-needed ptr.alloc -- str+i, n, ptr
-    dup rot4' ptr.int 8 + int.ptr -- ptr, str+i, n, ptr8
+    dup rot4' ptr.int string.str.offset + int.ptr -- ptr, str+i, n, ptr8
     rot' -- ptr, ptr8, str+i, n
     dup rot4' -- ptr, n, ptr8, str+i, n
     ptr.memcpy pop -- ptr, n
@@ -175,7 +185,7 @@ end
 
 func string.read (int, int) (string) in -- fd, L
     dup string.memory-needed ptr.alloc -- fd, L, ptr
-    dup rot4' ptr.int 8 + int.ptr -- ptr, fd, L, ptr8
+    dup rot4' ptr.int string.str.offset + int.ptr -- ptr, fd, L, ptr8
     swp -- ptr, fd, ptr8, L
     sys.read -- ptr, L
     dup -- ptr, L, L
@@ -195,19 +205,19 @@ func string.write (int, string) (int) in -- fd, s
 end
 
 func string.stdin () (string) in -- ()
-    0 1024 string.read
+    STDIN string.max_line string.read
     dup string.len dup
     0 <= if sys.exit
-    else 1024 >= if string.stdin string.concat fi fi
+    else string.max_line >= if string.stdin string.concat fi fi
 end
 
 func string.stdout (string) () in -- s
-    1 swp string.write -- int
+    STDOUT swp string.write -- int
     dup 0 < if sys.exit else pop fi
 end
 
 func string.stderr (string) () in -- s
-    2 swp string.write -- int
+    STDERR swp string.write -- int
     dup 0 < if sys.exit else pop fi
 end
 

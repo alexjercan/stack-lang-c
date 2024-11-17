@@ -78,6 +78,8 @@ typedef int bool;
 const bool true = 1;
 const bool false = 0;
 
+#define DS_UNUSED(value) (void)(value)
+
 // ALLOCATOR
 //
 // The allocator is a simple utility to allocate and free memory. You can define
@@ -116,7 +118,7 @@ DSHDEF void ds_dynamic_array_init_allocator(ds_dynamic_array *da,
                                             struct ds_allocator *allocator);
 DSHDEF void ds_dynamic_array_init(ds_dynamic_array *da, unsigned int item_size);
 DSHDEF int ds_dynamic_array_append(ds_dynamic_array *da, const void *item);
-DSHDEF int ds_dynamic_array_pop(ds_dynamic_array *da, const void **item);
+DSHDEF int ds_dynamic_array_pop(ds_dynamic_array *da, void **item);
 DSHDEF int ds_dynamic_array_append_many(ds_dynamic_array *da, void **new_items,
                                         unsigned int new_items_count);
 DSHDEF int ds_dynamic_array_get(ds_dynamic_array *da, unsigned int index,
@@ -1018,7 +1020,7 @@ defer:
 //
 // Returns 0 if the item was popped successfully, 1 if the array is empty.
 // If the item is NULL, then we just pop the item without returning it.
-DSHDEF int ds_dynamic_array_pop(ds_dynamic_array *da, const void **item) {
+DSHDEF int ds_dynamic_array_pop(ds_dynamic_array *da, void **item) {
     int result = 0;
 
     if (da->count == 0) {
