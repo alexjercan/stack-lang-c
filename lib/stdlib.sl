@@ -97,6 +97,11 @@ func - (int, int) (int) extern
 func * (int, int) (int) extern
 func / (int, int) (int) extern
 func % (int, int) (int) extern
+func | (int, int) (int) extern
+func & (int, int) (int) extern
+func ^ (int, int) (int) extern
+func >> (int, int) (int) extern
+func << (int, int) (int) extern
 
 func abs (int) (int) in
     dup 0 < if 0 swp - fi
@@ -257,6 +262,7 @@ func sys.exit (int) () in 60 syscall1 pop end
 const O_RDONLY 0
 const O_WRONLY 1
 const O_RDWR   2
+const O_CREAT  64
 
 const O_0644   420
 
@@ -277,7 +283,7 @@ func stdlib.fopen (string, string) (int, bool) in -- fn, md
     dup "r" string.= if -- fn, md
         pop O_RDONLY O_0644 sys.open true
     else dup "w" string.= if -- fn, md
-        pop O_WRONLY O_0644 sys.open true
+        pop O_WRONLY O_CREAT | O_0644 sys.open true
     else
         pop2 0 false
     fi fi -- int, ok

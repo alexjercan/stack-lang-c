@@ -2195,6 +2195,12 @@ int stack_context_typecheck(stack_context *context, stack_ast_prog *prog) {
 #define STACK_FUNC_STAR "*"
 #define STACK_FUNC_DIV "/"
 #define STACK_FUNC_MOD "%"
+#define STACK_FUNC_OR "|"
+#define STACK_FUNC_AND "&"
+#define STACK_FUNC_XOR "^"
+#define STACK_FUNC_SHR ">>"
+#define STACK_FUNC_SHL "<<"
+
 #define STACK_FUNC_GT ">"
 #define STACK_FUNC_LT "<"
 #define STACK_FUNC_EQ "="
@@ -2825,6 +2831,133 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    cqo");
     EMIT("    idiv    rdi");
     EMIT("    mov     rdi, rdx");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // AND
+    EMIT(";");
+    EMIT(";");
+    EMIT("; and");
+    EMIT(";");
+    EMIT(";   INPUT: (int, int)");
+    EMIT(";   OUTPUT: (int)");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_AND)), NULL), STACK_FUNC_AND);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    push    rax");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    pop     rdi");
+    EMIT("");
+    EMIT("    and     rdi, rax");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // OR
+    EMIT(";");
+    EMIT(";");
+    EMIT("; or");
+    EMIT(";");
+    EMIT(";   INPUT: (int, int)");
+    EMIT(";   OUTPUT: (int)");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_OR)), NULL), STACK_FUNC_OR);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    push    rax");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    pop     rdi");
+    EMIT("");
+    EMIT("    or      rdi, rax");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // XOR
+    EMIT(";");
+    EMIT(";");
+    EMIT("; xor");
+    EMIT(";");
+    EMIT(";   INPUT: (int, int)");
+    EMIT(";   OUTPUT: (int)");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_XOR)), NULL), STACK_FUNC_XOR);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    push    rax");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    pop     rdi");
+    EMIT("");
+    EMIT("    xor     rdi, rax");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // SHR
+    EMIT(";");
+    EMIT(";");
+    EMIT("; shr");
+    EMIT(";");
+    EMIT(";   INPUT: (int, int)");
+    EMIT(";   OUTPUT: (int)");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_SHR)), NULL), STACK_FUNC_SHR);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    push    rax");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    pop     rcx");
+    EMIT("");
+    EMIT("    shr     ax, cl");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // SHL
+    EMIT(";");
+    EMIT(";");
+    EMIT("; shl");
+    EMIT(";");
+    EMIT(";   INPUT: (int, int)");
+    EMIT(";   OUTPUT: (int)");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_SHL)), NULL), STACK_FUNC_SHL);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    push    rax");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    pop     rcx");
+    EMIT("");
+    EMIT("    shl     ax, cl");
+    EMIT("    mov     rdi, rax");
     EMIT("    call    stack_push");
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
