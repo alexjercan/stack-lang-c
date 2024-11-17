@@ -843,6 +843,8 @@ static int stack_parser_parse_func(stack_parser *parser, stack_ast_func *func) {
 
             stack_ast_expr expr = {0};
             if (stack_parser_parse_expr(parser, &expr) != 0) {
+                token = stack_parser_read(parser);
+
                 if (token.kind == STACK_TOKEN_ILLEGAL) {
                     stack_parser_show_errorf(parser, "");
                     stack_parser_read(parser);
