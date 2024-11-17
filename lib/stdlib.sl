@@ -2,6 +2,10 @@
 
 const INT_SIZE 8
 
+const STDIN 0
+const STDOUT 1
+const STDERR 2
+
 -- BASE FUNCTIONS
 
 func dup (a) (a, a) extern                      -- duplicate the first item
@@ -41,11 +45,23 @@ func rot4' (a, b, c, d) (d, a, b, c) in rot4 rot4 rot4 end
 -- DATA PTR
 data ptr extern
 
+const ptr.sizeof INT_SIZE
+
 func ptr.alloc (int) (ptr) extern       -- allocate n bytes in memory
 func ptr.!int (ptr, int) () extern      -- copy int into memory
 func ptr.@int (ptr) (int) extern        -- copy int from memory
 func ptr.!byte (ptr, int) () extern     -- copy byte into memory
 func ptr.@byte (ptr) (int) extern       -- copy byte from memory
+
+func ptr.realloc (ptr, int, int) (ptr) in -- src, osz, sz
+    dup2 > if -- src, osz, sz
+        pop2
+    else
+        ptr.alloc -- src, osz, dst
+        rot' -- dst, src, osz
+        ptr.memcpy -- dst
+    fi -- ptr
+end
 
 func ptr.memcpy' (ptr, ptr, ptr, int) (ptr) in -- ret, dst, src, sz
     dup 0 <= if -- ret, dst, src, sz
@@ -91,6 +107,8 @@ end
 
 -- DATA INT
 data int extern
+
+const int.sizeof INT_SIZE
 
 func + (int, int) (int) extern
 func - (int, int) (int) extern
@@ -169,37 +187,42 @@ end
 -- DATA STRING
 data string (int len, ptr str)
 
+const string.sizeof int.sizeof ptr.sizeof +
 const string.len.offset 0
-const string.str.offset 8
+const string.str.offset string.len.offset int.sizeof +
 
-const STDIN 0
-const STDOUT 1
-const STDERR 2
+func string.init (int, ptr) (string) in -- L, str
+    string.sizeof ptr.alloc
+
+    dup rot' ptr.int string.str.offset + int.ptr swp ptr.int ptr.!int
+    dup rot' ptr.int string.len.offset + int.ptr swp ptr.!int
+
+    ptr.string
+end
 
 func string.len (string) (int) in
     string.ptr ptr.int string.len.offset + int.ptr ptr.@int
 end
 
 func string.str (string) (ptr) in
-    string.ptr ptr.int string.str.offset + int.ptr
+    string.ptr ptr.int string.str.offset + int.ptr ptr.@int int.ptr
 end
 
--- compute how much memory you need to allocate for the string structure
+-- compute how much memory you need to allocate for the string ptr
 -- taking into account memory alignment by 8
 func string.memory-needed (int) (int) in -- sz
-    7 + 8 / 8 * 8 +
+    7 + 8 / 8 *
 end
 
 func string.concat (string, string) (string) in -- s1, s2
     dup2 string.len swp string.len + -- s1, s2, L
     dup rot4' string.memory-needed ptr.alloc -- L, s1, s2, ptr
-    dup rot4' ptr.int string.str.offset + int.ptr -- L, ptr, s1, s2, ptr8
-    rot dup string.str swp string.len dup rot4' ptr.memcpy -- L, ptr, s2, L1, ptr8
-    ptr.int + int.ptr -- L, ptr, s2, ptr8+L1
-    swp dup string.str swp string.len ptr.memcpy -- L, ptr, ptr8+L1
-    pop dup rot -- ptr, ptr, L
-    ptr.!int -- ptr
-    ptr.string -- string
+    dup rot4' -- L, ptr, s1, s2, ptr
+    rot dup string.str swp string.len dup rot4' ptr.memcpy -- L, ptr, s2, L1, ptr
+    ptr.int + int.ptr -- L, ptr, s2, ptr+L1
+    swp dup string.str swp string.len ptr.memcpy -- L, ptr, ptr+L1
+    pop -- L, ptr
+    string.init
 end
 
 func string.substr (string, int, int) (string) in -- s, i, n
@@ -207,13 +230,12 @@ func string.substr (string, int, int) (string) in -- s, i, n
     string.str -- i, n, str
     ptr.int rot + int.ptr swp -- str+i, n
     dup string.memory-needed ptr.alloc -- str+i, n, ptr
-    dup rot4' ptr.int string.str.offset + int.ptr -- ptr, str+i, n, ptr8
-    rot' -- ptr, ptr8, str+i, n
-    dup rot4' -- ptr, n, ptr8, str+i, n
+    dup rot4' -- ptr, str+i, n, ptr
+    rot' -- ptr, ptr, str+i, n
+    dup rot4' -- ptr, n, ptr, str+i, n
     ptr.memcpy pop -- ptr, n
-    swp dup rot -- ptr, ptr, n
-    ptr.!int -- ptr
-    ptr.string -- string
+    swp -- n, ptr
+    string.init
 end
 
 func string.!! (string, int) (int) in -- s, i
@@ -334,4 +356,129 @@ func stdlib.fwrite (int, string) (bool) in -- fd, s
     swp string.len -- fd, ptr, L
     sys.write -- int
     0 >= -- bool
+end
+
+-- DATA ARRAY
+data array (int capacity, int count, int sz, ptr items)
+
+const array.sizeof int.sizeof int.sizeof int.sizeof ptr.sizeof + + +
+const array.capacity.offset 0
+const array.count.offset array.capacity.offset int.sizeof +
+const array.sz.offset array.count.offset int.sizeof +
+const array.items.offset array.sz.offset int.sizeof +
+
+const array.SIZE 1024
+
+func array.init (int) (array) in -- sz
+    0 0 0 -- sz, C, L, xs
+    rot4 swp -- C, L, sz, xs
+    array.sizeof ptr.alloc -- C, L, sz, xs, ptr
+
+    dup rot' ptr.int array.items.offset + int.ptr swp int.ptr ptr.int ptr.!int
+    dup rot' ptr.int array.sz.offset + int.ptr swp int.ptr ptr.int ptr.!int
+    dup rot' ptr.int array.count.offset + int.ptr swp int.ptr ptr.int ptr.!int
+    dup rot' ptr.int array.capacity.offset + int.ptr swp int.ptr ptr.int ptr.!int
+
+    ptr.array
+end
+
+func array.capacity (array) (int) in -- a
+    array.ptr -- ptr
+    ptr.int array.capacity.offset + int.ptr -- ptr+
+    ptr.@int -- int
+end
+
+func array.count (array) (int) in -- a
+    array.ptr -- ptr
+    ptr.int array.count.offset + int.ptr -- ptr+
+    ptr.@int -- int
+end
+
+func array.sz (array) (int) in -- a
+    array.ptr -- ptr
+    ptr.int array.sz.offset + int.ptr -- ptr+
+    ptr.@int -- int
+end
+
+func array.items (array) (ptr) in -- a
+    array.ptr -- ptr
+    ptr.int array.items.offset + int.ptr -- ptr+
+end
+
+func array.capacity.set (array, int) () in -- a, C
+    swp array.ptr
+
+    ptr.int array.capacity.offset + int.ptr swp int.ptr ptr.int ptr.!int
+end
+
+func array.count.set (array, int) () in -- a, L
+    swp array.ptr
+
+    ptr.int array.count.offset + int.ptr swp int.ptr ptr.int ptr.!int
+end
+
+func array.sz.set (array, int) () in -- a, sz
+    swp array.ptr
+
+    ptr.int array.sz.offset + int.ptr swp int.ptr ptr.int ptr.!int
+end
+
+func array.items.set (array, ptr) () in -- a, xs
+    swp array.ptr
+
+    ptr.int array.items.offset + int.ptr swp ptr.int ptr.!int
+end
+
+func array.get (array, int) (ptr, bool) in -- a, i
+    dup -- a, i, i
+    rot -- i, i, a
+    dup array.count -- i, i, a, L
+    rot <= if -- i, a
+        pop2 0 int.ptr false
+    else
+        dup array.sz -- i, a, sz
+        rot * -- a, i*sz
+        swp -- i*sz, a
+        array.items -- i*sz, ptr
+        ptr.int + int.ptr ptr.@int int.ptr -- ptr+i*sz
+        true
+    fi -- ptr, ok
+end
+
+func array.append (array, ptr) (bool) in -- a, ptr
+    swp -- ptr, a
+    dup array.count -- ptr, a, L
+    swp dup array.capacity -- ptr, L, a, C
+    rot <= if -- ptr, a
+        dup array.capacity -- ptr, a, C
+        dup 2 * -- ptr, a, C, C*2
+        dup 0 <= if -- ptr, a, C, C*2
+            pop array.SIZE -- ptr, a, int
+        fi -- ptr, a, C, nC
+
+        rot swp dup2 -- ptr, C, a, nC, a, nC
+        array.capacity.set -- ptr, C, a, nC
+
+        swp dup array.sz -- ptr, C, nC, a, sz
+        rot4 * -- ptr, nC, a, sz*C
+        swp dup array.sz -- ptr, nC, sz*C, a, sz
+        rot4 * -- ptr, sz*C, a, sz*nC
+        swp dup array.items -- ptr, sz*C, sz*nC, a, a.ptr
+        rot4 rot4 -- ptr, a, a.ptr, sz*C, sz*nC
+        ptr.realloc -- ptr, a, a.ptr'
+        swp dup rot -- ptr, a, a, a.ptr'
+        array.items.set -- ptr, a
+    fi -- ptr, a
+
+    dup array.count -- ptr, a, L
+    dup2 -- ptr, a, L, a, L
+    swp dup array.sz -- ptr, a, L, L, a, sz
+    rot * -- ptr, a, L, a, L*sz
+    swp array.items ptr.int + int.ptr -- ptr, a, L, xs+L*sz
+    rot4 rot4 -- L, xs+L*sz, ptr, a
+    dup array.sz swp rot4' -- L, a, xs+L*sz, ptr, sz
+    ptr.memcpy pop -- L, a
+    swp -- a, L
+    1 + -- a, L+1
+    array.count.set true -- bool
 end

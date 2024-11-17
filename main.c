@@ -3270,7 +3270,8 @@ static void stack_assembler_emit_constants(stack_assembler *assembler) {
             unsigned int count = expr.value.len;
 
             EMIT("%s.%d dq %d", STACK_CONST_STRING, i, count);
-            EMIT_N(" db ");
+            EMIT("      dq %s.%d_", STACK_CONST_STRING, i);
+            EMIT_N("%s.%d_ db ", STACK_CONST_STRING, i);
             if (count == 0) {
                 count = 1;
                 EMIT_N(" 0");
