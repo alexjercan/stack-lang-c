@@ -373,3 +373,113 @@ func stdlib.fwrite (int, string) (bool) in -- fd, s
     sys.write -- int
     0 >= -- bool
 end
+
+-- DATA ARRAY
+data array (int capacity, int count, int sz, ptr items)
+
+const array.SIZE 1024
+
+const array.sizeof int.sizeof int.sizeof int.sizeof ptr.sizeof + + +
+const array.capacity.offset 0
+const array.count.offset array.capacity.offset int.sizeof +
+const array.sz.offset array.count.offset int.sizeof +
+const array.items.offset array.sz.offset int.sizeof +
+
+func array.init (int) (array) in -- sz
+    0 0 0 int.ptr -- sz, C, L, xs
+    rot4 swp -- C, L, sz, xs
+    array.sizeof ptr.alloc
+
+    dup rot' array.items.offset ptr.+ swp ptr.& ptr.sizeof ptr.memcpy pop
+    dup rot' array.sz.offset ptr.+ swp int.ptr int.sizeof ptr.memcpy pop
+    dup rot' array.count.offset ptr.+ swp int.ptr int.sizeof ptr.memcpy pop
+    dup rot' array.capacity.offset ptr.+ swp int.ptr int.sizeof ptr.memcpy pop
+
+    ptr.array -- array
+end
+
+func array.capacity (array) (int) in -- a
+    array.ptr array.capacity.offset ptr.+ ptr.int
+end
+
+func array.count (array) (int) in -- a
+    array.ptr array.count.offset ptr.+ ptr.int
+end
+
+func array.sz (array) (int) in -- a
+    array.ptr array.sz.offset ptr.+ ptr.int
+end
+
+func array.items (array) (ptr) in -- a
+    array.ptr array.items.offset ptr.+ ptr.*
+end
+
+func array.capacity.set (array, int) () in -- a, C
+    swp array.ptr array.capacity.offset ptr.+ swp int.ptr int.sizeof ptr.memcpy pop
+end
+
+func array.count.set (array, int) () in -- a, L
+    swp array.ptr array.count.offset ptr.+ swp int.ptr int.sizeof ptr.memcpy pop
+end
+
+func array.sz.set (array, int) () in -- a, sz
+    swp array.ptr array.sz.offset ptr.+ swp int.ptr int.sizeof ptr.memcpy pop
+end
+
+func array.items.set (array, ptr) () in -- a, items
+    swp array.ptr array.items.offset ptr.+ swp ptr.& ptr.sizeof ptr.memcpy pop
+end
+
+func array.get (array, int) (ptr, bool) in -- a, i
+    dup -- a, i, i
+    rot -- i, i, a
+    dup array.count -- i, i, a, L
+    rot <= if -- i, a
+        pop2 0 int.ptr false
+    else
+        dup array.sz -- i, a, sz
+        rot * -- a, i*sz
+        swp -- i*sz, a
+        array.items -- i*sz, ptr
+        swp ptr.+ -- ptr+i*sz
+        true
+    fi -- ptr, ok
+end
+
+func array.append (array, ptr) (bool) in -- a, ptr
+    swp -- ptr, a
+    dup array.count -- ptr, a, L
+    swp dup array.capacity -- ptr, L, a, C
+    rot <= if -- ptr, a
+        dup array.capacity -- ptr, a, C
+        dup 2 * -- ptr, a, C, C*2
+        dup 0 <= if -- ptr, a, C, C*2
+            pop array.SIZE -- ptr, a, int
+        fi -- ptr, a, C, nC
+
+        rot swp dup2 -- ptr, C, a, nC, a, nC
+        array.capacity.set -- ptr, C, a, nC
+
+        swp dup array.sz -- ptr, C, nC, a, sz
+        rot4 * -- ptr, nC, a, sz*C
+        swp dup array.sz -- ptr, nC, sz*C, a, sz
+        rot4 * -- ptr, sz*C, a, sz*nC
+        swp dup array.items -- ptr, sz*C, sz*nC, a, a.ptr
+        rot4 rot4 -- ptr, a, a.ptr, sz*C, sz*nC
+        ptr.realloc -- ptr, a, a.ptr'
+        swp dup rot -- ptr, a, a, a.ptr'
+        array.items.set -- ptr, a
+    fi -- ptr, a
+
+    dup array.count -- ptr, a, L
+    dup2 -- ptr, a, L, a, L
+    swp dup array.sz -- ptr, a, L, L, a, sz
+    rot * -- ptr, a, L, a, L*sz
+    swp array.items swp ptr.+ -- ptr, a, L, xs+L*sz
+    rot4 rot4 -- L, xs+L*sz, ptr, a
+    dup array.sz swp rot4' -- L, a, xs+L*sz, ptr, sz
+    ptr.memcpy pop -- L, a
+    swp -- a, L
+    1 + -- a, L+1
+    array.count.set true -- bool
+end

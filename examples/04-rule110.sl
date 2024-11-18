@@ -1,0 +1,131 @@
+@import stdlib
+
+func rule110.match000 () (int) in 0 end
+func rule110.match001 () (int) in 1 end
+func rule110.match010 () (int) in 1 end
+func rule110.match011 () (int) in 1 end
+func rule110.match100 () (int) in 0 end
+func rule110.match101 () (int) in 1 end
+func rule110.match110 () (int) in 1 end
+func rule110.match111 () (int) in 0 end
+
+func rule110.match_00 (int) (int) in 0 = if rule110.match000 else rule110.match100 fi end
+func rule110.match_01 (int) (int) in 0 = if rule110.match001 else rule110.match101 fi end
+func rule110.match_10 (int) (int) in 0 = if rule110.match010 else rule110.match110 fi end
+func rule110.match_11 (int) (int) in 0 = if rule110.match011 else rule110.match111 fi end
+func rule110.match__0 (int, int) (int) in 0 = if rule110.match_00 else rule110.match_10 fi end
+func rule110.match__1 (int, int) (int) in 0 = if rule110.match_01 else rule110.match_11 fi end
+func rule110.match (int, int, int) (int) in 0 = if rule110.match__0 else rule110.match__1 fi end
+
+func wrap_dec (int, int) (int) in -- i, j
+    dup2 pop -- i, j, i
+    0 = if -- i, j
+        swp pop
+    else
+        pop
+    fi -- int
+    1 -
+end
+
+func wrap_inc (int, int) (int) in -- i, j
+    dup2 -- i, j, i, j
+    1 - -- i, j, i, j-1
+    = if -- i, j
+        pop2 0
+    else
+        pop 1 +
+    fi -- int
+end
+
+func rule110.xyz (array, int) (int, int, int) in
+    swp dup array.count -- i, a, c
+    swp rot' -- a, i, c
+
+    dup3 wrap_dec -- a, i, c, a, i-1
+    array.get not if panic fi ptr.int -- a, i, c, x
+    rot4' -- x, a, i, c
+
+    dup3 pop -- x, a, i, c, a, i
+    array.get not if panic fi ptr.int -- x, a, i, c, y
+    rot4' -- x, y, a, i, c
+
+    dup3 wrap_inc -- x, y, a, i, c, a, i+1
+    array.get not if panic fi ptr.int -- x, y, a, i, c, z
+    rot4' -- x, y, z, a, i, c
+
+    pop3 -- x, y, z
+end
+
+func rule110' (array, array, int) () in -- xs', xs, i
+    rule110.xyz -- xs', x, y, z
+    rule110.match -- xs', v
+    int.ptr array.append -- bool
+    not if panic fi -- ()
+end
+
+func rule110.rec (array, array, int) () in -- xs', xs, i
+    swp dup array.count rot dup rot -- xs', xs, i, i, c
+    < if -- xs', xs, i
+        dup3 rule110' 1 + rule110.rec
+    else
+        pop3
+    fi -- ()
+end
+
+func rule110 (array) (array) in -- xs, n
+    dup array.sz array.init -- a, a'
+    dup rot' -- a', a, a'
+    0 rot swp -- a', a', a, i
+    rule110.rec -- a'
+end
+
+func show_items' (int, array) () in -- i, a
+    dup array.count -- i, a, c
+    rot dup rot -- a, i, i, c
+    >= if -- a, i
+        "\n" string.stdout pop2
+    else
+        dup2 -- a, i, a, i
+        array.get -- a, i, ptr, bool
+        not if panic fi -- a, i, ptr
+        ptr.int int.show string.stdout -- a, i
+        1 + swp -- i+1, a
+        show_items' -- ()
+    fi -- ()
+end
+
+func show_items (array) () in 0 swp show_items' end
+
+func main () (int) in
+    int.sizeof array.init -- a
+
+    dup 0 int.ptr array.append not if panic fi -- a
+    dup 0 int.ptr array.append not if panic fi -- a
+    dup 0 int.ptr array.append not if panic fi -- a
+    dup 1 int.ptr array.append not if panic fi -- a
+    dup 0 int.ptr array.append not if panic fi -- a
+    dup 0 int.ptr array.append not if panic fi -- a
+    dup 1 int.ptr array.append not if panic fi -- a
+    dup 1 int.ptr array.append not if panic fi -- a
+    dup 0 int.ptr array.append not if panic fi -- a
+    dup 1 int.ptr array.append not if panic fi -- a
+    dup 1 int.ptr array.append not if panic fi -- a
+    dup 1 int.ptr array.append not if panic fi -- a
+    dup 1 int.ptr array.append not if panic fi -- a
+    dup 1 int.ptr array.append not if panic fi -- a
+
+    dup show_items rule110 -- a
+    dup show_items rule110 -- a
+    dup show_items rule110 -- a
+    dup show_items rule110 -- a
+    dup show_items rule110 -- a
+    dup show_items rule110 -- a
+    dup show_items rule110 -- a
+    dup show_items rule110 -- a
+    dup show_items rule110 -- a
+    dup show_items rule110 -- a
+
+    pop
+
+    0
+end
