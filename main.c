@@ -2206,10 +2206,10 @@ int stack_context_typecheck(stack_context *context, stack_ast_prog *prog) {
 #define STACK_FUNC_EQ "="
 
 #define STACK_FUNC_PTR_ALLOC "ptr.alloc"
-#define STACK_FUNC_PTR_STORE_INT "ptr.!int"
-#define STACK_FUNC_PTR_DEREF_INT "ptr.@int"
-#define STACK_FUNC_PTR_STORE_BYTE "ptr.!byte"
-#define STACK_FUNC_PTR_DEREF_BYTE "ptr.@byte"
+#define STACK_FUNC_PTR_OFFSET "ptr.+"
+#define STACK_FUNC_PTR_REF "ptr.&"
+#define STACK_FUNC_PTR_DEREF "ptr.*"
+#define STACK_FUNC_PTR_COPY8 "ptr.@"
 
 #define STACK_FUNC_SYSCALL1 "syscall1"
 #define STACK_FUNC_SYSCALL3 "syscall3"
@@ -2367,14 +2367,17 @@ static void stack_assembler_emit_entry(stack_assembler *assembler) {
 static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("section '.data' writeable");
     EMIT("");
+
     EMIT("; memory layout");
     EMIT("stack_pos dq 0");
     EMIT("stack_end dq 0");
     EMIT("heap_pos dq 0");
     EMIT("heap_end dq 0");
     EMIT("");
+
     EMIT("section '.text' executable");
     EMIT("");
+
     EMIT(";");
     EMIT(";");
     EMIT("; allocator_init");
@@ -2407,6 +2410,26 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
+
+    EMIT(";");
+    EMIT(";");
+    EMIT("; stack push addr");
+    EMIT(";");
+    EMIT(";   INPUT: rdi contains the int64 (pointer) that we add to the stack");
+    EMIT(";   OUTPUT: nothing");
+    EMIT(";");
+    EMIT("stack_push_addr:");
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    mov     rsi, qword [stack_pos]");
+    EMIT("    mov     qword [rsi], rdi");
+    EMIT("    add     qword [stack_pos], %d", STACK_WORD_SZ);
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+
     EMIT(";");
     EMIT(";");
     EMIT("; stack push");
@@ -2418,13 +2441,38 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("");
+    EMIT("    push    rdi");
+    EMIT("    mov     rdi, %d", STACK_WORD_SZ);
+    EMIT("    call    allocate");
+    EMIT("    pop     rdi");
+    EMIT("    mov     [rax], rdi");
+    EMIT("");
     EMIT("    mov     rsi, qword [stack_pos]");
-    EMIT("    mov     qword [rsi], rdi");
+    EMIT("    mov     qword [rsi], rax");
     EMIT("    add     qword [stack_pos], %d", STACK_WORD_SZ);
     EMIT("");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
+
+    EMIT(";");
+    EMIT(";");
+    EMIT("; stack peek addr");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack");
+    EMIT(";");
+    EMIT("stack_peek_addr:");
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    mov     rax, qword [stack_pos]");
+    EMIT("    mov     rax, qword [rax - %d]", STACK_WORD_SZ);
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+
     EMIT(";");
     EMIT(";");
     EMIT("; stack peek");
@@ -2438,10 +2486,31 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("");
     EMIT("    mov     rax, qword [stack_pos]");
     EMIT("    mov     rax, qword [rax - %d]", STACK_WORD_SZ);
+    EMIT("    mov     rax, qword [rax]");
     EMIT("");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
+
+    EMIT(";");
+    EMIT(";");
+    EMIT("; stack pop addr");
+    EMIT(";");
+    EMIT(";   INPUT: nothing");
+    EMIT(";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack");
+    EMIT(";");
+    EMIT("stack_pop_addr:");
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    mov     rax, qword [stack_pos]");
+    EMIT("    mov     rax, qword [rax - %d]", STACK_WORD_SZ);
+    EMIT("    sub     qword [stack_pos], %d", STACK_WORD_SZ);
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+
     EMIT(";");
     EMIT(";");
     EMIT("; stack pop");
@@ -2455,11 +2524,13 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("");
     EMIT("    mov     rax, qword [stack_pos]");
     EMIT("    mov     rax, qword [rax - %d]", STACK_WORD_SZ);
+    EMIT("    mov     rax, qword [rax]");
     EMIT("    sub     qword [stack_pos], %d", STACK_WORD_SZ);
     EMIT("");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
+
     EMIT(";");
     EMIT(";");
     EMIT("; allocate");
@@ -2508,37 +2579,6 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
-    EMIT(";");
-    EMIT(";");
-    EMIT("; memcpy");
-    EMIT(";   INPUT:");
-    EMIT(";       rdi points to destination");
-    EMIT(";       rsi points to source");
-    EMIT(";       rdx contains the number of bytes to copy");
-    EMIT(";   STACK: empty");
-    EMIT(";   OUTPUT: nothing");
-    EMIT(";");
-    EMIT("memcpy:");
-    EMIT("    push    rbp                        ; save return address");
-    EMIT("    mov     rbp, rsp                   ; set up stack frame");
-    EMIT("");
-    EMIT(".next_byte:");
-    EMIT("    cmp     rdx, 0                     ; check if done");
-    EMIT("    jle     .done");
-    EMIT("");
-    EMIT("    mov     al, byte [rsi]             ; get byte from self");
-    EMIT("    mov     byte [rdi], al             ; copy byte to new object");
-    EMIT("");
-    EMIT("    inc     rdi                        ; increment destination");
-    EMIT("    inc     rsi                        ; increment source");
-    EMIT("    dec     rdx                        ; decrement count");
-    EMIT("");
-    EMIT("    jmp .next_byte");
-    EMIT(".done:");
-    EMIT("");
-    EMIT("    pop     rbp                        ; restore return address");
-    EMIT("    ret");
-    EMIT("");
 }
 
 static void stack_assembler_emit_keywords(stack_assembler *assembler) {
@@ -2556,9 +2596,9 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
     EMIT("");
-    EMIT("    call    stack_peek");
+    EMIT("    call    stack_peek_addr");
     EMIT("    mov     rdi, rax");
-    EMIT("    call    stack_push");
+    EMIT("    call    stack_push_addr");
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -2577,20 +2617,20 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
     EMIT("");
     EMIT("    ; t0 <- A");
-    EMIT("    call    stack_pop");
+    EMIT("    call    stack_pop_addr");
     EMIT("    mov     qword [rbp - loc_0], rax");
     EMIT("");
     EMIT("    ; t1 <- B");
-    EMIT("    call    stack_pop");
+    EMIT("    call    stack_pop_addr");
     EMIT("    mov     qword [rbp - loc_1], rax");
     EMIT("");
     EMIT("    ; push A");
     EMIT("    mov     rdi, [rbp - loc_0]");
-    EMIT("    call    stack_push");
+    EMIT("    call    stack_push_addr");
     EMIT("");
     EMIT("    ; push B");
     EMIT("    mov     rdi, [rbp - loc_1]");
-    EMIT("    call    stack_push");
+    EMIT("    call    stack_push_addr");
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -2611,28 +2651,28 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    ; (C B A) -> (B A C)");
     EMIT("");
     EMIT("    ; t0 <- A");
-    EMIT("    call    stack_pop");
+    EMIT("    call    stack_pop_addr");
     EMIT("    mov     qword [rbp - loc_0], rax");
     EMIT("");
     EMIT("    ; t1 <- B");
-    EMIT("    call    stack_pop");
+    EMIT("    call    stack_pop_addr");
     EMIT("    mov     qword [rbp - loc_1], rax");
     EMIT("");
     EMIT("    ; t2 <- C");
-    EMIT("    call    stack_pop");
+    EMIT("    call    stack_pop_addr");
     EMIT("    mov     qword [rbp - loc_2], rax");
     EMIT("");
     EMIT("    ; push B");
     EMIT("    mov     rdi, [rbp - loc_1]");
-    EMIT("    call    stack_push");
+    EMIT("    call    stack_push_addr");
     EMIT("");
     EMIT("    ; push A");
     EMIT("    mov     rdi, [rbp - loc_0]");
-    EMIT("    call    stack_push");
+    EMIT("    call    stack_push_addr");
     EMIT("");
     EMIT("    ; push C");
     EMIT("    mov     rdi, [rbp - loc_2]");
-    EMIT("    call    stack_push");
+    EMIT("    call    stack_push_addr");
     EMIT("");
     EMIT("    add     rsp, 32                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -2653,36 +2693,36 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    ; (D C B A) -> (C B A D)");
     EMIT("");
     EMIT("    ; t0 <- A");
-    EMIT("    call    stack_pop");
+    EMIT("    call    stack_pop_addr");
     EMIT("    mov     qword [rbp - loc_0], rax");
     EMIT("");
     EMIT("    ; t1 <- B");
-    EMIT("    call    stack_pop");
+    EMIT("    call    stack_pop_addr");
     EMIT("    mov     qword [rbp - loc_1], rax");
     EMIT("");
     EMIT("    ; t2 <- C");
-    EMIT("    call    stack_pop");
+    EMIT("    call    stack_pop_addr");
     EMIT("    mov     qword [rbp - loc_2], rax");
     EMIT("");
     EMIT("    ; t3 <- D");
-    EMIT("    call    stack_pop");
+    EMIT("    call    stack_pop_addr");
     EMIT("    mov     qword [rbp - loc_3], rax");
     EMIT("");
     EMIT("    ; push C");
     EMIT("    mov     rdi, [rbp - loc_2]");
-    EMIT("    call    stack_push");
+    EMIT("    call    stack_push_addr");
     EMIT("");
     EMIT("    ; push B");
     EMIT("    mov     rdi, [rbp - loc_1]");
-    EMIT("    call    stack_push");
+    EMIT("    call    stack_push_addr");
     EMIT("");
     EMIT("    ; push A");
     EMIT("    mov     rdi, [rbp - loc_0]");
-    EMIT("    call    stack_push");
+    EMIT("    call    stack_push_addr");
     EMIT("");
     EMIT("    ; push D");
     EMIT("    mov     rdi, [rbp - loc_3]");
-    EMIT("    call    stack_push");
+    EMIT("    call    stack_push_addr");
     EMIT("");
     EMIT("    add     rsp, 32                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
@@ -2700,12 +2740,13 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
     EMIT("");
-    EMIT("    call    stack_pop");
+    EMIT("    call    stack_pop_addr");
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
+
     // PLUS
     EMIT(";");
     EMIT(";");
@@ -3054,6 +3095,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
+
     // PTR ALLOC
     EMIT(";");
     EMIT(";");
@@ -3076,19 +3118,19 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
-    // PTR STORE 8
+    // PTR OFFSET
     EMIT(";");
     EMIT(";");
-    EMIT("; memory store");
+    EMIT("; memory offset");
     EMIT(";");
     EMIT(";   INPUT: (ptr, int)");
-    EMIT(";   OUTPUT: ()");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_STORE_BYTE)), NULL), STACK_FUNC_PTR_STORE_BYTE);
+    EMIT(";   OUTPUT: (ptr)");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_OFFSET)), NULL), STACK_FUNC_PTR_OFFSET);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 24                    ; allocate 3 local variables");
     EMIT("");
-    EMIT("    ; t1 <- a");
+    EMIT("    ; t1 <- int");
     EMIT("    call    stack_pop");
     EMIT("    mov     qword [rbp - loc_1], rax");
     EMIT("");
@@ -3098,83 +3140,88 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("");
     EMIT("    ; ptr[0] <- byte a");
     EMIT("    mov     rax, qword [rbp - loc_2]");
-    EMIT("    mov     rdx, qword [rbp - loc_1]");
-    EMIT("    mov     byte [rax], dl");
-    EMIT("");
-    EMIT("    add     rsp, 24                    ; deallocate local variables");
-    EMIT("    pop     rbp                        ; restore return address");
-    EMIT("    ret");
-    EMIT("");
-    // PTR DEREF 8
-    EMIT(";");
-    EMIT(";");
-    EMIT("; memory deref");
-    EMIT(";");
-    EMIT(";   INPUT: (ptr)");
-    EMIT(";   OUTPUT: (int)");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_DEREF_BYTE)), NULL), STACK_FUNC_PTR_DEREF_BYTE);
-    EMIT("    push    rbp                        ; save return address");
-    EMIT("    mov     rbp, rsp                   ; set up stack frame");
-    EMIT("    sub     rsp, 24                    ; allocate 3 local variables");
-    EMIT("");
-    EMIT("    call    stack_pop");
-    EMIT("    mov     dl, byte [rax]");
-    EMIT("    movzx   rdi, dl");
+    EMIT("    mov     rdi, qword [rbp - loc_1]");
+    EMIT("    add     rdi, rax");
     EMIT("    call    stack_push");
     EMIT("");
     EMIT("    add     rsp, 24                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
-    // PTR STORE 64
+    // PTR REF
     EMIT(";");
     EMIT(";");
-    EMIT("; memory store");
+    EMIT("; memory ref");
     EMIT(";");
-    EMIT(";   INPUT: (ptr, int)");
-    EMIT(";   OUTPUT: ()");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_STORE_INT)), NULL), STACK_FUNC_PTR_STORE_INT);
+    EMIT(";   INPUT: (ptr)");
+    EMIT(";   OUTPUT: (ptr)");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_REF)), NULL), STACK_FUNC_PTR_REF);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 24                    ; allocate 3 local variables");
     EMIT("");
-    EMIT("    ; t1 <- a");
+    EMIT("; ref ptr");
+    EMIT("    call    stack_pop_addr");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    add     rsp, 24                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // PTR DEREF
+    EMIT(";");
+    EMIT(";");
+    EMIT("; memory deref");
+    EMIT(";");
+    EMIT(";   INPUT: (ptr)");
+    EMIT(";   OUTPUT: (ptr)");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_DEREF)), NULL), STACK_FUNC_PTR_DEREF);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 24                    ; allocate 3 local variables");
+    EMIT("");
+    EMIT("; deref ptr");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push_addr");
+    EMIT("");
+    EMIT("    add     rsp, 24                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // PTR COPY 8
+    EMIT(";");
+    EMIT(";");
+    EMIT("; memory copy byte");
+    EMIT(";");
+    EMIT(";   INPUT: (dst, src)");
+    EMIT(";   OUTPUT: ()");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_COPY8)), NULL), STACK_FUNC_PTR_COPY8);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 24                    ; allocate 3 local variables");
+    EMIT("");
+    EMIT("; copy one byte");
+    EMIT("    ; t0 <- src");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     qword [rbp - loc_0], rax");
+    EMIT("");
+    EMIT("    ; t1 <- dst");
     EMIT("    call    stack_pop");
     EMIT("    mov     qword [rbp - loc_1], rax");
     EMIT("");
-    EMIT("    ; t2 <- ptr");
-    EMIT("    call    stack_pop");
-    EMIT("    mov     qword [rbp - loc_2], rax");
-    EMIT("");
-    EMIT("    ; ptr[0] <- a");
-    EMIT("    mov     rax, qword [rbp - loc_2]");
+    EMIT("    ; copy byte *dst = *src");
     EMIT("    mov     rdi, qword [rbp - loc_1]");
-    EMIT("    mov     qword [rax], rdi");
+    EMIT("    mov     rsi, qword [rbp - loc_0]");
+    EMIT("    mov     al, byte [rsi]");
+    EMIT("    mov     byte [rdi], al");
     EMIT("");
     EMIT("    add     rsp, 24                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
-    // PTR DEREF 64
-    EMIT(";");
-    EMIT(";");
-    EMIT("; memory deref");
-    EMIT(";");
-    EMIT(";   INPUT: (ptr)");
-    EMIT(";   OUTPUT: (int)");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_DEREF_INT)), NULL), STACK_FUNC_PTR_DEREF_INT);
-    EMIT("    push    rbp                        ; save return address");
-    EMIT("    mov     rbp, rsp                   ; set up stack frame");
-    EMIT("    sub     rsp, 24                    ; allocate 3 local variables");
-    EMIT("");
-    EMIT("    call    stack_pop");
-    EMIT("    mov     rdi, qword [rax]");
-    EMIT("    call    stack_push");
-    EMIT("");
-    EMIT("    add     rsp, 24                    ; deallocate local variables");
-    EMIT("    pop     rbp                        ; restore return address");
-    EMIT("    ret");
-    EMIT("");
+
     /// SYSCALL1
     EMIT(";");
     EMIT(";");
@@ -3308,6 +3355,13 @@ static void stack_assembler_emit_data_ptr_data(stack_assembler *assembler, stack
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
 
+    EMIT("");
+    EMIT("; deref data");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push_addr");
+    EMIT("");
+
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
@@ -3331,6 +3385,13 @@ static void stack_assembler_emit_data_data_ptr(stack_assembler *assembler, stack
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
 
+    EMIT("");
+    EMIT("; ref data");
+    EMIT("    call    stack_pop_addr");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push");
+    EMIT("");
+
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
@@ -3350,15 +3411,15 @@ static void stack_assembler_emit_expr(stack_assembler *assembler, stack_ast_expr
 static void stack_assembler_emit_expr_number(stack_assembler *assembler, stack_ast_node *node) {
     unsigned int constant_label = stack_assembler_constants_map(assembler, &STACK_CONST_EXPR(STACK_CONST_EXPR_INT, node->value), NULL);
 
-    EMIT("    mov     rdi, qword [%s.%d] ; %.*s", STACK_CONST_INT, constant_label, node->value.len, node->value.str);
-    EMIT("    call    stack_push");
+    EMIT("    mov     rdi, %s.%d ; %.*s", STACK_CONST_INT, constant_label, node->value.len, node->value.str);
+    EMIT("    call    stack_push_addr");
 }
 
 static void stack_assembler_emit_expr_boolean(stack_assembler *assembler, stack_ast_node *node) {
     unsigned int constant_label = stack_assembler_constants_map(assembler, &STACK_CONST_EXPR(STACK_CONST_EXPR_BOOL, node->value), NULL);
 
-    EMIT("    mov     rdi, qword [%s.%d] ; %.*s", STACK_CONST_BOOL, constant_label, node->value.len, node->value.str);
-    EMIT("    call    stack_push");
+    EMIT("    mov     rdi, %s.%d ; %.*s", STACK_CONST_BOOL, constant_label, node->value.len, node->value.str);
+    EMIT("    call    stack_push_addr");
 }
 
 static void stack_assembler_emit_expr_string(stack_assembler *assembler, stack_ast_node *node) {
@@ -3397,7 +3458,7 @@ static void stack_assembler_emit_expr_string(stack_assembler *assembler, stack_a
     }
 
     EMIT("    mov     rdi, %s.%d ; %.*s", STACK_CONST_STRING, constant_label, node->value.len, node->value.str);
-    EMIT("    call    stack_push");
+    EMIT("    call    stack_push_addr");
 }
 
 static void stack_assembler_emit_expr_name(stack_assembler *assembler, stack_ast_node *node) {
