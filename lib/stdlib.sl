@@ -380,6 +380,7 @@ data array (int capacity, int count, int sz, ptr items)
 const array.SIZE 1024
 
 const array.sizeof int.sizeof int.sizeof int.sizeof ptr.sizeof + + +
+
 const array.capacity.offset 0
 const array.count.offset array.capacity.offset int.sizeof +
 const array.sz.offset array.count.offset int.sizeof +
