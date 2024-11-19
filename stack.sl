@@ -21,25 +21,38 @@ func stack_ast_node.value (stack_ast_node) (string) in -- a
     stack_ast_node.& stack_ast_node.value.offset ptr.+ string.* -- string
 end
 
-data stack_ast_expr (string number)
+const STACK_AST_EXPR_NUMBER 0
+const STACK_AST_EXPR_NAME 3
 
-const stack_ast_expr.sizeof string.sizeof
+data stack_ast_expr (int kind, ptr expr)
 
-const stack_ast_expr.number.offset 0
+const stack_ast_expr.sizeof int.sizeof ptr.sizeof +
 
-func stack_ast_expr.init (string) (stack_ast_expr) in -- s
+const stack_ast_expr.kind.offset 0
+const stack_ast_expr.expr.offset stack_ast_expr.kind.offset int.sizeof +
+
+func stack_ast_expr.init (int, ptr) (stack_ast_expr) in -- s
     stack_ast_expr.sizeof ptr.alloc -- s, ptr
 
     dup rot' -- ptr, s, ptr
-    stack_ast_expr.number.offset ptr.+ -- ptr, s, ptr+
-    swp string.& string.sizeof -- ptr, ptr+, &str, sz
+    stack_ast_expr.expr.offset ptr.+ -- ptr, s, ptr+
+    swp ptr.& ptr.sizeof -- ptr, ptr+, &str, sz
+    ptr.memcpy pop -- ptr
+
+    dup rot' -- ptr, s, ptr
+    stack_ast_expr.kind.offset ptr.+ -- ptr, s, ptr+
+    swp int.& int.sizeof -- ptr, ptr+, &str, sz
     ptr.memcpy pop -- ptr
 
     stack_ast_expr.* -- stack_ast_expr
 end
 
-func stack_ast_expr.number (stack_ast_expr) (string) in -- a
-    stack_ast_expr.& stack_ast_expr.number.offset ptr.+ string.* -- string
+func stack_ast_expr.expr (stack_ast_expr) (ptr) in -- a
+    stack_ast_expr.& stack_ast_expr.expr.offset ptr.+ ptr.* -- ptr
+end
+
+func stack_ast_expr.kind (stack_ast_expr) (int) in -- a
+    stack_ast_expr.& stack_ast_expr.kind.offset ptr.+ int.* -- int
 end
 
 data stack_ast_func (stack_ast_node name, array exprs)
@@ -156,15 +169,35 @@ func stack_assembler.func.name (stack_assembler, string) (string) in -- asm, nam
     int.show "func." swp string.concat -- string
 end
 
-func stack_assembler.emit.expr (stack_assembler, stack_ast_expr) () in -- asm, expr
+func stack_assembler.emit.expr.number (stack_assembler, stack_ast_node) () in -- asm, number
     -- TODO: use constants and stuff like that like in the real comp
-    dup stack_ast_expr.number "    mov     rdi, " swp string.concat rot' -- string, asm, expr
+
+    dup stack_ast_node.value "    mov     rdi, " swp string.concat rot' -- string, asm, expr
 
     swp
     dup rot4 emit
     dup "    call    stack_push" emit
 
     pop2
+end
+
+func stack_assembler.emit.expr.name (stack_assembler, stack_ast_node) () in -- asm, name
+    dup stack_ast_node.value rot dup rot stack_assembler.func.name "    call    " swp string.concat
+
+    swp dup rot emit
+
+    pop2
+end
+
+func stack_assembler.emit.expr (stack_assembler, stack_ast_expr) () in -- asm, expr
+    dup stack_ast_expr.kind  -- asm, expr, kind
+    dup STACK_AST_EXPR_NUMBER = if -- asm, expr, kind
+        pop stack_ast_expr.expr stack_ast_node.* stack_assembler.emit.expr.number
+    else dup STACK_AST_EXPR_NAME = if -- asm, expr, kind
+        pop stack_ast_expr.expr stack_ast_node.* stack_assembler.emit.expr.name
+    else
+        panic pop3
+    fi fi -- ()
 end
 
 func stack_assembler.emit.exprs' (int, stack_assembler, array) () in -- asm, array<expr>
@@ -248,16 +281,18 @@ func main () (int) in
 
     -- asm
     STACK_FUNC_MAIN stack_ast_node.init -- node
-    "69" stack_ast_expr.init -- expr
-    stack_ast_expr.sizeof array.init dup -- node, expr, array<expr>, array<expr>
-    rot stack_ast_expr.& -- node, array<expr>, array<expr>, &expr
-    array.append -- node, array<expr>, ok
-    not if panic fi -- node, array<expr>
+    STACK_AST_EXPR_NAME "+" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- node, +
+    STACK_AST_EXPR_NUMBER "42" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- node, +, 42
+    STACK_AST_EXPR_NUMBER "27" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- node, +, 42, 27
+
+    stack_ast_expr.sizeof array.init -- node, e, e, e, array<expr>
+    dup rot stack_ast_expr.& array.append not if panic fi -- node, +, 42, array<expr>
+    dup rot stack_ast_expr.& array.append not if panic fi -- node, +, array<expr>
+    dup rot stack_ast_expr.& array.append not if panic fi -- node, array<expr>
     stack_ast_func.init -- func
-    stack_ast_func.sizeof array.init dup -- func, array<func>, array<func>
-    rot stack_ast_func.& -- array<func>, array<func>, &func
-    array.append -- array<func>, ok
-    not if panic fi -- array<func>
+
+    stack_ast_func.sizeof array.init -- func, array<func>
+    dup rot stack_ast_func.& array.append not if panic fi -- array<func>
     stack_ast_prog.init -- ast
 
     -- asm, ast
