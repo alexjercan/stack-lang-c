@@ -11,14 +11,14 @@ func stack_ast_node.init (string) (stack_ast_node) in -- s
 
     dup rot' -- ptr, s, ptr
     stack_ast_node.value.offset ptr.+ -- ptr, s, ptr+
-    swp string.ptr string.sizeof -- ptr, ptr+, &str, sz
+    swp string.& string.sizeof -- ptr, ptr+, &str, sz
     ptr.memcpy pop -- ptr
 
-    ptr.stack_ast_node -- stack_ast_node
+    stack_ast_node.* -- stack_ast_node
 end
 
 func stack_ast_node.value (stack_ast_node) (string) in -- a
-    stack_ast_node.ptr stack_ast_node.value.offset ptr.+ ptr.string -- string
+    stack_ast_node.& stack_ast_node.value.offset ptr.+ string.* -- string
 end
 
 data stack_ast_expr (string number)
@@ -32,14 +32,14 @@ func stack_ast_expr.init (string) (stack_ast_expr) in -- s
 
     dup rot' -- ptr, s, ptr
     stack_ast_expr.number.offset ptr.+ -- ptr, s, ptr+
-    swp string.ptr string.sizeof -- ptr, ptr+, &str, sz
+    swp string.& string.sizeof -- ptr, ptr+, &str, sz
     ptr.memcpy pop -- ptr
 
-    ptr.stack_ast_expr -- stack_ast_expr
+    stack_ast_expr.* -- stack_ast_expr
 end
 
 func stack_ast_expr.number (stack_ast_expr) (string) in -- a
-    stack_ast_expr.ptr stack_ast_expr.number.offset ptr.+ ptr.string -- string
+    stack_ast_expr.& stack_ast_expr.number.offset ptr.+ string.* -- string
 end
 
 data stack_ast_func (stack_ast_node name, array exprs)
@@ -54,23 +54,23 @@ func stack_ast_func.init (stack_ast_node, array) (stack_ast_func) in -- n, a
 
     dup rot' -- n, ptr, a, ptr
     stack_ast_func.exprs.offset ptr.+ -- n, ptr, a, ptr+
-    swp array.ptr array.sizeof -- n, ptr, ptr+, &a, sz
+    swp array.& array.sizeof -- n, ptr, ptr+, &a, sz
     ptr.memcpy pop -- n, ptr
 
     dup rot' -- ptr, n, ptr
     stack_ast_func.name.offset ptr.+ -- ptr, n, ptr+
-    swp stack_ast_node.ptr stack_ast_node.sizeof -- ptr, ptr+, &n, sz
+    swp stack_ast_node.& stack_ast_node.sizeof -- ptr, ptr+, &n, sz
     ptr.memcpy pop -- ptr
 
-    ptr.stack_ast_func -- stack_ast_func
+    stack_ast_func.* -- stack_ast_func
 end
 
 func stack_ast_func.name (stack_ast_func) (stack_ast_node) in -- a
-    stack_ast_func.ptr stack_ast_func.name.offset ptr.+ ptr.stack_ast_node -- stack_ast_node
+    stack_ast_func.& stack_ast_func.name.offset ptr.+ stack_ast_node.* -- stack_ast_node
 end
 
 func stack_ast_func.exprs (stack_ast_func) (array) in -- a
-    stack_ast_func.ptr stack_ast_func.exprs.offset ptr.+ ptr.array -- array
+    stack_ast_func.& stack_ast_func.exprs.offset ptr.+ array.* -- array
 end
 
 data stack_ast_prog (array funcs)
@@ -84,14 +84,14 @@ func stack_ast_prog.init (array) (stack_ast_prog) in -- s
 
     dup rot' -- ptr, s, ptr
     stack_ast_prog.funcs.offset ptr.+ -- ptr, s, ptr+
-    swp array.ptr array.sizeof -- ptr, ptr+, &str, sz
+    swp array.& array.sizeof -- ptr, ptr+, &str, sz
     ptr.memcpy pop -- ptr
 
-    ptr.stack_ast_prog -- stack_ast_prog
+    stack_ast_prog.* -- stack_ast_prog
 end
 
 func stack_ast_prog.funcs (stack_ast_prog) (array) in -- a
-    stack_ast_prog.ptr stack_ast_prog.funcs.offset ptr.+ ptr.array -- array
+    stack_ast_prog.& stack_ast_prog.funcs.offset ptr.+ array.* -- array
 end
 
 data stack_assembler (int fd, array func_map)
@@ -107,23 +107,23 @@ func stack_assembler.init (int) (stack_assembler) in -- s
 
     dup rot' -- ..., ptr, s, ptr
     stack_assembler.fd.offset ptr.+ -- ..., ptr, s, ptr+
-    swp int.ptr int.sizeof -- ..., ptr, ptr+, &str, sz
+    swp int.& int.sizeof -- ..., ptr, ptr+, &str, sz
     ptr.memcpy pop -- array<string>, ptr
 
     dup rot' -- ptr, array<string>, ptr
     stack_assembler.func_map.offset ptr.+ -- ptr, array<string>, ptr+
-    swp array.ptr array.sizeof -- ptr, ptr+, &array<string>, sz
+    swp array.& array.sizeof -- ptr, ptr+, &array<string>, sz
     ptr.memcpy pop -- ptr
 
-    ptr.stack_assembler -- stack_assembler
+    stack_assembler.* -- stack_assembler
 end
 
 func stack_assembler.fd (stack_assembler) (int) in -- a
-    stack_assembler.ptr stack_assembler.fd.offset ptr.+ ptr.int -- int
+    stack_assembler.& stack_assembler.fd.offset ptr.+ int.* -- int
 end
 
 func stack_assembler.func_map (stack_assembler) (array) in -- a
-    stack_assembler.ptr stack_assembler.func_map.offset ptr.+ ptr.array -- array
+    stack_assembler.& stack_assembler.func_map.offset ptr.+ array.* -- array
 end
 
 func emit (stack_assembler, string) () in -- asm, s
@@ -137,10 +137,10 @@ func stack_assembler.func.name' (int, string, array) (int) in -- i, name, array<
     dup array.count -- i, name, array<string>, c
     rot4 dup rot -- name, array<string>, i, i, c
     >= if -- name, array<string>, i
-        rot' swp string.ptr array.append not if panic fi -- i
+        rot' swp string.& array.append not if panic fi -- i
     else
         dup2 array.get not if panic fi -- name, array<string>, i, ptr
-        ptr.string -- name, array<string>, i, string
+        string.* -- name, array<string>, i, string
         rot4 dup rot string.= if -- array<string>, i, name
             rot pop2  -- i
         else
@@ -174,7 +174,7 @@ func stack_assembler.emit.exprs' (int, stack_assembler, array) () in -- asm, arr
         pop3
     else
         dup2 array.get not if panic fi -- asm, array<expr>, i, ptr
-        ptr.stack_ast_expr -- asm, array<expr>, i, expr
+        stack_ast_expr.* -- asm, array<expr>, i, expr
         rot4 dup rot stack_assembler.emit.expr rot' -- asm, array<expr>, i
         1 + rot' -- i+1, asm, array<expr>
         stack_assembler.emit.exprs' -- ()
@@ -211,7 +211,7 @@ func stack_assembler.emit.ast.funcs' (int, stack_assembler, array) () in -- i, a
         pop3
     else
         dup2 array.get not if panic fi -- asm, array<func>, i, ptr
-        ptr.stack_ast_func -- asm, array<func>, i, func
+        stack_ast_func.* -- asm, array<func>, i, func
         rot4 dup rot stack_assembler.emit.func rot' -- asm, array<func>, i
         1 + rot' -- i+1, asm, array<func>
         stack_assembler.emit.ast.funcs' -- ()
@@ -250,12 +250,12 @@ func main () (int) in
     STACK_FUNC_MAIN stack_ast_node.init -- node
     "69" stack_ast_expr.init -- expr
     stack_ast_expr.sizeof array.init dup -- node, expr, array<expr>, array<expr>
-    rot stack_ast_expr.ptr -- node, array<expr>, array<expr>, &expr
+    rot stack_ast_expr.& -- node, array<expr>, array<expr>, &expr
     array.append -- node, array<expr>, ok
     not if panic fi -- node, array<expr>
     stack_ast_func.init -- func
     stack_ast_func.sizeof array.init dup -- func, array<func>, array<func>
-    rot stack_ast_func.ptr -- array<func>, array<func>, &func
+    rot stack_ast_func.& -- array<func>, array<func>, &func
     array.append -- array<func>, ok
     not if panic fi -- array<func>
     stack_ast_prog.init -- ast
@@ -553,8 +553,6 @@ const STACK_FUNC_EQ "="
 
 const STACK_FUNC_PTR_ALLOC "ptr.alloc"
 const STACK_FUNC_PTR_OFFSET "ptr.+"
-const STACK_FUNC_PTR_REF "ptr.&"
-const STACK_FUNC_PTR_DEREF "ptr.*"
 const STACK_FUNC_PTR_COPY8 "ptr.@"
 
 const STACK_FUNC_SYSCALL1 "syscall1"
@@ -1123,48 +1121,6 @@ func stack_assembler.emit.keywords (stack_assembler) () in
     dup "    mov     rdi, qword [rbp - loc_1]" emit
     dup "    add     rdi, rax" emit
     dup "    call    stack_push" emit
-    dup "" emit
-    dup "    add     rsp, 24                    ; deallocate local variables" emit
-    dup "    pop     rbp                        ; restore return address" emit
-    dup "    ret" emit
-    dup "" emit
-    -- PTR REF
-    dup ";" emit
-    dup ";" emit
-    dup "; memory ref" emit
-    dup ";" emit
-    dup ";   INPUT: (ptr)" emit
-    dup ";   OUTPUT: (ptr)" emit
-    dup dup STACK_FUNC_PTR_REF dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
-    dup "    push    rbp                        ; save return address" emit
-    dup "    mov     rbp, rsp                   ; set up stack frame" emit
-    dup "    sub     rsp, 24                    ; allocate 3 local variables" emit
-    dup "" emit
-    dup "; ref ptr" emit
-    dup "    call    stack_pop_addr" emit
-    dup "    mov     rdi, rax" emit
-    dup "    call    stack_push" emit
-    dup "" emit
-    dup "    add     rsp, 24                    ; deallocate local variables" emit
-    dup "    pop     rbp                        ; restore return address" emit
-    dup "    ret" emit
-    dup "" emit
-    -- PTR DEREF
-    dup ";" emit
-    dup ";" emit
-    dup "; memory deref" emit
-    dup ";" emit
-    dup ";   INPUT: (ptr)" emit
-    dup ";   OUTPUT: (ptr)" emit
-    dup dup STACK_FUNC_PTR_DEREF dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
-    dup "    push    rbp                        ; save return address" emit
-    dup "    mov     rbp, rsp                   ; set up stack frame" emit
-    dup "    sub     rsp, 24                    ; allocate 3 local variables" emit
-    dup "" emit
-    dup "; deref ptr" emit
-    dup "    call    stack_pop" emit
-    dup "    mov     rdi, rax" emit
-    dup "    call    stack_push_addr" emit
     dup "" emit
     dup "    add     rsp, 24                    ; deallocate local variables" emit
     dup "    pop     rbp                        ; restore return address" emit

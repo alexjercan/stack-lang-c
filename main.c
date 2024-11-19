@@ -1824,7 +1824,7 @@ static int stack_context_typecheck_data_ptr_data(stack_context *context, stack_a
     stack_context_func_init(&symbol);
 
     ds_string_builder_init(&sb);
-    DS_EXPECT(ds_string_builder_append(&sb, "%s.%.*s", STACK_DATA_PTR, data->name.value.len, data->name.value.str), DS_ERROR_OOM);
+    DS_EXPECT(ds_string_builder_append(&sb, "%.*s.*", data->name.value.len, data->name.value.str), DS_ERROR_OOM);
     ds_string_builder_to_slice(&sb, &slice);
 
     if (stack_context_is_symbol_redefined(context, slice, NULL)) {
@@ -1853,7 +1853,7 @@ static int stack_context_typecheck_data_data_ptr(stack_context *context, stack_a
     stack_context_func_init(&symbol);
 
     ds_string_builder_init(&sb);
-    DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%s", data->name.value.len, data->name.value.str, STACK_DATA_PTR), DS_ERROR_OOM);
+    DS_EXPECT(ds_string_builder_append(&sb, "%.*s.&", data->name.value.len, data->name.value.str), DS_ERROR_OOM);
     ds_string_builder_to_slice(&sb, &slice);
 
     if (stack_context_is_symbol_redefined(context, slice, NULL)) {
@@ -1885,10 +1885,6 @@ static int stack_context_typecheck_data_def(stack_context *context, stack_ast_da
     symbol.name = data->name.value;
 
     DS_EXPECT(ds_dynamic_array_append(&context->symbols, &(stack_context_symbol){ .kind = STACK_CONTEXT_SYMBOL_DATA, .data = symbol}), DS_ERROR_OOM);
-
-    if (ds_string_slice_equals(&data->name.value, &DS_STRING_SLICE(STACK_DATA_PTR))) {
-        return_defer(0);
-    }
 
     if (stack_context_typecheck_data_ptr_data(context, data) != 0) {
         result = 1;
@@ -2207,8 +2203,6 @@ int stack_context_typecheck(stack_context *context, stack_ast_prog *prog) {
 
 #define STACK_FUNC_PTR_ALLOC "ptr.alloc"
 #define STACK_FUNC_PTR_OFFSET "ptr.+"
-#define STACK_FUNC_PTR_REF "ptr.&"
-#define STACK_FUNC_PTR_DEREF "ptr.*"
 #define STACK_FUNC_PTR_COPY8 "ptr.@"
 
 #define STACK_FUNC_SYSCALL1 "syscall1"
@@ -3148,48 +3142,6 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
-    // PTR REF
-    EMIT(";");
-    EMIT(";");
-    EMIT("; memory ref");
-    EMIT(";");
-    EMIT(";   INPUT: (ptr)");
-    EMIT(";   OUTPUT: (ptr)");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_REF)), NULL), STACK_FUNC_PTR_REF);
-    EMIT("    push    rbp                        ; save return address");
-    EMIT("    mov     rbp, rsp                   ; set up stack frame");
-    EMIT("    sub     rsp, 24                    ; allocate 3 local variables");
-    EMIT("");
-    EMIT("; ref ptr");
-    EMIT("    call    stack_pop_addr");
-    EMIT("    mov     rdi, rax");
-    EMIT("    call    stack_push");
-    EMIT("");
-    EMIT("    add     rsp, 24                    ; deallocate local variables");
-    EMIT("    pop     rbp                        ; restore return address");
-    EMIT("    ret");
-    EMIT("");
-    // PTR DEREF
-    EMIT(";");
-    EMIT(";");
-    EMIT("; memory deref");
-    EMIT(";");
-    EMIT(";   INPUT: (ptr)");
-    EMIT(";   OUTPUT: (ptr)");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_DEREF)), NULL), STACK_FUNC_PTR_DEREF);
-    EMIT("    push    rbp                        ; save return address");
-    EMIT("    mov     rbp, rsp                   ; set up stack frame");
-    EMIT("    sub     rsp, 24                    ; allocate 3 local variables");
-    EMIT("");
-    EMIT("; deref ptr");
-    EMIT("    call    stack_pop");
-    EMIT("    mov     rdi, rax");
-    EMIT("    call    stack_push_addr");
-    EMIT("");
-    EMIT("    add     rsp, 24                    ; deallocate local variables");
-    EMIT("    pop     rbp                        ; restore return address");
-    EMIT("    ret");
-    EMIT("");
     // PTR COPY 8
     EMIT(";");
     EMIT(";");
@@ -3343,7 +3295,7 @@ static void stack_assembler_emit_data_ptr_data(stack_assembler *assembler, stack
     bool found = false;
 
     ds_string_builder_init(&sb);
-    DS_EXPECT(ds_string_builder_append(&sb, "%s.%.*s", STACK_DATA_PTR, data->name.value.len, data->name.value.str), DS_ERROR_OOM);
+    DS_EXPECT(ds_string_builder_append(&sb, "%.*s.*", data->name.value.len, data->name.value.str), DS_ERROR_OOM);
     ds_string_builder_to_slice(&sb, &slice);
     unsigned long func_label = stack_assembler_func_map(assembler, &STACK_CONST_FUNC_ALLOCD(slice), &found);
     if (found) {
@@ -3356,7 +3308,7 @@ static void stack_assembler_emit_data_ptr_data(stack_assembler *assembler, stack
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
 
     EMIT("");
-    EMIT("; deref data");
+    EMIT("    ; deref data");
     EMIT("    call    stack_pop");
     EMIT("    mov     rdi, rax");
     EMIT("    call    stack_push_addr");
@@ -3373,7 +3325,7 @@ static void stack_assembler_emit_data_data_ptr(stack_assembler *assembler, stack
     bool found = false;
 
     ds_string_builder_init(&sb);
-    DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%s", data->name.value.len, data->name.value.str, STACK_DATA_PTR), DS_ERROR_OOM);
+    DS_EXPECT(ds_string_builder_append(&sb, "%.*s.&", data->name.value.len, data->name.value.str), DS_ERROR_OOM);
     ds_string_builder_to_slice(&sb, &slice);
     unsigned long func_label = stack_assembler_func_map(assembler, &STACK_CONST_FUNC_ALLOCD(slice), &found);
     if (found) {
@@ -3386,7 +3338,7 @@ static void stack_assembler_emit_data_data_ptr(stack_assembler *assembler, stack
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
 
     EMIT("");
-    EMIT("; ref data");
+    EMIT("    ; ref data");
     EMIT("    call    stack_pop_addr");
     EMIT("    mov     rdi, rax");
     EMIT("    call    stack_push");
@@ -3398,10 +3350,6 @@ static void stack_assembler_emit_data_data_ptr(stack_assembler *assembler, stack
 }
 
 static void stack_assembler_emit_data(stack_assembler *assembler, stack_ast_data *data) {
-    if (ds_string_slice_equals(&data->name.value, &DS_STRING_SLICE(STACK_DATA_PTR))) {
-        return;
-    }
-
     stack_assembler_emit_data_ptr_data(assembler, data);
     stack_assembler_emit_data_data_ptr(assembler, data);
 }

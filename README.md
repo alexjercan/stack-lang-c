@@ -139,50 +139,55 @@ end
 The allocate function will initialize a ptr buffer with size given as argument.
 The size is given in bytes.
 
-##### 1.4.6. `ptr.!byte`
+##### 1.4.6. `ptr.+`
 
 ```stack
-func ptr.!byte (ptr, int) () in
+func ptr.+ (ptr, int) (ptr) in  -- offset address
     ...
 end
 ```
 
-The store byte function is used to set a value in the ptr buffer from an int
-value. This sets 1 byte in memory. It will use the lower part of the int's
-value (basically modulo 255).
+The offset function will add an offset to an address.
 
-##### 1.4.7. `ptr.!int`
+##### 1.4.7. `data.&`
 
 ```stack
-func ptr.!int (ptr, int) () in
+func data.& (a) (ptr) in
     ...
 end
 ```
 
-The store int function is used to set a value in the ptr buffer from an int value.
-This sets 8 bytes in memory.
+The ref function will generate a reference to a data. This function is
+currently implemented by the compiler for each data type and it will be for
+example `ptr.&` or `int.&`. (in other terms it will box the data into a
+container and give us the new address of that).
 
-##### 1.4.8. `ptr.@byte`
+##### 1.4.8. `data.*`
 
 ```stack
-func ptr.@byte (ptr) (int) in
+func data.* (ptr) (a) in
     ...
 end
 ```
 
-The deref byte function is used to access an item from the ptr buffer. The
-function will read one byte in the lower part of the int.
+The deref function will dereference a ptr value (in other words it will unbox a
+ptr and give us the value which should the data contained by the box). This
+function is also implemented by the compiler for each data type.
 
-##### 1.4.9. `ptr.@int`
+##### 1.4.9. `ptr.@`
 
 ```stack
-func ptr.@int (ptr) (int) in
+func ptr.@ (ptr, ptr) () in
     ...
 end
 ```
 
-The deref int function is used to access an item from the ptr buffer. The
-function will read 8 bytes from the memory.
+The copy function will copy one byte from the `src` to the `dest` pointers.
+Function should be called like
+
+```stack
+dest src ptr.@
+```
 
 ##### 1.4.10. `syscall3`
 
