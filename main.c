@@ -1598,6 +1598,7 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
 
 defer:
     ds_string_builder_free(&sb);
+    ds_dynamic_array_free(&prog_new.consts);
     ds_dynamic_array_free(&prog_new.datas);
     ds_dynamic_array_free(&prog_new.funcs);
     return result;
