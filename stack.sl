@@ -2,10 +2,13 @@
 
 data stack_ast_node (string value)
 
+data stack_ast_cond (stack_ast_node cond, array if_, array else_)
+
 const STACK_AST_EXPR_NUMBER 0
 const STACK_AST_EXPR_BOOLEAN 1
 const STACK_AST_EXPR_STRING 2
 const STACK_AST_EXPR_NAME 3
+const STACK_AST_EXPR_COND 4
 
 data stack_ast_expr (int kind, ptr expr)
 
@@ -24,10 +27,12 @@ func stack_literal.= (stack_literal, stack_literal) (bool) in
     stack_literal.value swp stack_literal.value string.= and -- bool
 end
 
-data stack_assembler (int fd, array func_map, array literal_map)
+data stack_assembler (int fd, array func_map, array literal_map, int if_counter)
 
 func stack_assembler.init.with_fd (int) (stack_assembler) in
-    string.sizeof array.init.with_sz stack_literal.sizeof array.init.with_sz -- s, array<string>, array<stack_literal>
+    string.sizeof array.init.with_sz
+    stack_literal.sizeof array.init.with_sz
+    0
 
     stack_assembler.init -- stack_assembler
 end
@@ -129,6 +134,33 @@ func stack_assembler.emit.expr.name (stack_assembler, stack_ast_node) () in -- a
     pop2
 end
 
+func stack_assembler.emit.expr.cond (stack_assembler, stack_ast_cond) () in -- asm, cond
+    swp dup stack_assembler.if_counter swp -- cond, i, asm
+
+    dup "    call    stack_pop" emit
+    dup "    test    rax, rax" emit
+
+    dup2 swp -- cond, i, asm, asm, i
+    int.show "    jnz     .if" swp string.concat emit -- cond, i, asm
+    dup2 swp -- cond, i, asm, asm, i
+    int.show ".else" swp string.concat ":" string.concat emit -- cond, i, asm
+
+    rot dup2 stack_ast_cond.else_ stack_assembler.emit.exprs rot' -- cond, i, asm
+
+    dup2 swp -- cond i, asm, asm, i
+    int.show "    jmp    .fi" swp string.concat emit -- cond, i, asm
+    dup2 swp -- cond i, asm, asm, i
+    int.show ".if" swp string.concat ":" string.concat emit -- cond, i, asm
+
+    rot dup2 stack_ast_cond.if_ stack_assembler.emit.exprs rot' -- cond, i, asm
+
+    dup2 swp -- cond, i, asm, asm, i
+    int.show ".fi" swp string.concat ":" string.concat emit -- cond, i, asm
+
+
+    swp 1 + stack_assembler.if_counter.set pop
+end
+
 func stack_assembler.emit.expr (stack_assembler, stack_ast_expr) () in -- asm, expr
     dup stack_ast_expr.kind  -- asm, expr, kind
     dup STACK_AST_EXPR_NUMBER = if -- asm, expr, kind
@@ -139,9 +171,11 @@ func stack_assembler.emit.expr (stack_assembler, stack_ast_expr) () in -- asm, e
         pop stack_ast_expr.expr stack_ast_node.* stack_assembler.emit.expr.string
     else dup STACK_AST_EXPR_NAME = if -- asm, expr, kind
         pop stack_ast_expr.expr stack_ast_node.* stack_assembler.emit.expr.name
+    else dup STACK_AST_EXPR_COND = if -- asm, expr, kind
+        pop stack_ast_expr.expr stack_ast_cond.* stack_assembler.emit.expr.cond
     else
         panic pop3
-    fi fi fi fi -- ()
+    fi fi fi fi fi -- ()
 end
 
 func stack_assembler.emit.exprs' (int, stack_assembler, array) () in -- asm, array<expr>
@@ -340,14 +374,22 @@ func main () (int) in
 
     -- asm
     STACK_FUNC_MAIN stack_ast_node.init -- node
-    STACK_AST_EXPR_NAME "+" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- node, +
-    STACK_AST_EXPR_STRING "\"strin\\ng\"" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- node, +, 42
-    STACK_AST_EXPR_NUMBER "27" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- node, +, 42, 27
 
-    stack_ast_expr.sizeof array.init.with_sz -- node, e, e, e, array<expr>
-    dup rot stack_ast_expr.& array.append not if panic fi -- node, +, 42, array<expr>
-    dup rot stack_ast_expr.& array.append not if panic fi -- node, +, array<expr>
-    dup rot stack_ast_expr.& array.append not if panic fi -- node, array<expr>
+    STACK_AST_EXPR_COND -- s
+    "if" stack_ast_node.init -- s, if
+    STACK_AST_EXPR_NUMBER "27" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- s, if, 27
+    stack_ast_expr.sizeof array.init.with_sz -- s, if, 27, array<expr>
+    dup rot stack_ast_expr.& array.append not if panic fi -- s, if, array<expr>
+    STACK_AST_EXPR_NUMBER "42" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- s, if, array<expr>, 42
+    stack_ast_expr.sizeof array.init.with_sz -- s, if, array<expr>, 42, array<expr>
+    dup rot stack_ast_expr.& array.append not if panic fi -- s, if, array<expr>, array<expr>
+    stack_ast_cond.init stack_ast_cond.& stack_ast_expr.init -- if
+
+    STACK_AST_EXPR_BOOLEAN "true" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- bool
+
+    stack_ast_expr.sizeof array.init.with_sz -- node, if, bool, array<expr>
+    dup rot stack_ast_expr.& array.append not if panic fi
+    dup rot stack_ast_expr.& array.append not if panic fi
     stack_ast_func.init -- func
 
     stack_ast_func.sizeof array.init.with_sz -- func, array<func>
