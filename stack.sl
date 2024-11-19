@@ -2,141 +2,21 @@
 
 data stack_ast_node (string value)
 
-const stack_ast_node.sizeof string.sizeof
-
-const stack_ast_node.value.offset 0
-
-func stack_ast_node.init (string) (stack_ast_node) in -- s
-    stack_ast_node.sizeof ptr.alloc -- s, ptr
-
-    dup rot' -- ptr, s, ptr
-    stack_ast_node.value.offset ptr.+ -- ptr, s, ptr+
-    swp string.& string.sizeof -- ptr, ptr+, &str, sz
-    ptr.memcpy pop -- ptr
-
-    stack_ast_node.* -- stack_ast_node
-end
-
-func stack_ast_node.value (stack_ast_node) (string) in -- a
-    stack_ast_node.& stack_ast_node.value.offset ptr.+ string.* -- string
-end
-
 const STACK_AST_EXPR_NUMBER 0
 const STACK_AST_EXPR_NAME 3
 
 data stack_ast_expr (int kind, ptr expr)
 
-const stack_ast_expr.sizeof int.sizeof ptr.sizeof +
-
-const stack_ast_expr.kind.offset 0
-const stack_ast_expr.expr.offset stack_ast_expr.kind.offset int.sizeof +
-
-func stack_ast_expr.init (int, ptr) (stack_ast_expr) in -- s
-    stack_ast_expr.sizeof ptr.alloc -- s, ptr
-
-    dup rot' -- ptr, s, ptr
-    stack_ast_expr.expr.offset ptr.+ -- ptr, s, ptr+
-    swp ptr.& ptr.sizeof -- ptr, ptr+, &str, sz
-    ptr.memcpy pop -- ptr
-
-    dup rot' -- ptr, s, ptr
-    stack_ast_expr.kind.offset ptr.+ -- ptr, s, ptr+
-    swp int.& int.sizeof -- ptr, ptr+, &str, sz
-    ptr.memcpy pop -- ptr
-
-    stack_ast_expr.* -- stack_ast_expr
-end
-
-func stack_ast_expr.expr (stack_ast_expr) (ptr) in -- a
-    stack_ast_expr.& stack_ast_expr.expr.offset ptr.+ ptr.* -- ptr
-end
-
-func stack_ast_expr.kind (stack_ast_expr) (int) in -- a
-    stack_ast_expr.& stack_ast_expr.kind.offset ptr.+ int.* -- int
-end
-
 data stack_ast_func (stack_ast_node name, array exprs)
-
-const stack_ast_func.sizeof stack_ast_node.sizeof array.sizeof +
-
-const stack_ast_func.name.offset 0
-const stack_ast_func.exprs.offset stack_ast_func.name.offset stack_ast_node.sizeof +
-
-func stack_ast_func.init (stack_ast_node, array) (stack_ast_func) in -- n, a
-    stack_ast_func.sizeof ptr.alloc -- n, a, ptr
-
-    dup rot' -- n, ptr, a, ptr
-    stack_ast_func.exprs.offset ptr.+ -- n, ptr, a, ptr+
-    swp array.& array.sizeof -- n, ptr, ptr+, &a, sz
-    ptr.memcpy pop -- n, ptr
-
-    dup rot' -- ptr, n, ptr
-    stack_ast_func.name.offset ptr.+ -- ptr, n, ptr+
-    swp stack_ast_node.& stack_ast_node.sizeof -- ptr, ptr+, &n, sz
-    ptr.memcpy pop -- ptr
-
-    stack_ast_func.* -- stack_ast_func
-end
-
-func stack_ast_func.name (stack_ast_func) (stack_ast_node) in -- a
-    stack_ast_func.& stack_ast_func.name.offset ptr.+ stack_ast_node.* -- stack_ast_node
-end
-
-func stack_ast_func.exprs (stack_ast_func) (array) in -- a
-    stack_ast_func.& stack_ast_func.exprs.offset ptr.+ array.* -- array
-end
 
 data stack_ast_prog (array funcs)
 
-const stack_ast_prog.sizeof array.sizeof
-
-const stack_ast_prog.funcs.offset 0
-
-func stack_ast_prog.init (array) (stack_ast_prog) in -- s
-    stack_ast_prog.sizeof ptr.alloc -- s, ptr
-
-    dup rot' -- ptr, s, ptr
-    stack_ast_prog.funcs.offset ptr.+ -- ptr, s, ptr+
-    swp array.& array.sizeof -- ptr, ptr+, &str, sz
-    ptr.memcpy pop -- ptr
-
-    stack_ast_prog.* -- stack_ast_prog
-end
-
-func stack_ast_prog.funcs (stack_ast_prog) (array) in -- a
-    stack_ast_prog.& stack_ast_prog.funcs.offset ptr.+ array.* -- array
-end
-
 data stack_assembler (int fd, array func_map)
 
-const stack_assembler.sizeof int.sizeof array.sizeof +
+func stack_assembler.init.with_fd (int) (stack_assembler) in
+    string.sizeof array.init.with_sz -- s, array<string>
 
-const stack_assembler.fd.offset 0
-const stack_assembler.func_map.offset stack_assembler.fd.offset int.sizeof +
-
-func stack_assembler.init (int) (stack_assembler) in -- s
-    string.sizeof array.init swp -- array<string>, s
-    stack_assembler.sizeof ptr.alloc -- a, s, ptr
-
-    dup rot' -- ..., ptr, s, ptr
-    stack_assembler.fd.offset ptr.+ -- ..., ptr, s, ptr+
-    swp int.& int.sizeof -- ..., ptr, ptr+, &str, sz
-    ptr.memcpy pop -- array<string>, ptr
-
-    dup rot' -- ptr, array<string>, ptr
-    stack_assembler.func_map.offset ptr.+ -- ptr, array<string>, ptr+
-    swp array.& array.sizeof -- ptr, ptr+, &array<string>, sz
-    ptr.memcpy pop -- ptr
-
-    stack_assembler.* -- stack_assembler
-end
-
-func stack_assembler.fd (stack_assembler) (int) in -- a
-    stack_assembler.& stack_assembler.fd.offset ptr.+ int.* -- int
-end
-
-func stack_assembler.func_map (stack_assembler) (array) in -- a
-    stack_assembler.& stack_assembler.func_map.offset ptr.+ array.* -- array
+    stack_assembler.init -- stack_assembler
 end
 
 func emit (stack_assembler, string) () in -- asm, s
@@ -277,7 +157,7 @@ func stack_assembler.emit (stack_assembler, stack_ast_prog) () in -- asm, ast
 end
 
 func main () (int) in
-    STDOUT stack_assembler.init -- asm
+    STDOUT stack_assembler.init.with_fd -- asm
 
     -- asm
     STACK_FUNC_MAIN stack_ast_node.init -- node
@@ -285,13 +165,13 @@ func main () (int) in
     STACK_AST_EXPR_NUMBER "42" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- node, +, 42
     STACK_AST_EXPR_NUMBER "27" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- node, +, 42, 27
 
-    stack_ast_expr.sizeof array.init -- node, e, e, e, array<expr>
+    stack_ast_expr.sizeof array.init.with_sz -- node, e, e, e, array<expr>
     dup rot stack_ast_expr.& array.append not if panic fi -- node, +, 42, array<expr>
     dup rot stack_ast_expr.& array.append not if panic fi -- node, +, array<expr>
     dup rot stack_ast_expr.& array.append not if panic fi -- node, array<expr>
     stack_ast_func.init -- func
 
-    stack_ast_func.sizeof array.init -- func, array<func>
+    stack_ast_func.sizeof array.init.with_sz -- func, array<func>
     dup rot stack_ast_func.& array.append not if panic fi -- array<func>
     stack_ast_prog.init -- ast
 

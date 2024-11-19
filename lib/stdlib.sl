@@ -200,35 +200,6 @@ func string.memory-needed (int) (int) in -- sz
     7 + 8 / 8 *
 end
 
-const string.sizeof int.sizeof ptr.sizeof +
-
-const string.len.offset 0
-const string.str.offset string.len.offset int.sizeof +
-
-func string.init (int, ptr) (string) in
-    string.sizeof ptr.alloc -- L, str, ptr
-
-    dup rot' -- L, ptr, str, ptr
-    string.str.offset ptr.+ -- L, ptr, str, ptr+
-    swp ptr.& ptr.sizeof -- L, ptr, ptr+, &str, sz
-    ptr.memcpy pop -- L, ptr
-
-    dup rot' -- ptr, L, ptr
-    string.len.offset ptr.+ -- ptr, L, ptr+
-    swp int.& int.sizeof -- ptr, ptr+, &L, sz
-    ptr.memcpy pop -- ptr
-
-    string.* -- string
-end
-
-func string.len (string) (int) in
-    string.& string.len.offset ptr.+ int.*
-end
-
-func string.str (string) (ptr) in
-    string.& string.str.offset ptr.+ ptr.*
-end
-
 func string.concat (string, string) (string) in -- s1, s2
     dup2 string.len swp string.len + -- s1, s2, L
     dup rot4' string.memory-needed ptr.alloc -- L, s1, s2, ptr
@@ -377,56 +348,11 @@ data array (int capacity, int count, int sz, ptr items)
 
 const array.SIZE 1024
 
-const array.sizeof int.sizeof int.sizeof int.sizeof ptr.sizeof + + +
-
-const array.capacity.offset 0
-const array.count.offset array.capacity.offset int.sizeof +
-const array.sz.offset array.count.offset int.sizeof +
-const array.items.offset array.sz.offset int.sizeof +
-
-func array.init (int) (array) in -- sz
+func array.init.with_sz (int) (array) in -- sz
     0 0 0 int.& -- sz, C, L, xs
     rot4 swp -- C, L, sz, xs
-    array.sizeof ptr.alloc
 
-    dup rot' array.items.offset ptr.+ swp ptr.& ptr.sizeof ptr.memcpy pop
-    dup rot' array.sz.offset ptr.+ swp int.& int.sizeof ptr.memcpy pop
-    dup rot' array.count.offset ptr.+ swp int.& int.sizeof ptr.memcpy pop
-    dup rot' array.capacity.offset ptr.+ swp int.& int.sizeof ptr.memcpy pop
-
-    array.* -- array
-end
-
-func array.capacity (array) (int) in -- a
-    array.& array.capacity.offset ptr.+ int.*
-end
-
-func array.count (array) (int) in -- a
-    array.& array.count.offset ptr.+ int.*
-end
-
-func array.sz (array) (int) in -- a
-    array.& array.sz.offset ptr.+ int.*
-end
-
-func array.items (array) (ptr) in -- a
-    array.& array.items.offset ptr.+ ptr.*
-end
-
-func array.capacity.set (array, int) () in -- a, C
-    swp array.& array.capacity.offset ptr.+ swp int.& int.sizeof ptr.memcpy pop
-end
-
-func array.count.set (array, int) () in -- a, L
-    swp array.& array.count.offset ptr.+ swp int.& int.sizeof ptr.memcpy pop
-end
-
-func array.sz.set (array, int) () in -- a, sz
-    swp array.& array.sz.offset ptr.+ swp int.& int.sizeof ptr.memcpy pop
-end
-
-func array.items.set (array, ptr) () in -- a, items
-    swp array.& array.items.offset ptr.+ swp ptr.& ptr.sizeof ptr.memcpy pop
+    array.init
 end
 
 func array.get (array, int) (ptr, bool) in -- a, i

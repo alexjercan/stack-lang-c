@@ -18,7 +18,7 @@ end
 func show_items (array) () in 0 swp show_items' end
 
 func main () (int) in
-    int.sizeof array.init -- a
+    int.sizeof array.init.with_sz -- a
     dup 69 int.& array.append not if panic fi -- a
     dup 42 int.& array.append not if panic fi -- a
 

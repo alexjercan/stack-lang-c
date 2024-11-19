@@ -73,7 +73,7 @@ func rule110.rec (array, array, int) () in -- xs', xs, i
 end
 
 func rule110 (array) (array) in -- xs, n
-    dup array.sz array.init -- a, a'
+    dup array.sz array.init.with_sz -- a, a'
     dup rot' -- a', a, a'
     0 rot swp -- a', a', a, i
     rule110.rec -- a'
@@ -97,7 +97,7 @@ end
 func show_items (array) () in 0 swp show_items' end
 
 func main () (int) in
-    int.sizeof array.init -- a
+    int.sizeof array.init.with_sz -- a
 
     dup 0 int.& array.append not if panic fi -- a
     dup 0 int.& array.append not if panic fi -- a

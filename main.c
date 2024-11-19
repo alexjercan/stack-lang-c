@@ -6,6 +6,46 @@
 #define DS_DA_IMPLEMENTATION
 #include "ds.h"
 
+#define STACK_WORD_SZ 8
+
+#define STACK_CONST "stack_const"
+
+#define STACK_CONST_INT STACK_CONST "_" STACK_DATA_INT
+#define STACK_CONST_BOOL STACK_CONST "_" STACK_DATA_BOOL
+#define STACK_CONST_STRING STACK_CONST "_" STACK_DATA_STRING
+
+#define STACK_FUNC_MAIN "main"
+
+#define STACK_FUNC_DUP "dup"
+#define STACK_FUNC_SWP "swp"
+#define STACK_FUNC_ROT "rot"
+#define STACK_FUNC_ROTP "rot'"
+#define STACK_FUNC_ROT4 "rot4"
+#define STACK_FUNC_ROT4P "rot4'"
+#define STACK_FUNC_POP "pop"
+
+#define STACK_FUNC_PLUS "+"
+#define STACK_FUNC_MINUS "-"
+#define STACK_FUNC_STAR "*"
+#define STACK_FUNC_DIV "/"
+#define STACK_FUNC_MOD "%"
+#define STACK_FUNC_OR "|"
+#define STACK_FUNC_AND "&"
+#define STACK_FUNC_XOR "^"
+#define STACK_FUNC_SHR ">>"
+#define STACK_FUNC_SHL "<<"
+
+#define STACK_FUNC_GT ">"
+#define STACK_FUNC_LT "<"
+#define STACK_FUNC_EQ "="
+
+#define STACK_FUNC_PTR_ALLOC "ptr.alloc"
+#define STACK_FUNC_PTR_OFFSET "ptr.+"
+#define STACK_FUNC_PTR_COPY8 "ptr.@"
+
+#define STACK_FUNC_SYSCALL1 "syscall1"
+#define STACK_FUNC_SYSCALL3 "syscall3"
+
 /// LEXER
 
 #define SYMBOL_COMMA ','
@@ -424,11 +464,16 @@ typedef struct {
     ds_string_slice value;
     stack_parser *parser;
     unsigned int pos;
+
+    bool allocd;
 } stack_ast_node;
 
-#define STACK_AST_NODE(v, p, s) ((stack_ast_node){.value = (v), .parser = (p), .pos = (s)})
+#define STACK_AST_NODE(v, p, s) ((stack_ast_node){.value = (v), .parser = (p), .pos = (s), .allocd = false})
+#define STACK_AST_NODE_A(v, p, s) ((stack_ast_node){.value = (v), .parser = (p), .pos = (s), .allocd = true})
 
 static void stack_ast_node_free(stack_ast_node *node) {
+    if (node->allocd && node->value.str != NULL) DS_FREE(node->value.allocator, node->value.str);
+
     ds_string_slice_free(&node->value);
     node->parser = NULL;
 }
@@ -1189,6 +1234,281 @@ void stack_preprocessor_free(stack_preprocessor *preprocessor) {
     ds_dynamic_array_free(&preprocessor->_buffers);
 }
 
+#define STACK_DATA_OFFSET "offset"
+#define STACK_DATA_SET "set"
+#define STACK_DATA_SIZEOF "sizeof"
+#define STACK_FUNC_PTR_MEMCPY "ptr.memcpy"
+
+static void stack_preprocessor_generate_data_consts(stack_preprocessor *preprocessor, stack_ast_data data, stack_ast_prog *prog) {
+    ds_string_builder sb = {0};
+    ds_string_slice name = {0};
+
+    ds_string_builder_init(&sb);
+    DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%s", data.name.value.len, data.name.value.str, STACK_DATA_SIZEOF), DS_ERROR_OOM);
+    ds_string_builder_to_slice(&sb, &name);
+    stack_ast_node node = STACK_AST_NODE_A(name, data.name.parser, data.name.pos);
+
+    ds_dynamic_array exprs = {0};
+    ds_dynamic_array_init(&exprs, sizeof(stack_ast_expr));
+    for (unsigned int i = 0; i < data.fields.count; i++) {
+        stack_ast_data_field item = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&data.fields, i, &item));
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%s", item.type.value.len, item.type.value.str, STACK_DATA_SIZEOF), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        DS_EXPECT(ds_dynamic_array_append(&exprs, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+    }
+
+    if (data.fields.count > 0) {
+        for (unsigned int i = 0; i < data.fields.count - 1; i++) {
+            stack_ast_data_field item = {0};
+            DS_UNREACHABLE(ds_dynamic_array_get(&data.fields, i, &item));
+
+            DS_EXPECT(ds_dynamic_array_append(&exprs, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_PLUS), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+        }
+    }
+
+    stack_ast_const size_of = {
+        .name = node,
+        .exprs = exprs,
+    };
+
+    DS_EXPECT(ds_dynamic_array_append(&prog->consts, &size_of), DS_ERROR_OOM);
+
+    for (unsigned int i = 0; i < data.fields.count; i++) {
+        ds_dynamic_array exprs = {0};
+        ds_dynamic_array_init(&exprs, sizeof(stack_ast_expr));
+
+        stack_ast_data_field item = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&data.fields, i, &item));
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%.*s.%s", data.name.value.len, data.name.value.str, item.name.value.len, item.name.value.str, STACK_DATA_OFFSET), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        node = STACK_AST_NODE_A(name, data.name.parser, data.name.pos);
+
+        if (i == 0) {
+            DS_EXPECT(ds_dynamic_array_append(&exprs, &STACK_AST_EXPR_NUMBER(STACK_AST_NODE(DS_STRING_SLICE("0"), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+        } else {
+            stack_ast_data_field item_prev = {0};
+            DS_UNREACHABLE(ds_dynamic_array_get(&data.fields, i - 1, &item_prev));
+
+            ds_string_builder_init(&sb);
+            DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%.*s.%s", data.name.value.len, data.name.value.str, item_prev.name.value.len, item_prev.name.value.str, STACK_DATA_OFFSET), DS_ERROR_OOM);
+            ds_string_builder_to_slice(&sb, &name);
+            DS_EXPECT(ds_dynamic_array_append(&exprs, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+            ds_string_builder_init(&sb);
+            DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%s", item_prev.type.value.len, item_prev.type.value.str, STACK_DATA_SIZEOF), DS_ERROR_OOM);
+            ds_string_builder_to_slice(&sb, &name);
+            DS_EXPECT(ds_dynamic_array_append(&exprs, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+            DS_EXPECT(ds_dynamic_array_append(&exprs, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_PLUS), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+        }
+
+        stack_ast_const item_offset = {
+            .name = node,
+            .exprs = exprs,
+        };
+
+        DS_EXPECT(ds_dynamic_array_append(&prog->consts, &item_offset), DS_ERROR_OOM);
+    }
+}
+
+static void stack_preprocessor_generate_data_init(stack_preprocessor *preprocessor, stack_ast_data data, stack_ast_prog *prog) {
+    ds_string_builder sb = {0};
+    ds_string_slice name = {0};
+
+    ds_string_builder_init(&sb);
+    DS_EXPECT(ds_string_builder_append(&sb, "%.*s.init", data.name.value.len, data.name.value.str), DS_ERROR_OOM);
+    ds_string_builder_to_slice(&sb, &name);
+    stack_ast_node node = STACK_AST_NODE_A(name, data.name.parser, data.name.pos);
+
+    ds_dynamic_array args = {0};
+    ds_dynamic_array_init(&args, sizeof(stack_ast_node));
+    for (unsigned int i = 0; i < data.fields.count; i++) {
+        stack_ast_data_field item = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&data.fields, i, &item));
+        DS_EXPECT(ds_dynamic_array_append(&args, &STACK_AST_NODE(item.type.value, data.name.parser, data.name.pos)), DS_ERROR_OOM);
+    }
+
+    ds_dynamic_array rets = {0};
+    ds_dynamic_array_init(&rets, sizeof(stack_ast_node));
+    DS_EXPECT(ds_dynamic_array_append(&rets, &STACK_AST_NODE(data.name.value, data.name.parser, data.name.pos)), DS_ERROR_OOM);
+
+    ds_dynamic_array body = {0};
+    ds_dynamic_array_init(&body, sizeof(stack_ast_expr));
+
+    ds_string_builder_init(&sb);
+    DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%s", data.name.value.len, data.name.value.str, STACK_DATA_SIZEOF), DS_ERROR_OOM);
+    ds_string_builder_to_slice(&sb, &name);
+    DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+    DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_PTR_ALLOC), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+    for (int i = data.fields.count - 1; i >= 0 ; i--) {
+        stack_ast_data_field item = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&data.fields, i, &item));
+
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_DUP), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_ROTP), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%.*s.%s", data.name.value.len, data.name.value.str, item.name.value.len, item.name.value.str, STACK_DATA_OFFSET), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_PTR_OFFSET), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_SWP), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.&", item.type.value.len, item.type.value.str), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%s", item.type.value.len, item.type.value.str, STACK_DATA_SIZEOF), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_PTR_MEMCPY), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_POP), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+    }
+
+    ds_string_builder_init(&sb);
+    DS_EXPECT(ds_string_builder_append(&sb, "%.*s.*", data.name.value.len, data.name.value.str), DS_ERROR_OOM);
+    ds_string_builder_to_slice(&sb, &name);
+    DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+    stack_ast_func init = {
+        .name = node,
+        .args = args,
+        .rets = rets,
+        .body = body,
+    };
+
+    DS_EXPECT(ds_dynamic_array_append(&prog->funcs, &init), DS_ERROR_OOM);
+}
+
+static void stack_preprocessor_generate_data_getters(stack_preprocessor *preprocessor, stack_ast_data data, stack_ast_prog *prog) {
+    ds_string_builder sb = {0};
+    ds_string_slice name = {0};
+    stack_ast_node node = {0};
+
+    for (unsigned int i = 0; i < data.fields.count; i++) {
+        stack_ast_data_field item = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&data.fields, i, &item));
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%.*s", data.name.value.len, data.name.value.str, item.name.value.len, item.name.value.str), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        node = STACK_AST_NODE_A(name, data.name.parser, data.name.pos);
+
+        ds_dynamic_array args = {0};
+        ds_dynamic_array_init(&args, sizeof(stack_ast_node));
+        DS_EXPECT(ds_dynamic_array_append(&args, &STACK_AST_NODE(data.name.value, data.name.parser, data.name.pos)), DS_ERROR_OOM);
+
+        ds_dynamic_array rets = {0};
+        ds_dynamic_array_init(&rets, sizeof(stack_ast_node));
+        DS_EXPECT(ds_dynamic_array_append(&rets, &STACK_AST_NODE(item.type.value, data.name.parser, data.name.pos)), DS_ERROR_OOM);
+
+        ds_dynamic_array body = {0};
+        ds_dynamic_array_init(&body, sizeof(stack_ast_expr));
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.&", data.name.value.len, data.name.value.str), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%.*s.%s", data.name.value.len, data.name.value.str, item.name.value.len, item.name.value.str, STACK_DATA_OFFSET), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_PTR_OFFSET), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.*", item.type.value.len, item.type.value.str), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        stack_ast_func get = {
+            .name = node,
+            .args = args,
+            .rets = rets,
+            .body = body,
+        };
+
+        DS_EXPECT(ds_dynamic_array_append(&prog->funcs, &get), DS_ERROR_OOM);
+    }
+}
+
+static void stack_preprocessor_generate_data_setters(stack_preprocessor *preprocessor, stack_ast_data data, stack_ast_prog *prog) {
+    ds_string_builder sb = {0};
+    ds_string_slice name = {0};
+    stack_ast_node node = {0};
+
+    for (unsigned int i = 0; i < data.fields.count; i++) {
+        stack_ast_data_field item = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&data.fields, i, &item));
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%.*s.%s", data.name.value.len, data.name.value.str, item.name.value.len, item.name.value.str, STACK_DATA_SET), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        node = STACK_AST_NODE_A(name, data.name.parser, data.name.pos);
+
+        ds_dynamic_array args = {0};
+        ds_dynamic_array_init(&args, sizeof(stack_ast_node));
+        DS_EXPECT(ds_dynamic_array_append(&args, &STACK_AST_NODE(data.name.value, data.name.parser, data.name.pos)), DS_ERROR_OOM);
+        DS_EXPECT(ds_dynamic_array_append(&args, &STACK_AST_NODE(item.type.value, data.name.parser, data.name.pos)), DS_ERROR_OOM);
+
+        ds_dynamic_array rets = {0};
+        ds_dynamic_array_init(&rets, sizeof(stack_ast_node));
+
+        ds_dynamic_array body = {0};
+        ds_dynamic_array_init(&body, sizeof(stack_ast_expr));
+
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_SWP), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.&", data.name.value.len, data.name.value.str), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%.*s.%s", data.name.value.len, data.name.value.str, item.name.value.len, item.name.value.str, STACK_DATA_OFFSET), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_PTR_OFFSET), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_SWP), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.&", item.type.value.len, item.type.value.str), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%s", item.type.value.len, item.type.value.str, STACK_DATA_SIZEOF), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_PTR_MEMCPY), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_POP), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+
+        stack_ast_func set = {
+            .name = node,
+            .args = args,
+            .rets = rets,
+            .body = body,
+        };
+
+        DS_EXPECT(ds_dynamic_array_append(&prog->funcs, &set), DS_ERROR_OOM);
+    }
+}
+
 int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *prog) {
     stack_ast_prog prog_new = {0};
     stack_ast_init(&prog_new);
@@ -1260,6 +1580,21 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
     tmp = prog_new.consts;
     prog_new.consts = prog->consts;
     prog->consts = tmp;
+
+    // TODO: go over the datas and generate init and getters consts offset and sizeof
+    for (unsigned int i = 0; i < prog->datas.count; i++) {
+        stack_ast_data data = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&prog->datas, i, &data));
+
+        if (data.extern_) {
+            continue;
+        }
+
+        stack_preprocessor_generate_data_consts(preprocessor, data, prog);
+        stack_preprocessor_generate_data_init(preprocessor, data, prog);
+        stack_preprocessor_generate_data_getters(preprocessor, data, prog);
+        stack_preprocessor_generate_data_setters(preprocessor, data, prog);
+    }
 
 defer:
     ds_string_builder_free(&sb);
@@ -2169,44 +2504,6 @@ int stack_context_typecheck(stack_context *context, stack_ast_prog *prog) {
 }
 
 /// ASSEMBLER
-
-#define STACK_WORD_SZ 8
-
-#define STACK_CONST "stack_const"
-
-#define STACK_CONST_INT STACK_CONST "_" STACK_DATA_INT
-#define STACK_CONST_BOOL STACK_CONST "_" STACK_DATA_BOOL
-#define STACK_CONST_STRING STACK_CONST "_" STACK_DATA_STRING
-
-#define STACK_FUNC_MAIN "main"
-
-#define STACK_FUNC_DUP "dup"
-#define STACK_FUNC_SWP "swp"
-#define STACK_FUNC_ROT "rot"
-#define STACK_FUNC_ROT4 "rot4"
-#define STACK_FUNC_POP "pop"
-
-#define STACK_FUNC_PLUS "+"
-#define STACK_FUNC_MINUS "-"
-#define STACK_FUNC_STAR "*"
-#define STACK_FUNC_DIV "/"
-#define STACK_FUNC_MOD "%"
-#define STACK_FUNC_OR "|"
-#define STACK_FUNC_AND "&"
-#define STACK_FUNC_XOR "^"
-#define STACK_FUNC_SHR ">>"
-#define STACK_FUNC_SHL "<<"
-
-#define STACK_FUNC_GT ">"
-#define STACK_FUNC_LT "<"
-#define STACK_FUNC_EQ "="
-
-#define STACK_FUNC_PTR_ALLOC "ptr.alloc"
-#define STACK_FUNC_PTR_OFFSET "ptr.+"
-#define STACK_FUNC_PTR_COPY8 "ptr.@"
-
-#define STACK_FUNC_SYSCALL1 "syscall1"
-#define STACK_FUNC_SYSCALL3 "syscall3"
 
 typedef enum {
     STACK_CONST_EXPR_INT,
