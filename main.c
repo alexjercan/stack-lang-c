@@ -2888,7 +2888,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
     EMIT("");
-    EMIT("    call    stack_peek_addr");
+    EMIT("    call    stack_peek_addr"); // FIXME: THIS DOESN'T REALLY DUP??
     EMIT("    mov     rdi, rax");
     EMIT("    call    stack_push_addr");
     EMIT("");
