@@ -3,18 +3,31 @@
 data stack_ast_node (string value)
 
 const STACK_AST_EXPR_NUMBER 0
+const STACK_AST_EXPR_BOOLEAN 1
+const STACK_AST_EXPR_STRING 2
 const STACK_AST_EXPR_NAME 3
 
 data stack_ast_expr (int kind, ptr expr)
 
 data stack_ast_func (stack_ast_node name, array exprs)
 
-data stack_ast_prog (array funcs)
+data stack_ast (array funcs)
 
-data stack_assembler (int fd, array func_map)
+const STACK_LITERAL_NUMBER 0
+const STACK_LITERAL_BOOLEAN 1
+const STACK_LITERAL_STRING 2
+
+data stack_literal (int kind, string value)
+
+func stack_literal.= (stack_literal, stack_literal) (bool) in
+    dup2 stack_literal.kind swp stack_literal.kind = rot' -- bool, l1, l2
+    stack_literal.value swp stack_literal.value string.= and -- bool
+end
+
+data stack_assembler (int fd, array func_map, array literal_map)
 
 func stack_assembler.init.with_fd (int) (stack_assembler) in
-    string.sizeof array.init.with_sz -- s, array<string>
+    string.sizeof array.init.with_sz stack_literal.sizeof array.init.with_sz -- s, array<string>, array<stack_literal>
 
     stack_assembler.init -- stack_assembler
 end
@@ -49,16 +62,63 @@ func stack_assembler.func.name (stack_assembler, string) (string) in -- asm, nam
     int.show "func." swp string.concat -- string
 end
 
+func stack_assembler.literal.name' (int, stack_literal, array) (int) in -- i, name, array<stack_literal>
+    dup array.count -- i, literal, array<stack_literal>, c
+    rot4 dup rot -- literal, array<stack_literal>, i, i, c
+    >= if -- literal, array<stack_literal>, i
+        rot' swp stack_literal.& array.append not if panic fi -- i
+    else
+        dup2 array.get not if panic fi -- stack_literal, array<string>, i, ptr
+        stack_literal.* -- literal, array<stack_literal>, i, item
+        rot4 dup rot stack_literal.= if -- array<stack_literal>, i, literal
+            rot pop2  -- i
+        else
+            swp 1 + swp -- array<stack_literal>, i+1, literal
+            rot stack_assembler.literal.name' -- int
+        fi -- int
+    fi -- int
+end
+
+func stack_assembler.literal.name (stack_assembler, stack_literal) (string) in -- asm, value
+    swp stack_assembler.literal_map -- stack_literal, array<stack_literal>
+    0 rot' stack_assembler.literal.name' -- int
+    int.show "literal." swp string.concat -- string
+end
+
 func stack_assembler.emit.expr.number (stack_assembler, stack_ast_node) () in -- asm, number
-    -- TODO: use constants and stuff like that like in the real comp
+    swp dup rot -- asm, asm, node
+    stack_ast_node.value dup2 -- asm, asm, value, asm, value
+    STACK_LITERAL_NUMBER swp stack_literal.init -- asm, asm, value, asm, stack_literal
+    stack_assembler.literal.name -- asm, asm, value, s
+    "    mov     rdi, " swp string.concat " ; " string.concat swp string.concat emit
 
-    dup stack_ast_node.value "    mov     rdi, " swp string.concat rot' -- string, asm, expr
+    dup "    call    stack_push_addr" emit
 
-    swp
-    dup rot4 emit
-    dup "    call    stack_push" emit
+    pop
+end
 
-    pop2
+func stack_assembler.emit.expr.boolean (stack_assembler, stack_ast_node) () in -- asm, boolean
+    swp dup rot -- asm, asm, node
+    stack_ast_node.value dup2 -- asm, asm, value, asm, value
+    STACK_LITERAL_BOOLEAN swp stack_literal.init -- asm, asm, value, asm, stack_literal
+    stack_assembler.literal.name -- asm, asm, value, s
+    "    mov     rdi, " swp string.concat " ; " string.concat swp string.concat emit
+
+    dup "    call    stack_push_addr" emit
+
+    pop
+end
+
+func stack_assembler.emit.expr.string (stack_assembler, stack_ast_node) () in -- asm, string
+    swp dup rot -- asm, asm, node
+    stack_ast_node.value dup2 -- asm, asm, value, asm, value
+    STACK_LITERAL_STRING swp stack_literal.init -- asm, asm, value, asm, stack_literal
+    stack_assembler.literal.name -- asm, asm, value, s
+    "    mov     rdi, " swp string.concat " ; " string.concat swp string.concat emit
+
+    dup "    call    stack_push_addr" emit
+
+    pop
 end
 
 func stack_assembler.emit.expr.name (stack_assembler, stack_ast_node) () in -- asm, name
@@ -73,11 +133,15 @@ func stack_assembler.emit.expr (stack_assembler, stack_ast_expr) () in -- asm, e
     dup stack_ast_expr.kind  -- asm, expr, kind
     dup STACK_AST_EXPR_NUMBER = if -- asm, expr, kind
         pop stack_ast_expr.expr stack_ast_node.* stack_assembler.emit.expr.number
+    else dup STACK_AST_EXPR_BOOLEAN = if -- asm, expr, kind
+        pop stack_ast_expr.expr stack_ast_node.* stack_assembler.emit.expr.boolean
+    else dup STACK_AST_EXPR_STRING = if -- asm, expr, kind
+        pop stack_ast_expr.expr stack_ast_node.* stack_assembler.emit.expr.string
     else dup STACK_AST_EXPR_NAME = if -- asm, expr, kind
         pop stack_ast_expr.expr stack_ast_node.* stack_assembler.emit.expr.name
     else
         panic pop3
-    fi fi -- ()
+    fi fi fi fi -- ()
 end
 
 func stack_assembler.emit.exprs' (int, stack_assembler, array) () in -- asm, array<expr>
@@ -117,7 +181,7 @@ func stack_assembler.emit.func (stack_assembler, stack_ast_func) () in -- asm, f
     pop2
 end
 
-func stack_assembler.emit.ast.funcs' (int, stack_assembler, array) () in -- i, a
+func stack_assembler.emit.ast.funcs' (int, stack_assembler, array) () in -- i, asm, a
     dup array.count -- i, asm, array<func>, c
     rot4 dup rot -- asm, array<func>, i, i, c
     >= if -- asm, array<func>, i
@@ -133,17 +197,131 @@ end
 
 func stack_assembler.emit.ast.funcs (stack_assembler, array) () in 0 rot' stack_assembler.emit.ast.funcs' end
 
-func stack_assembler.emit.ast (stack_assembler, stack_ast_prog) () in -- asm, prog
+func stack_assembler.emit.ast (stack_assembler, stack_ast) () in -- asm, prog
     swp
     dup "section '.text' executable" emit
     dup ""                           emit
 
-    dup2 swp stack_ast_prog.funcs stack_assembler.emit.ast.funcs
+    dup2 swp stack_ast.funcs stack_assembler.emit.ast.funcs
 
     pop2
 end
 
-func stack_assembler.emit (stack_assembler, stack_ast_prog) () in -- asm, ast
+const BYTE_BACKSLASH 92
+const BYTE_B 98
+const BYTE_F 102
+const BYTE_N 110
+const BYTE_T 116
+
+func stack_assembler.emit.string.interpret' (int, string, string) (string) in -- i, string, result
+    rot' dup2 string.len < if -- result, i, string
+        dup2 swp string.!! -- result, i, string, chr
+        BYTE_BACKSLASH = if -- result, i, string
+            dup2 swp -- result, i, string, string, i
+            1 + string.!! -- result, i, string, chr+1
+            dup BYTE_N = if -- result, i, string, chr+1
+                pop "\n"
+            else dup BYTE_T = if
+                pop "\t"
+            else dup BYTE_B = if
+                pop "\b"
+            else dup BYTE_F = if
+                pop "\f"
+            else
+                pop dup2 swp 1 + 1 string.substr -- result, i, string, s+1
+            fi fi fi fi -- result, i, string, s
+            rot 2 + rot' -- result, i+2, string, s
+        else
+            dup2 swp 1 string.substr rot 1 + rot' -- result, i+1, string, s
+        fi -- result, i+x, string, s
+        rot4 swp string.concat -- i+x, string, result
+        stack_assembler.emit.string.interpret'
+    else
+        pop2
+    fi -- string
+end
+
+func stack_assembler.emit.string.interpret (string) (string) in -- string
+    dup string.len 2 - 1 swp string.substr -- s\"
+    0 swp "" stack_assembler.emit.string.interpret' -- string
+end
+
+func stack_assembler.emit.literal.string.helper' (int, string, string) (string) in -- i, value, result
+    rot' dup2 string.len < if -- result, i, value
+        swp dup 0 > if -- result, value, i
+            rot "," string.concat rot' swp
+        else
+            swp
+        fi -- result, i, value
+
+        dup2 swp string.!! int.show -- result, i, value, b
+        rot 1 + rot' -- result, i+1, value, b
+        rot4 swp string.concat stack_assembler.emit.literal.string.helper' -- string
+    else
+        pop2
+    fi -- string
+end
+
+func stack_assembler.emit.literal.string.helper (string, string) (string) in -- str, value
+    -- str value len
+    dup string.len  -- str, value, len
+    dup 0 = if -- str, value, len
+        pop2 "0" string.concat
+    else
+        swp 0 swp "" stack_assembler.emit.literal.string.helper' -- str, len, bs
+        ",0" rot -- str, bs, 0" len
+        int.sizeof -- str, bs, 0" len, 8
+        swp -- str, bs, 0", 8, len
+        int.sizeof mod -- str, bs, 0", 8, len%8
+        - -- str, bs, 0", 8-len%8
+        string.repeat -- str bs 0s
+        string.concat string.concat -- string
+    fi -- string
+end
+
+func stack_assembler.emit.literal (stack_assembler, stack_literal, int) () in -- asm, literal, i
+    rot' -- i, asm, literal
+
+    dup stack_literal.value swp stack_literal.kind -- i, asm, value, kind
+    dup STACK_LITERAL_NUMBER = if -- i, asm, value, kind
+        pop "literal." rot4 int.show string.concat " dq " string.concat swp string.concat emit -- ()
+    else dup STACK_LITERAL_BOOLEAN = if -- i, asm, value, kind
+        pop "literal." rot4 int.show string.concat " dq " string.concat swp "true" string.= if "1" else "0" fi string.concat emit -- ()
+    else dup STACK_LITERAL_STRING = if -- i, asm, value, kind
+        pop stack_assembler.emit.string.interpret -- i, asm, value\"
+        "literal." rot4 int.show dup rot4' string.concat " dq " string.concat swp dup string.len int.show rot swp string.concat rot4 dup rot emit  -- i, value, asm
+        dup3 "          dq string." rot4 string.concat emit pop -- i, value, asm
+        dup3 "string." rot4 string.concat " db " string.concat swp pop swp  stack_assembler.emit.literal.string.helper dup2 emit pop -- i, value, asm
+
+        pop3
+    else
+        panic pop3 pop
+    fi fi fi -- ()
+end
+
+func stack_assembler.emit.literals' (int, stack_assembler, array) () in -- i, asm, array<stack_literal>
+    dup array.count -- i, asm, array<stack_literal>, c
+    rot4 dup rot -- asm, array<stack_literal>, i, i, c
+    >= if -- asm, array<stack_literal>, i
+        pop3
+    else
+        dup2 array.get not if panic fi -- asm, array<stack_literal>, i, ptr
+        stack_literal.* -- asm, array<stack_literal>, i, stack_literal
+        rot4 dup rot rot4 dup rot4' stack_assembler.emit.literal -- array<stack_literal>, asm, i
+        rot swp 1 + rot' -- i+1, asm, array<stack_literal>
+        stack_assembler.emit.literals' -- ()
+    fi -- ()
+end
+
+func stack_assembler.emit.literals (stack_assembler) () in -- asm
+    dup "section '.data'" emit
+    dup "" emit
+
+    dup stack_assembler.literal_map -- stack_assembler, array<stack_literal>
+    0 rot' stack_assembler.emit.literals' -- ()
+end
+
+func stack_assembler.emit (stack_assembler, stack_ast) () in -- asm, ast
     swp
     dup "format ELF64" emit
     dup ""             emit
@@ -152,6 +330,7 @@ func stack_assembler.emit (stack_assembler, stack_ast_prog) () in -- asm, ast
     dup stack_assembler.emit.entry
     dup stack_assembler.emit.keywords
     swp dup2 stack_assembler.emit.ast
+    swp dup stack_assembler.emit.literals
 
     pop2
 end
@@ -162,7 +341,7 @@ func main () (int) in
     -- asm
     STACK_FUNC_MAIN stack_ast_node.init -- node
     STACK_AST_EXPR_NAME "+" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- node, +
-    STACK_AST_EXPR_NUMBER "42" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- node, +, 42
+    STACK_AST_EXPR_STRING "\"strin\\ng\"" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- node, +, 42
     STACK_AST_EXPR_NUMBER "27" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- node, +, 42, 27
 
     stack_ast_expr.sizeof array.init.with_sz -- node, e, e, e, array<expr>
@@ -173,7 +352,7 @@ func main () (int) in
 
     stack_ast_func.sizeof array.init.with_sz -- func, array<func>
     dup rot stack_ast_func.& array.append not if panic fi -- array<func>
-    stack_ast_prog.init -- ast
+    stack_ast.init -- ast
 
     -- asm, ast
     stack_assembler.emit -- ()

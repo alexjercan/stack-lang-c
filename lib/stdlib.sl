@@ -224,6 +224,20 @@ func string.substr (string, int, int) (string) in -- s, i, n
     string.init
 end
 
+func string.repeat' (int, string, int, string) (string) in -- i, s, n, result
+    rot4' rot swp dup2 < if -- result, s, i, n
+        swp 1 + swp -- result, s, i+1, n
+        rot rot4 swp dup rot4' string.concat -- i+1, s, n, result
+        string.repeat' -- string
+    else
+        pop3
+    fi -- string
+end
+
+func string.repeat (string, int) (string) in -- s, n
+    0 rot' "" string.repeat' -- string
+end
+
 func string.!! (string, int) (int) in -- s, i
     swp -- i, s
     string.str swp ptr.+ -- str+i
