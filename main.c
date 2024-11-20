@@ -1701,7 +1701,6 @@ static void stack_context_func_free(stack_context_func *func) {
 }
 
 typedef enum {
-    STACK_CONTEXT_SYMBOL_CONST,
     STACK_CONTEXT_SYMBOL_DATA,
     STACK_CONTEXT_SYMBOL_FUNC,
 } stack_context_symbol_kind;
@@ -1709,7 +1708,6 @@ typedef enum {
 typedef struct {
     stack_context_symbol_kind kind;
     union {
-        stack_context_const const_;
         stack_context_data data;
         stack_context_func func;
     };
@@ -1717,9 +1715,6 @@ typedef struct {
 
 static void stack_context_symbol_free(stack_context_symbol *symbol) {
     switch (symbol->kind) {
-    case STACK_CONTEXT_SYMBOL_CONST:
-        stack_context_const_free(&symbol->const_);
-        break;
     case STACK_CONTEXT_SYMBOL_DATA:
         stack_context_data_free(&symbol->data);
         break;
@@ -1759,9 +1754,6 @@ static int stack_context_symbol_get(stack_context *context, ds_string_slice name
 
         ds_string_slice item_name = {0};
         switch (item.kind) {
-        case STACK_CONTEXT_SYMBOL_CONST:
-            item_name = item.const_.name;
-            break;
         case STACK_CONTEXT_SYMBOL_DATA:
             item_name = item.data.name;
             break;
@@ -2310,17 +2302,6 @@ defer:
     return result;
 }
 
-static int stack_context_typecheck_expr_name_const(stack_context *context,
-                                                   ds_dynamic_array *stack,
-                                                   stack_context_const symbol,
-                                                   stack_ast_node *name) {
-    DS_UNUSED(context);
-    DS_UNUSED(name);
-    DS_EXPECT(ds_dynamic_array_append(stack, &symbol.type), DS_ERROR_OOM);
-
-    return 0;
-}
-
 static int stack_context_typecheck_expr_name(stack_context *context,
                                              ds_dynamic_array *stack,
                                              stack_ast_node *name) {
@@ -2333,9 +2314,6 @@ static int stack_context_typecheck_expr_name(stack_context *context,
     }
 
     switch (symbol.kind) {
-    case STACK_CONTEXT_SYMBOL_CONST:
-        result = stack_context_typecheck_expr_name_const(context, stack, symbol.const_, name);
-        break;
     case STACK_CONTEXT_SYMBOL_DATA:
         return_defer(1);
     case STACK_CONTEXT_SYMBOL_FUNC:
@@ -3707,8 +3685,6 @@ static void stack_assembler_emit_expr_name(stack_assembler *assembler, stack_ast
     DS_UNREACHABLE(stack_context_symbol_get(assembler->context, node->value, &symbol));
 
     switch (symbol.kind) {
-    case STACK_CONTEXT_SYMBOL_CONST:
-        break;
     case STACK_CONTEXT_SYMBOL_DATA:
         break;
     case STACK_CONTEXT_SYMBOL_FUNC:
