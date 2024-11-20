@@ -152,18 +152,6 @@ func int.show (int) (string) in
     else int.show' fi
 end
 
--- byte is a subdata of int
-
-func byte.isdigit (int) (bool) in -- chr
-    dup 48 >= swp 57 <= and
-end
-
-func byte.init (ptr) (int) in -- chr*
-    int.sizeof ptr.alloc -- str, ptr
-    dup rot' swp 1 ptr.memcpy pop -- ptr
-    int.* -- byte
-end
-
 -- DATA BOOL
 data bool extern
 
@@ -421,4 +409,34 @@ func array.append (array, ptr) (bool) in -- a, ptr
     swp -- a, L
     1 + -- a, L+1
     array.count.set true -- bool
+end
+
+-- DATA BYTE is a subdata of int
+
+const BYTE_\T 9
+const BYTE_\N 10
+const BYTE_EOF 26
+const BYTE_SPACE 32
+const BYTE_LPAREN 40
+const BYTE_BACKSLASH 92
+const BYTE_B 98
+const BYTE_F 102
+const BYTE_N 110
+const BYTE_T 116
+
+func byte.init (ptr) (int) in -- chr*
+    int.sizeof ptr.alloc -- str, ptr
+    dup rot' swp 1 ptr.memcpy pop -- ptr
+    int.* -- byte
+end
+
+func byte.isdigit (int) (bool) in -- chr
+    dup 48 >= swp 57 <= and
+end
+
+func byte.isspace (int) (bool) in -- chr
+    dup BYTE_\T = swp -- bool i
+    dup BYTE_\N = swp -- bool bool i
+    dup BYTE_SPACE = swp -- bool bool bool i
+    pop or or -- bool
 end

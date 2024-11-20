@@ -1,8 +1,83 @@
 @import stdlib
 
-data stack_ast_node (string value)
+-- STACK TOKENIZER
 
-data stack_ast_cond (stack_ast_node cond, array if_, array else_)
+const STACK_TOKEN_EOF       0
+const STACK_TOKEN_ILLEGAL   1
+const STACK_TOKEN_FUNC      2
+const STACK_TOKEN_IN        3
+const STACK_TOKEN_END       4
+const STACK_TOKEN_NUMBER    5
+const STACK_TOKEN_LPAREN    6
+
+func stack_token_kind.map (int) (string) in
+    dup STACK_TOKEN_EOF = if pop "<EOF>"
+    else dup STACK_TOKEN_ILLEGAL = if pop "ILELGAL"
+    else dup STACK_TOKEN_FUNC = if pop "FUNC"
+    else dup STACK_TOKEN_IN = if pop "IN"
+    else dup STACK_TOKEN_END = if pop "END"
+    else dup STACK_TOKEN_NUMBER = if pop "NUMBER"
+    else dup STACK_TOKEN_LPAREN = if pop "("
+    else panic pop "" fi fi fi fi fi fi fi -- (string)
+end
+
+data stack_token (int kind, string value, int pos)
+
+data stack_lexer (string buffer, int pos, int read_pos, int ch)
+
+func stack_lexer.peek (stack_lexer) (int) in
+    dup stack_lexer.buffer dup2 -- lexer, buffer, lexer, buffer
+
+    string.len swp stack_lexer.read_pos <= if -- lexer, buffer
+        pop2 BYTE_EOF
+    else
+        swp stack_lexer.read_pos string.!!
+    fi -- byte
+end
+
+func stack_lexer.read (stack_lexer) (int) in
+    dup stack_lexer.peek dup2 stack_lexer.ch.set swp -- chr, stack_lexer
+    dup stack_lexer.read_pos dup2 stack_lexer.pos.set -- chr, stack_lexer, rpos
+    1 + dup2 stack_lexer.read_pos.set pop2 -- chr
+end
+
+func stack_lexer.skip.whitespace (stack_lexer) () in
+    dup stack_lexer.ch byte.isspace if stack_lexer.skip.whitespace else pop fi
+end
+
+func stack_lexer.skip.until_newline (stack_lexer) () in
+    dup stack_lexer.ch -- stack_lexer, ch
+    dup BYTE_\N = swp -- stack_lexer, bool, ch
+    dup BYTE_EOF = swp -- stack_lexer, bool, bool, ch
+    pop or not if -- stack_lexer
+        dup stack_lexer.read pop stack_lexer.skip.until_newline -- ()
+    else pop fi
+end
+
+func stack_lexer.init.with_buffer (string) (stack_lexer) in
+    0 0 0 stack_lexer.init dup stack_lexer.read pop -- stack_lexer
+end
+
+func stack_lexer.next (stack_lexer) (stack_token) in
+    dup stack_lexer.skip.whitespace -- stack_lexer
+    dup stack_lexer.pos swp -- pos, stack_lexer
+    dup stack_lexer.ch -- pos, stack_lexer, ch
+    dup BYTE_EOF = if -- pos, stack_lexer, ch
+        pop stack_lexer.read pop STACK_TOKEN_EOF "" rot stack_token.init
+    else dup BYTE_LPAREN = if
+        pop stack_lexer.read pop STACK_TOKEN_LPAREN "" rot stack_token.init
+    else
+        int.show swp stack_lexer.read pop STACK_TOKEN_ILLEGAL swp rot stack_token.init
+    fi fi -- stack_token
+end
+
+func stack_lexer.dump (stack_lexer) () in
+    dup stack_lexer.next -- stack_lexer, token
+    stack_token.kind dup stack_token_kind.map "\n" string.concat string.stdout -- stack_lexer, kind
+    STACK_TOKEN_EOF = not if stack_lexer.dump else pop fi -- ()
+end
+
+-- STACK PARSER
 
 const STACK_AST_EXPR_NUMBER 0
 const STACK_AST_EXPR_BOOLEAN 1
@@ -10,11 +85,15 @@ const STACK_AST_EXPR_STRING 2
 const STACK_AST_EXPR_NAME 3
 const STACK_AST_EXPR_COND 4
 
+data stack_parser (stack_lexer lexer, stack_token tok, stack_token next_tok)
+
+data stack_ast_node (string value)
+data stack_ast_cond (stack_ast_node cond, array if_, array else_)
 data stack_ast_expr (int kind, ptr expr)
-
 data stack_ast_func (stack_ast_node name, array exprs)
-
 data stack_ast (array funcs)
+
+-- STACK ASSEMBLER
 
 const STACK_LITERAL_NUMBER 0
 const STACK_LITERAL_BOOLEAN 1
@@ -22,12 +101,12 @@ const STACK_LITERAL_STRING 2
 
 data stack_literal (int kind, string value)
 
+data stack_assembler (int fd, array func_map, array literal_map, int if_counter)
+
 func stack_literal.= (stack_literal, stack_literal) (bool) in
     dup2 stack_literal.kind swp stack_literal.kind = rot' -- bool, l1, l2
     stack_literal.value swp stack_literal.value string.= and -- bool
 end
-
-data stack_assembler (int fd, array func_map, array literal_map, int if_counter)
 
 func stack_assembler.init.with_fd (int) (stack_assembler) in
     string.sizeof array.init.with_sz
@@ -241,12 +320,6 @@ func stack_assembler.emit.ast (stack_assembler, stack_ast) () in -- asm, prog
     pop2
 end
 
-const BYTE_BACKSLASH 92
-const BYTE_B 98
-const BYTE_F 102
-const BYTE_N 110
-const BYTE_T 116
-
 func stack_assembler.emit.string.interpret' (int, string, string) (string) in -- i, string, result
     rot' dup2 string.len < if -- result, i, string
         dup2 swp string.!! -- result, i, string, chr
@@ -370,34 +443,40 @@ func stack_assembler.emit (stack_assembler, stack_ast) () in -- asm, ast
 end
 
 func main () (int) in
-    STDOUT stack_assembler.init.with_fd -- asm
+    "(#" stack_lexer.init.with_buffer -- stack_lexer
 
-    -- asm
-    STACK_FUNC_MAIN stack_ast_node.init -- node
+    dup stack_lexer.dump -- stack_lexer
 
-    STACK_AST_EXPR_COND -- s
-    "if" stack_ast_node.init -- s, if
-    STACK_AST_EXPR_NUMBER "27" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- s, if, 27
-    stack_ast_expr.sizeof array.init.with_sz -- s, if, 27, array<expr>
-    dup rot stack_ast_expr.& array.append not if panic fi -- s, if, array<expr>
-    STACK_AST_EXPR_NUMBER "42" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- s, if, array<expr>, 42
-    stack_ast_expr.sizeof array.init.with_sz -- s, if, array<expr>, 42, array<expr>
-    dup rot stack_ast_expr.& array.append not if panic fi -- s, if, array<expr>, array<expr>
-    stack_ast_cond.init stack_ast_cond.& stack_ast_expr.init -- if
+    pop
 
-    STACK_AST_EXPR_BOOLEAN "true" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- bool
+    -- STDOUT stack_assembler.init.with_fd -- asm
 
-    stack_ast_expr.sizeof array.init.with_sz -- node, if, bool, array<expr>
-    dup rot stack_ast_expr.& array.append not if panic fi
-    dup rot stack_ast_expr.& array.append not if panic fi
-    stack_ast_func.init -- func
+    -- -- asm
+    -- STACK_FUNC_MAIN stack_ast_node.init -- node
 
-    stack_ast_func.sizeof array.init.with_sz -- func, array<func>
-    dup rot stack_ast_func.& array.append not if panic fi -- array<func>
-    stack_ast.init -- ast
+    -- STACK_AST_EXPR_COND -- s
+    -- "if" stack_ast_node.init -- s, if
+    -- STACK_AST_EXPR_NUMBER "27" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- s, if, 27
+    -- stack_ast_expr.sizeof array.init.with_sz -- s, if, 27, array<expr>
+    -- dup rot stack_ast_expr.& array.append not if panic fi -- s, if, array<expr>
+    -- STACK_AST_EXPR_NUMBER "42" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- s, if, array<expr>, 42
+    -- stack_ast_expr.sizeof array.init.with_sz -- s, if, array<expr>, 42, array<expr>
+    -- dup rot stack_ast_expr.& array.append not if panic fi -- s, if, array<expr>, array<expr>
+    -- stack_ast_cond.init stack_ast_cond.& stack_ast_expr.init -- if
 
-    -- asm, ast
-    stack_assembler.emit -- ()
+    -- STACK_AST_EXPR_BOOLEAN "true" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- bool
+
+    -- stack_ast_expr.sizeof array.init.with_sz -- node, if, bool, array<expr>
+    -- dup rot stack_ast_expr.& array.append not if panic fi
+    -- dup rot stack_ast_expr.& array.append not if panic fi
+    -- stack_ast_func.init -- func
+
+    -- stack_ast_func.sizeof array.init.with_sz -- func, array<func>
+    -- dup rot stack_ast_func.& array.append not if panic fi -- array<func>
+    -- stack_ast.init -- ast
+
+    -- -- asm, ast
+    -- stack_assembler.emit -- ()
 
     0
 end
