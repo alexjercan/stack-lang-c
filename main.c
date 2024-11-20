@@ -1509,6 +1509,37 @@ static void stack_preprocessor_generate_data_setters(stack_preprocessor *preproc
     }
 }
 
+static void stack_preprocessor_expand_const_in_exprs(stack_preprocessor *preprocessor, stack_ast_const c, ds_dynamic_array *exprs /* stack_ast_expr */) {
+    for (int i = exprs->count - 1; i >= 0; i--) {
+        stack_ast_expr *item = NULL;
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(exprs, i, (void **)&item));
+
+        if (item->kind == STACK_AST_EXPR_NAME && ds_string_slice_equals(&c.name.value, &item->name.value)) {
+            DS_UNREACHABLE(ds_dynamic_array_delete(exprs, i));
+            DS_EXPECT(ds_dynamic_array_insert_many(exprs, i, c.exprs.items, c.exprs.count), DS_ERROR_OOM);
+        } else if (item->kind == STACK_AST_EXPR_COND) {
+            stack_preprocessor_expand_const_in_exprs(preprocessor, c, &item->cond.if_);
+            stack_preprocessor_expand_const_in_exprs(preprocessor, c, &item->cond.else_);
+        }
+    }
+}
+
+static void stack_preprocessor_expand_const(stack_preprocessor *preprocessor, stack_ast_const c, stack_ast_prog *prog) {
+    for (unsigned int i = 0; i < prog->consts.count; i++) {
+        stack_ast_const *item = NULL;
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&prog->consts, i, (void **)&item));
+
+        stack_preprocessor_expand_const_in_exprs(preprocessor, c, &item->exprs);
+    }
+
+    for (unsigned int i = 0; i < prog->funcs.count; i++) {
+        stack_ast_func *item = NULL;
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&prog->funcs, i, (void **)&item));
+
+        stack_preprocessor_expand_const_in_exprs(preprocessor, c, &item->body);
+    }
+}
+
 int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *prog) {
     stack_ast_prog prog_new = {0};
     stack_ast_init(&prog_new);
@@ -1581,7 +1612,6 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
     prog_new.consts = prog->consts;
     prog->consts = tmp;
 
-    // TODO: go over the datas and generate init and getters consts offset and sizeof
     for (unsigned int i = 0; i < prog->datas.count; i++) {
         stack_ast_data data = {0};
         DS_UNREACHABLE(ds_dynamic_array_get(&prog->datas, i, &data));
@@ -1594,6 +1624,13 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
         stack_preprocessor_generate_data_init(preprocessor, data, prog);
         stack_preprocessor_generate_data_getters(preprocessor, data, prog);
         stack_preprocessor_generate_data_setters(preprocessor, data, prog);
+    }
+
+    for (unsigned int i = 0; i < prog->consts.count; i++) {
+        stack_ast_const item = {0};
+        DS_UNREACHABLE(ds_dynamic_array_get(&prog->consts, i, &item));
+
+        stack_preprocessor_expand_const(preprocessor, item, prog);
     }
 
 defer:
@@ -2119,38 +2156,6 @@ static void stack_context_are_stack_eq_errorf(stack_context *context,
     DS_FREE(slice.allocator, slice.str);
 }
 
-static int stack_context_typecheck_const_def(stack_context *context, stack_ast_const *const_) {
-    ds_dynamic_array stack = {0}; // ds_string_slice
-    stack_context_const symbol = {0};
-    int result = 0;
-
-    if (stack_context_is_symbol_redefined(context, const_->name.value, NULL)) {
-        stack_context_is_const_redefined_errorf(const_->name);
-        return_defer(1);
-    }
-
-    symbol.name = const_->name.value;
-
-    ds_dynamic_array_init(&stack, sizeof(ds_string_slice));
-
-    if (stack_context_typecheck_exprs(context, &stack, &const_->exprs) != 0) {
-        return_defer(1);
-    }
-
-    if (!stack_context_is_stack_const_valid(context, stack)) {
-        stack_context_is_stack_const_valid_errorf(const_, stack);
-        return_defer(1);
-    }
-
-    DS_UNREACHABLE(ds_dynamic_array_get(&stack, 0, &symbol.type));
-
-    DS_EXPECT(ds_dynamic_array_append(&context->symbols, &(stack_context_symbol){ .kind = STACK_CONTEXT_SYMBOL_CONST, .const_ = symbol}), DS_ERROR_OOM);
-
-defer:
-    ds_dynamic_array_free(&stack);
-    return result;
-}
-
 static int stack_context_typecheck_data_ptr_data(stack_context *context, stack_ast_data *data) {
     ds_string_slice slice = {0};
     ds_string_builder sb = {0};
@@ -2474,16 +2479,6 @@ int stack_context_typecheck(stack_context *context, stack_ast_prog *prog) {
         DS_UNREACHABLE(ds_dynamic_array_get(&prog->funcs, i, &func));
 
         if (stack_context_typecheck_func_def(context, &func) != 0) {
-            result = 1;
-            continue;
-        }
-    }
-
-    for (unsigned int i = 0; i < prog->consts.count; i++) {
-        stack_ast_const const_ = {0};
-        DS_UNREACHABLE(ds_dynamic_array_get(&prog->consts, i, &const_));
-
-        if (stack_context_typecheck_const_def(context, &const_) != 0) {
             result = 1;
             continue;
         }
@@ -3713,7 +3708,6 @@ static void stack_assembler_emit_expr_name(stack_assembler *assembler, stack_ast
 
     switch (symbol.kind) {
     case STACK_CONTEXT_SYMBOL_CONST:
-        EMIT("    call    const.%lu ; %.*s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(node->value), NULL), node->value.len, node->value.str);
         break;
     case STACK_CONTEXT_SYMBOL_DATA:
         break;
@@ -3782,22 +3776,6 @@ static void stack_assembler_emit_func(stack_assembler *assembler, stack_ast_func
     EMIT("");
 }
 
-static void stack_assembler_emit_const(stack_assembler *assembler, stack_ast_const *const_) {
-    EMIT("const.%lu: ; %.*s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(const_->name.value), NULL), const_->name.value.len, const_->name.value.str);
-    EMIT("    push    rbp                        ; save return address");
-    EMIT("    mov     rbp, rsp                   ; set up stack frame");
-
-    for (unsigned int i = 0; i < const_->exprs.count; i++) {
-        stack_ast_expr expr = {0};
-        DS_UNREACHABLE(ds_dynamic_array_get(&const_->exprs, i, &expr));
-        stack_assembler_emit_expr(assembler, &expr);
-    }
-
-    EMIT("    pop     rbp                        ; restore return address");
-    EMIT("    ret");
-    EMIT("");
-}
-
 static void stack_assembler_emit_program(stack_assembler *assembler, stack_ast_prog *prog) {
     EMIT("section '.text' executable");
     EMIT("");
@@ -3814,12 +3792,6 @@ static void stack_assembler_emit_program(stack_assembler *assembler, stack_ast_p
         if (!func.extern_) {
             stack_assembler_emit_func(assembler, &func);
         }
-    }
-
-    for (unsigned int i = 0; i < prog->consts.count; i++) {
-        stack_ast_const const_ = {0};
-        DS_UNREACHABLE(ds_dynamic_array_get(&prog->consts, i, &const_));
-        stack_assembler_emit_const(assembler, &const_);
     }
 }
 
