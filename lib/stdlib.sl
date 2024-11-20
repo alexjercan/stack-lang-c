@@ -413,6 +413,7 @@ end
 
 -- DATA BYTE is a subdata of int
 
+const BYTE_NULL 0
 const BYTE_\T 9
 const BYTE_\N 10
 const BYTE_EOF 26
