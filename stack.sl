@@ -101,6 +101,17 @@ func stack_lexer.next.number (int, stack_lexer, int) (string) in -- pos, stack_l
     stack_lexer.next.number' -- string
 end
 
+func stack_lexer.next.string (int, stack_lexer, int, string) (string) in -- pos, stack_lexer, ch, result
+    swp dup BYTE_QUOTE = not if -- pos, stack_lexer, result, ch
+        -- TODO: Handle illegal strings
+
+        byte.chr string.concat -- pos, stack_lexer, result
+        swp dup stack_lexer.read rot stack_lexer.next.string -- string
+    else
+        pop "\"" string.concat rot' stack_lexer.read pop2
+    fi -- string
+end
+
 func stack_lexer.next (stack_lexer) (stack_token) in
     dup stack_lexer.skip.whitespace -- stack_lexer
     dup stack_lexer.pos swp -- pos, stack_lexer
@@ -119,9 +130,12 @@ func stack_lexer.next (stack_lexer) (stack_token) in
     else dup byte.isdigit rot' dup BYTE_MINUS = rot dup stack_lexer.peek byte.isdigit rot and swp rot4' rot or if
         dup3 stack_lexer.next.number -- pos, stack_lexer, ch, string
         rot' pop2 swp STACK_TOKEN_NUMBER rot' stack_token.init
+    else dup BYTE_QUOTE = if
+        pop dup stack_lexer.read dup3 "\"" stack_lexer.next.string -- pos, stack_lexer, ch, string
+        rot' pop2 swp STACK_TOKEN_STRING rot' stack_token.init
     else
         int.show swp stack_lexer.read pop STACK_TOKEN_ILLEGAL swp rot stack_token.init
-    fi fi fi fi fi fi -- stack_token
+    fi fi fi fi fi fi fi -- stack_token
 end
 
 func stack_lexer.dump (stack_lexer) () in
@@ -496,7 +510,7 @@ func stack_assembler.emit (stack_assembler, stack_ast) () in -- asm, ast
 end
 
 func main () (int) in
-    "-101 func main () (int) in 0 end # -- comment " stack_lexer.init.with_buffer -- stack_lexer
+    "-101 \"asd\" func main () (int) in 0 end # -- comment " stack_lexer.init.with_buffer -- stack_lexer
 
     dup stack_lexer.dump -- stack_lexer
 
