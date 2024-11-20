@@ -418,18 +418,80 @@ const BYTE_\T 9
 const BYTE_\N 10
 const BYTE_EOF 26
 const BYTE_SPACE 32
+const BYTE_! 33
 const BYTE_QUOTE 34
+const BYTE_# 35
+const BYTE_$ 36
+const BYTE_% 37
+const BYTE_& 38
+const BYTE_' 39
 const BYTE_LPAREN 40
 const BYTE_RPAREN 41
+const BYTE_* 42
+const BYTE_+ 43
 const BYTE_COMMA 44
-const BYTE_MINUS 45
+const BYTE_- 45
+const BYTE_. 46
+const BYTE_/ 47
 const BYTE_0 48
 const BYTE_9 57
-const BYTE_BACKSLASH 92
-const BYTE_B 98
-const BYTE_F 102
-const BYTE_N 110
-const BYTE_T 116
+const BYTE_: 58
+const BYTE_; 59
+const BYTE_< 60
+const BYTE_= 61
+const BYTE_> 62
+const BYTE_? 63
+const BYTE_@ 64
+const BYTE_A 65
+const BYTE_Z 90
+const BYTE_[ 91
+const BYTE_\ 92
+const BYTE_] 93
+const BYTE_^ 94
+const BYTE__ 95
+const BYTE_` 96
+const BYTE_a 97
+const BYTE_b 98
+const BYTE_f 102
+const BYTE_n 110
+const BYTE_t 116
+const BYTE_z 122
+const BYTE_{ 123
+const BYTE_| 124
+const BYTE_} 125
+const BYTE_~ 126
+
+func byte.ispunct' (int) (bool) in -- chr
+    dup BYTE_! = swp
+    dup BYTE_# = swp
+    dup BYTE_$ = swp
+    dup BYTE_% = swp
+    dup BYTE_& = swp
+    dup BYTE_' = swp
+    dup BYTE_* = swp
+    dup BYTE_+ = swp
+    dup BYTE_- = swp
+    dup BYTE_. = swp
+    dup BYTE_/ = swp
+    dup BYTE_: = swp
+    dup BYTE_; = swp
+    dup BYTE_< = swp
+    dup BYTE_= = swp
+    dup BYTE_> = swp
+    dup BYTE_? = swp
+    dup BYTE_@ = swp
+    dup BYTE_[ = swp
+    dup BYTE_\ = swp
+    dup BYTE_] = swp
+    dup BYTE_^ = swp
+    dup BYTE__ = swp
+    dup BYTE_` = swp
+    dup BYTE_{ = swp
+    dup BYTE_| = swp
+    dup BYTE_} = swp
+    dup BYTE_~ = swp pop
+    or or or or or or or or or or or or or or or or or or or or or or or or or or or
+end
 
 func byte.init (ptr) (int) in -- chr*
     int.sizeof ptr.alloc -- str, ptr
@@ -441,11 +503,31 @@ func byte.isdigit (int) (bool) in -- chr
     dup BYTE_0 >= swp BYTE_9 <= and
 end
 
+func byte.isupper (int) (bool) in -- chr
+    dup BYTE_A >= swp BYTE_Z <= and
+end
+
+func byte.islower (int) (bool) in -- chr
+    dup BYTE_a >= swp BYTE_z <= and
+end
+
+func byte.isletter (int) (bool) in -- chr
+    dup byte.isupper swp byte.islower or
+end
+
+func byte.isalnum (int) (bool) in -- chr
+    dup byte.isdigit swp byte.isletter or
+end
+
 func byte.isspace (int) (bool) in -- chr
     dup BYTE_\T = swp -- bool i
     dup BYTE_\N = swp -- bool bool i
     dup BYTE_SPACE = swp -- bool bool bool i
     pop or or -- bool
+end
+
+func byte.isname (int) (bool) in -- chr
+    dup byte.isalnum swp byte.ispunct' or
 end
 
 func byte.chr (int) (string) in -- chr
