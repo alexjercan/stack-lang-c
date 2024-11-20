@@ -4,21 +4,45 @@
 
 const STACK_TOKEN_EOF       0
 const STACK_TOKEN_ILLEGAL   1
-const STACK_TOKEN_FUNC      2
-const STACK_TOKEN_IN        3
-const STACK_TOKEN_END       4
-const STACK_TOKEN_NUMBER    5
-const STACK_TOKEN_LPAREN    6
+const STACK_TOKEN_NUMBER    2
+const STACK_TOKEN_BOOLEAN   3
+const STACK_TOKEN_STRING    4
+const STACK_TOKEN_NAME      5
+const STACK_TOKEN_FUNC	    6
+const STACK_TOKEN_IN	    7
+const STACK_TOKEN_END	    8
+const STACK_TOKEN_LPAREN	9
+const STACK_TOKEN_RPAREN	10
+const STACK_TOKEN_COMMA	    11
+const STACK_TOKEN_IF	    12
+const STACK_TOKEN_ELSE	    13
+const STACK_TOKEN_FI	    14
+const STACK_TOKEN_DATA	    15
+const STACK_TOKEN_EXTERN	16
+const STACK_TOKEN_IMPORT	17
+const STACK_TOKEN_CONST	    18
 
 func stack_token_kind.map (int) (string) in
     dup STACK_TOKEN_EOF = if pop "<EOF>"
-    else dup STACK_TOKEN_ILLEGAL = if pop "ILELGAL"
+    else dup STACK_TOKEN_ILLEGAL = if pop "ILLEGAL"
+    else dup STACK_TOKEN_NUMBER = if pop "NUMBER"
+    else dup STACK_TOKEN_BOOLEAN = if pop "BOOLEAN"
+    else dup STACK_TOKEN_STRING = if pop "STRING"
+    else dup STACK_TOKEN_NAME = if pop "NAME"
     else dup STACK_TOKEN_FUNC = if pop "FUNC"
     else dup STACK_TOKEN_IN = if pop "IN"
     else dup STACK_TOKEN_END = if pop "END"
-    else dup STACK_TOKEN_NUMBER = if pop "NUMBER"
     else dup STACK_TOKEN_LPAREN = if pop "("
-    else panic pop "" fi fi fi fi fi fi fi -- (string)
+    else dup STACK_TOKEN_RPAREN = if pop ")"
+    else dup STACK_TOKEN_COMMA = if pop ","
+    else dup STACK_TOKEN_IF = if pop "IF"
+    else dup STACK_TOKEN_ELSE = if pop "ELSE"
+    else dup STACK_TOKEN_FI = if pop "FI"
+    else dup STACK_TOKEN_DATA = if pop "DATA"
+    else dup STACK_TOKEN_EXTERN = if pop "EXTERN"
+    else dup STACK_TOKEN_IMPORT = if pop "IMPORT"
+    else dup STACK_TOKEN_CONST = if pop "CONST"
+    else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- (string)
 end
 
 data stack_token (int kind, string value, int pos)
@@ -42,7 +66,7 @@ func stack_lexer.read (stack_lexer) (int) in
 end
 
 func stack_lexer.skip.whitespace (stack_lexer) () in
-    dup stack_lexer.ch byte.isspace if stack_lexer.skip.whitespace else pop fi
+    dup stack_lexer.ch byte.isspace if dup stack_lexer.read pop stack_lexer.skip.whitespace else pop fi
 end
 
 func stack_lexer.skip.until_newline (stack_lexer) () in
@@ -58,6 +82,25 @@ func stack_lexer.init.with_buffer (string) (stack_lexer) in
     0 0 0 stack_lexer.init dup stack_lexer.read pop -- stack_lexer
 end
 
+func stack_lexer.next.number' (int, stack_lexer, int, string) (string) in -- pos, stack_lexer, ch, result
+    swp dup byte.isdigit if -- pos, stack_lexer, string, ch
+        byte.chr string.concat -- pos, stack_lexer, string
+        swp dup stack_lexer.read rot stack_lexer.next.number' -- string
+    else
+        pop rot' pop2
+    fi -- string
+end
+
+func stack_lexer.next.number (int, stack_lexer, int) (string) in -- pos, stack_lexer, ch
+    dup BYTE_MINUS = if -- pos, stack_lexer, ch
+        pop dup stack_lexer.read "-"
+    else
+        ""
+    fi -- pos, stack_lexer, ch, string
+
+    stack_lexer.next.number' -- string
+end
+
 func stack_lexer.next (stack_lexer) (stack_token) in
     dup stack_lexer.skip.whitespace -- stack_lexer
     dup stack_lexer.pos swp -- pos, stack_lexer
@@ -66,9 +109,19 @@ func stack_lexer.next (stack_lexer) (stack_token) in
         pop stack_lexer.read pop STACK_TOKEN_EOF "" rot stack_token.init
     else dup BYTE_LPAREN = if
         pop stack_lexer.read pop STACK_TOKEN_LPAREN "" rot stack_token.init
+    else dup BYTE_RPAREN = if
+        pop stack_lexer.read pop STACK_TOKEN_RPAREN "" rot stack_token.init
+    else dup BYTE_COMMA = if
+        pop stack_lexer.read pop STACK_TOKEN_COMMA "" rot stack_token.init
+    else dup BYTE_MINUS = rot dup stack_lexer.peek BYTE_MINUS = rot and swp rot' if
+        swp dup stack_lexer.skip.until_newline -- pos, ch, stack_lexer
+        rot' pop2 stack_lexer.next
+    else dup byte.isdigit rot' dup BYTE_MINUS = rot dup stack_lexer.peek byte.isdigit rot and swp rot4' rot or if
+        dup3 stack_lexer.next.number -- pos, stack_lexer, ch, string
+        rot' pop2 swp STACK_TOKEN_NUMBER rot' stack_token.init
     else
         int.show swp stack_lexer.read pop STACK_TOKEN_ILLEGAL swp rot stack_token.init
-    fi fi -- stack_token
+    fi fi fi fi fi fi -- stack_token
 end
 
 func stack_lexer.dump (stack_lexer) () in
@@ -443,7 +496,7 @@ func stack_assembler.emit (stack_assembler, stack_ast) () in -- asm, ast
 end
 
 func main () (int) in
-    "(#" stack_lexer.init.with_buffer -- stack_lexer
+    "-101 func main () (int) in 0 end # -- comment " stack_lexer.init.with_buffer -- stack_lexer
 
     dup stack_lexer.dump -- stack_lexer
 

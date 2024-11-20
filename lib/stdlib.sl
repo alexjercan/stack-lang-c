@@ -417,7 +417,13 @@ const BYTE_\T 9
 const BYTE_\N 10
 const BYTE_EOF 26
 const BYTE_SPACE 32
+const BYTE_QUOTE 34
 const BYTE_LPAREN 40
+const BYTE_RPAREN 41
+const BYTE_COMMA 44
+const BYTE_MINUS 45
+const BYTE_0 48
+const BYTE_9 57
 const BYTE_BACKSLASH 92
 const BYTE_B 98
 const BYTE_F 102
@@ -431,7 +437,7 @@ func byte.init (ptr) (int) in -- chr*
 end
 
 func byte.isdigit (int) (bool) in -- chr
-    dup 48 >= swp 57 <= and
+    dup BYTE_0 >= swp BYTE_9 <= and
 end
 
 func byte.isspace (int) (bool) in -- chr
@@ -439,4 +445,11 @@ func byte.isspace (int) (bool) in -- chr
     dup BYTE_\N = swp -- bool bool i
     dup BYTE_SPACE = swp -- bool bool bool i
     pop or or -- bool
+end
+
+func byte.chr (int) (string) in -- chr
+    int.& -- &int
+    1 string.memory-needed ptr.alloc -- &int, ptr
+    swp 1 ptr.memcpy -- ptr
+    1 swp string.init -- ptr
 end
