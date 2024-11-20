@@ -119,7 +119,7 @@ DSHDEF void ds_dynamic_array_init_allocator(ds_dynamic_array *da,
 DSHDEF void ds_dynamic_array_init(ds_dynamic_array *da, unsigned int item_size);
 DSHDEF int ds_dynamic_array_append(ds_dynamic_array *da, const void *item);
 DSHDEF int ds_dynamic_array_pop(ds_dynamic_array *da, void **item);
-DSHDEF int ds_dynamic_array_append_many(ds_dynamic_array *da, void **new_items,
+DSHDEF int ds_dynamic_array_append_many(ds_dynamic_array *da, void *new_items,
                                         unsigned int new_items_count);
 DSHDEF int ds_dynamic_array_get(ds_dynamic_array *da, unsigned int index,
                                 void *item);
@@ -132,6 +132,11 @@ DSHDEF int ds_dynamic_array_reverse(ds_dynamic_array *da);
 DSHDEF int ds_dynamic_array_swap(ds_dynamic_array *da, unsigned int index1,
                                  unsigned int index2);
 DSHDEF int ds_dynamic_array_delete(ds_dynamic_array *da, unsigned int index);
+DSHDEF int ds_dynamic_array_insert(ds_dynamic_array *da, unsigned int index,
+                                   const void *item);
+DSHDEF int ds_dynamic_array_insert_many(ds_dynamic_array *da,
+                                        unsigned int index, void *new_items,
+                                        unsigned int new_items_count);
 DSHDEF void ds_dynamic_array_free(ds_dynamic_array *da);
 
 // PRIORITY QUEUE
@@ -1042,7 +1047,7 @@ defer:
 //
 // Returns 0 if the items were appended successfully, 1 if the array could not
 // be reallocated.
-DSHDEF int ds_dynamic_array_append_many(ds_dynamic_array *da, void **new_items,
+DSHDEF int ds_dynamic_array_append_many(ds_dynamic_array *da, void *new_items,
                                         unsigned int new_items_count) {
     int result = 0;
 
@@ -1233,6 +1238,85 @@ DSHDEF int ds_dynamic_array_delete(ds_dynamic_array *da, unsigned int index) {
     }
 
     da->count -= 1;
+
+defer:
+    return result;
+}
+
+// Shift insert an item to index
+//
+// Returns 0 in case of succsess. Returns 1 if the index is out of bounds
+DSHDEF int ds_dynamic_array_insert(ds_dynamic_array *da, unsigned int index,
+                                   const void *item) {
+    int result = 0;
+
+    if (index > da->count) {
+        DS_LOG_ERROR("Index out of bounds");
+        return_defer(1);
+    }
+
+    unsigned int n = da->count - index;
+
+    if (ds_dynamic_array_append(da, item) != 0) {
+        return_defer(1);
+    }
+
+    if (n > 0) {
+        void *dest = NULL;
+        if (ds_dynamic_array_get_ref(da, index + 1, &dest) != 0) {
+            DS_LOG_ERROR("Could not get item");
+            return_defer(1);
+        }
+
+        void *src = NULL;
+        if (ds_dynamic_array_get_ref(da, index, &src) != 0) {
+            DS_LOG_ERROR("Could not get item");
+            return_defer(1);
+        }
+
+        DS_MEMCPY(dest, src, n * da->item_size);
+        DS_MEMCPY(src, item, da->item_size);
+    }
+
+defer:
+    return result;
+}
+
+// Shift insert many items to index
+//
+// Returns 0 in case of succsess. Returns 1 if the index is out of bounds
+DSHDEF int ds_dynamic_array_insert_many(ds_dynamic_array *da,
+                                        unsigned int index, void *new_items,
+                                        unsigned int new_items_count) {
+    int result = 0;
+
+    if (index > da->count) {
+        DS_LOG_ERROR("Index out of bounds");
+        return_defer(1);
+    }
+
+    unsigned int n = da->count - index;
+
+    if (ds_dynamic_array_append_many(da, new_items, new_items_count) != 0) {
+        return_defer(1);
+    }
+
+    if (n > 0) {
+        void *dest = NULL;
+        if (ds_dynamic_array_get_ref(da, index + new_items_count, &dest) != 0) {
+            DS_LOG_ERROR("Could not get item");
+            return_defer(1);
+        }
+
+        void *src = NULL;
+        if (ds_dynamic_array_get_ref(da, index, &src) != 0) {
+            DS_LOG_ERROR("Could not get item");
+            return_defer(1);
+        }
+
+        DS_MEMCPY(dest, src, n * da->item_size);
+        DS_MEMCPY(src, new_items, new_items_count * da->item_size);
+    }
 
 defer:
     return result;
