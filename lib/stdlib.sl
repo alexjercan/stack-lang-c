@@ -1,18 +1,10 @@
 -- This is the standard library of `stack`.
 
-const INT_SIZE 8
-
 const STDIN 0
 const STDOUT 1
 const STDERR 2
 
 -- BASE FUNCTIONS
-
-func dup (a) (a, a) extern                      -- duplicate the first item
-func swp (a, b) (b, a) extern                   -- swap the first two items
-func rot (a, b, c) (b, c, a) extern             -- rotate the first 3 items
-func rot4 (a, b, c, d) (b, c, d, a) extern      -- rotate the first 4 items
-func pop (a) () extern                          -- discard the first item
 
 -- duplicate first 2 elements of the stack
 func dup2 (a, b) (a, b, a, b) in
@@ -43,13 +35,6 @@ func rot' (a, b, c) (c, a, b) in rot rot end
 func rot4' (a, b, c, d) (d, a, b, c) in rot4 rot4 rot4 end
 
 -- DATA PTR
-data ptr extern
-
-const ptr.sizeof INT_SIZE
-
-func ptr.alloc (int) (ptr) extern   -- allocate n bytes in memory
-func ptr.+ (ptr, int) (ptr) extern  -- offset address
-func ptr.@ (ptr, ptr) () extern     -- (dst, src) copy one byte
 
 func ptr.realloc (ptr, int, int) (ptr) in -- src, osz, sz
     dup2 > if -- src, osz, sz
@@ -117,20 +102,6 @@ func ptr.strlen (ptr) (int) in -- ptr
 end
 
 -- DATA INT
-data int extern
-
-const int.sizeof INT_SIZE
-
-func + (int, int) (int) extern
-func - (int, int) (int) extern
-func * (int, int) (int) extern
-func / (int, int) (int) extern
-func % (int, int) (int) extern
-func | (int, int) (int) extern
-func & (int, int) (int) extern
-func ^ (int, int) (int) extern
-func >> (int, int) (int) extern
-func << (int, int) (int) extern
 
 func abs (int) (int) in
     dup 0 < if 0 swp - fi
@@ -165,13 +136,6 @@ func int.show (int) (string) in
 end
 
 -- DATA BOOL
-data bool extern
-
-const bool.sizeof INT_SIZE
-
-func > (int, int) (bool) extern
-func < (int, int) (bool) extern
-func = (int, int) (bool) extern
 
 func <= (int, int) (bool) in
     dup2 < if pop2 true else = fi
@@ -273,9 +237,6 @@ func string.stderr (string) () in -- s
 end
 
 -- SYSCALLS
-
-func syscall1 (a, int) (int) extern
-func syscall3 (a, b, c, int) (int) extern
 
 func sys.read (int, ptr, int) (int) in 0 syscall3 end
 func sys.write (int, ptr, int) (int) in 1 syscall3 end

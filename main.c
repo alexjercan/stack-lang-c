@@ -41,10 +41,19 @@
 
 #define STACK_FUNC_PTR_ALLOC "ptr.alloc"
 #define STACK_FUNC_PTR_OFFSET "ptr.+"
-#define STACK_FUNC_PTR_COPY8 "ptr.@"
+#define STACK_FUNC_PTR_COPY "ptr.@"
 
+#ifdef __linux__
 #define STACK_FUNC_SYSCALL1 "syscall1"
 #define STACK_FUNC_SYSCALL3 "syscall3"
+#endif // __linux__
+
+#define STACK_FUNC_INT_REF "int.&"
+#define STACK_FUNC_INT_DEREF "int.*"
+#define STACK_FUNC_PTR_REF "ptr.&"
+#define STACK_FUNC_PTR_DEREF "ptr.*"
+#define STACK_FUNC_BOOL_REF "bool.&"
+#define STACK_FUNC_BOOL_DEREF "bool.*"
 
 /// LEXER
 
@@ -72,7 +81,6 @@
 #define SLICE_ELSE DS_STRING_SLICE("else")
 #define SLICE_FI DS_STRING_SLICE("fi")
 #define SLICE_IMPORT DS_STRING_SLICE("@import")
-#define SLICE_EXTERN DS_STRING_SLICE("extern")
 #define SLICE_CONST DS_STRING_SLICE("const")
 
 typedef enum {
@@ -111,7 +119,6 @@ typedef enum {
     STACK_TOKEN_IF,
     STACK_TOKEN_ELSE,
     STACK_TOKEN_FI,
-    STACK_TOKEN_EXTERN,
     STACK_TOKEN_EOF,
     STACK_TOKEN_ILLEGAL,
 } stack_token_kind;
@@ -134,7 +141,6 @@ static const char* stack_token_kind_map(stack_token_kind kind) {
     case STACK_TOKEN_IF: return "IF";
     case STACK_TOKEN_ELSE: return "ELSE";
     case STACK_TOKEN_FI: return "FI";
-    case STACK_TOKEN_EXTERN: return "EXTERN";
     case STACK_TOKEN_EOF: return "<EOF>";
     case STACK_TOKEN_ILLEGAL: return "ILLEGAL";
     }
@@ -307,8 +313,6 @@ stack_token stack_lexer_next(stack_lexer *lexer) {
             return STACK_TOKEN(STACK_TOKEN_ELSE, (ds_string_slice){0}, position);
         } else if (ds_string_slice_equals(&slice, &SLICE_FI)) {
             return STACK_TOKEN(STACK_TOKEN_FI, (ds_string_slice){0}, position);
-        } else if (ds_string_slice_equals(&slice, &SLICE_EXTERN)) {
-            return STACK_TOKEN(STACK_TOKEN_EXTERN, (ds_string_slice){0}, position);
         } else if (ds_string_slice_equals(&slice, &SLICE_CONST)) {
             return STACK_TOKEN(STACK_TOKEN_CONST, (ds_string_slice){0}, position);
         } else {
@@ -476,6 +480,7 @@ static void stack_ast_node_free(stack_ast_node *node) {
 
     ds_string_slice_free(&node->value);
     node->parser = NULL;
+    node->allocd = false;
 }
 
 typedef struct {
@@ -518,7 +523,6 @@ static void stack_ast_data_field_free(stack_ast_data_field *field) {
 typedef struct {
     stack_ast_node name;
     ds_dynamic_array fields; // stack_ast_data_field
-    bool extern_;
 } stack_ast_data;
 
 static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
@@ -542,13 +546,7 @@ static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
     data->name = STACK_AST_NODE(token.value, parser, token.pos);
 
     token = stack_parser_read(parser);
-    if (token.kind == STACK_TOKEN_EXTERN) {
-        data->extern_ = true;
-
-        return_defer(0);
-    } else if (token.kind == STACK_TOKEN_LPAREN) {
-        data->extern_ = false;
-
+    if (token.kind == STACK_TOKEN_LPAREN) {
         token = stack_parser_peek(parser);
         if (token.kind == STACK_TOKEN_RPAREN) {
             stack_parser_read(parser);
@@ -573,7 +571,7 @@ static int stack_parser_parse_data(stack_parser *parser, stack_ast_data *data) {
             }
         } while (true);
     } else {
-        stack_parser_show_expected_2(parser, STACK_TOKEN_LPAREN, STACK_TOKEN_EXTERN, token.kind);
+        stack_parser_show_expected(parser, STACK_TOKEN_LPAREN, token.kind);
         DS_PANIC("TODO: RECOVER FROM ERROR");
     }
 
@@ -807,7 +805,6 @@ typedef struct {
     ds_dynamic_array args; // stack_ast_node
     ds_dynamic_array rets; // stack_ast_node
     ds_dynamic_array body; // stack_ast_expr
-    bool extern_;
 } stack_ast_func;
 
 static int stack_parser_parse_func_nodes(stack_parser *parser, ds_dynamic_array *nodes /* stack_ast_node */) {
@@ -875,10 +872,7 @@ static int stack_parser_parse_func(stack_parser *parser, stack_ast_func *func) {
     stack_parser_parse_func_nodes(parser, &func->rets);
 
     token = stack_parser_read(parser);
-    if (token.kind == STACK_TOKEN_EXTERN) {
-        func->extern_ = true;
-        return_defer(0);
-    } else if (token.kind == STACK_TOKEN_IN) {
+    if (token.kind == STACK_TOKEN_IN) {
         do {
             token = stack_parser_peek(parser);
             if (token.kind == STACK_TOKEN_END) {
@@ -903,7 +897,7 @@ static int stack_parser_parse_func(stack_parser *parser, stack_ast_func *func) {
             ds_dynamic_array_append(&func->body, &expr);
         } while (true);
     } else {
-        stack_parser_show_expected_2(parser, STACK_TOKEN_IN, STACK_TOKEN_EXTERN, token.kind);
+        stack_parser_show_expected(parser, STACK_TOKEN_IN, token.kind);
         DS_PANIC("TODO: RECOVER FROM ERROR");
     }
 
@@ -1110,18 +1104,13 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
         DS_UNREACHABLE(ds_dynamic_array_get(&prog->datas, i, &data));
 
         fprintf(stdout, "data %.*s", data.name.value.len, data.name.value.str);
-        if (data.extern_) {
-            fprintf(stdout, " extern");
-        }
         fprintf(stdout, "\n");
 
-        if (!data.extern_) {
-            for (unsigned int i = 0; i < data.fields.count; i++) {
-                stack_ast_data_field field = {0};
-                ds_dynamic_array_get(&data.fields, i, &field);
+        for (unsigned int i = 0; i < data.fields.count; i++) {
+            stack_ast_data_field field = {0};
+            ds_dynamic_array_get(&data.fields, i, &field);
 
-                fprintf(stdout, "%*s%.*s: %.*s\n", indent, "", field.name.value.len, field.name.value.str, field.type.value.len, field.type.value.str);
-            }
+            fprintf(stdout, "%*s%.*s: %.*s\n", indent, "", field.name.value.len, field.name.value.str, field.type.value.len, field.type.value.str);
         }
 
         fprintf(stdout, "\n");
@@ -1132,9 +1121,6 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
         DS_UNREACHABLE(ds_dynamic_array_get(&prog->funcs, i, &func));
 
         fprintf(stdout, "func %.*s", func.name.value.len, func.name.value.str);
-        if (func.extern_) {
-            fprintf(stdout, " extern");
-        }
         fprintf(stdout, "\n");
 
         for (unsigned int j = 0; j < func.args.count; j++) {
@@ -1150,14 +1136,12 @@ void stack_ast_dump(stack_ast_prog *prog, FILE* stdout) {
             fprintf(stdout, "%*sret%d: %.*s\n", indent, "", j, ret.value.len, ret.value.str);
         }
 
-        if (!func.extern_) {
-            fprintf(stdout, "%*sbody:\n", indent, "");
-            for (unsigned int j = 0; j < func.body.count; j++) {
-                stack_ast_expr expr = {0};
-                DS_UNREACHABLE(ds_dynamic_array_get(&func.body, j, &expr));
+        fprintf(stdout, "%*sbody:\n", indent, "");
+        for (unsigned int j = 0; j < func.body.count; j++) {
+            stack_ast_expr expr = {0};
+            DS_UNREACHABLE(ds_dynamic_array_get(&func.body, j, &expr));
 
-                stack_ast_expr_dump(&expr, stdout, indent + INDENT_INCREMENT);
-            }
+            stack_ast_expr_dump(&expr, stdout, indent + INDENT_INCREMENT);
         }
 
         fprintf(stdout, "\n");
@@ -1238,6 +1222,64 @@ void stack_preprocessor_free(stack_preprocessor *preprocessor) {
 #define STACK_DATA_SET "set"
 #define STACK_DATA_SIZEOF "sizeof"
 #define STACK_FUNC_PTR_MEMCPY "ptr.memcpy"
+
+#define STACK_DATA_INT "int"
+#define STACK_DATA_BOOL "bool"
+#define STACK_DATA_PTR "ptr"
+#define STACK_DATA_STRING "string"
+
+static void stack_preprocessor_generate_base_consts(stack_preprocessor *preprocessor, stack_ast_prog *prog) {
+    ds_string_builder sb = {0};
+    ds_string_slice name = {0};
+
+    ds_string_builder_init(&sb);
+    DS_EXPECT(ds_string_builder_append(&sb, "%s.%s", STACK_DATA_PTR, STACK_DATA_SIZEOF), DS_ERROR_OOM);
+    ds_string_builder_to_slice(&sb, &name);
+    stack_ast_node data_ptr_sizeof_node = STACK_AST_NODE_A(name, NULL, 0);
+    ds_dynamic_array data_ptr_sizeof_exprs = {0};
+    ds_dynamic_array_init(&data_ptr_sizeof_exprs, sizeof(stack_ast_expr));
+    ds_string_builder_init(&sb);
+    DS_EXPECT(ds_string_builder_append(&sb, "%d", STACK_WORD_SZ), DS_ERROR_OOM);
+    ds_string_builder_to_slice(&sb, &name);
+    DS_EXPECT(ds_dynamic_array_append(&data_ptr_sizeof_exprs, &STACK_AST_EXPR_NUMBER(STACK_AST_NODE_A(name, NULL, 0))), DS_ERROR_OOM);
+    stack_ast_const data_ptr_sizeof = {
+        .name = data_ptr_sizeof_node,
+        .exprs = data_ptr_sizeof_exprs,
+    };
+    DS_EXPECT(ds_dynamic_array_append(&prog->consts, &data_ptr_sizeof), DS_ERROR_OOM);
+
+    ds_string_builder_init(&sb);
+    DS_EXPECT(ds_string_builder_append(&sb, "%s.%s", STACK_DATA_INT, STACK_DATA_SIZEOF), DS_ERROR_OOM);
+    ds_string_builder_to_slice(&sb, &name);
+    stack_ast_node data_int_sizeof_node = STACK_AST_NODE_A(name, NULL, 0);
+    ds_dynamic_array data_int_sizeof_exprs = {0};
+    ds_dynamic_array_init(&data_int_sizeof_exprs, sizeof(stack_ast_expr));
+    ds_string_builder_init(&sb);
+    DS_EXPECT(ds_string_builder_append(&sb, "%d", STACK_WORD_SZ), DS_ERROR_OOM);
+    ds_string_builder_to_slice(&sb, &name);
+    DS_EXPECT(ds_dynamic_array_append(&data_int_sizeof_exprs, &STACK_AST_EXPR_NUMBER(STACK_AST_NODE_A(name, NULL, 0))), DS_ERROR_OOM);
+    stack_ast_const data_int_sizeof = {
+        .name = data_int_sizeof_node,
+        .exprs = data_int_sizeof_exprs,
+    };
+    DS_EXPECT(ds_dynamic_array_append(&prog->consts, &data_int_sizeof), DS_ERROR_OOM);
+
+    ds_string_builder_init(&sb);
+    DS_EXPECT(ds_string_builder_append(&sb, "%s.%s", STACK_DATA_BOOL, STACK_DATA_SIZEOF), DS_ERROR_OOM);
+    ds_string_builder_to_slice(&sb, &name);
+    stack_ast_node data_bool_sizeof_node = STACK_AST_NODE_A(name, NULL, 0);
+    ds_dynamic_array data_bool_sizeof_exprs = {0};
+    ds_dynamic_array_init(&data_bool_sizeof_exprs, sizeof(stack_ast_expr));
+    ds_string_builder_init(&sb);
+    DS_EXPECT(ds_string_builder_append(&sb, "%d", STACK_WORD_SZ), DS_ERROR_OOM);
+    ds_string_builder_to_slice(&sb, &name);
+    DS_EXPECT(ds_dynamic_array_append(&data_bool_sizeof_exprs, &STACK_AST_EXPR_NUMBER(STACK_AST_NODE_A(name, NULL, 0))), DS_ERROR_OOM);
+    stack_ast_const data_bool_sizeof = {
+        .name = data_bool_sizeof_node,
+        .exprs = data_bool_sizeof_exprs,
+    };
+    DS_EXPECT(ds_dynamic_array_append(&prog->consts, &data_bool_sizeof), DS_ERROR_OOM);
+}
 
 static void stack_preprocessor_generate_data_consts(stack_preprocessor *preprocessor, stack_ast_data data, stack_ast_prog *prog) {
     ds_string_builder sb = {0};
@@ -1616,15 +1658,13 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
         stack_ast_data data = {0};
         DS_UNREACHABLE(ds_dynamic_array_get(&prog->datas, i, &data));
 
-        if (data.extern_) {
-            continue;
-        }
-
         stack_preprocessor_generate_data_consts(preprocessor, data, prog);
         stack_preprocessor_generate_data_init(preprocessor, data, prog);
         stack_preprocessor_generate_data_getters(preprocessor, data, prog);
         stack_preprocessor_generate_data_setters(preprocessor, data, prog);
     }
+
+    stack_preprocessor_generate_base_consts(preprocessor, prog);
 
     for (unsigned int i = 0; i < prog->consts.count; i++) {
         stack_ast_const item = {0};
@@ -1640,11 +1680,6 @@ defer:
     ds_dynamic_array_free(&prog_new.funcs);
     return result;
 }
-
-#define STACK_DATA_INT "int"
-#define STACK_DATA_BOOL "bool"
-#define STACK_DATA_STRING "string"
-#define STACK_DATA_PTR "ptr"
 
 /// TYPE CHECKER
 
@@ -1732,6 +1767,406 @@ typedef struct {
 
 void stack_context_init(stack_context *context) {
     ds_dynamic_array_init(&context->symbols, sizeof(stack_context_symbol));
+
+    stack_context_symbol data_ptr = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_DATA,
+        .data = (stack_context_data){.name = DS_STRING_SLICE(STACK_DATA_PTR)}
+    };
+    ds_dynamic_array_append(&context->symbols, &data_ptr);
+
+    stack_context_symbol data_int = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_DATA,
+        .data = (stack_context_data){.name = DS_STRING_SLICE(STACK_DATA_INT)}
+    };
+    ds_dynamic_array_append(&context->symbols, &data_int);
+
+    stack_context_symbol data_bool = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_DATA,
+        .data = (stack_context_data){.name = DS_STRING_SLICE(STACK_DATA_BOOL)}
+    };
+    ds_dynamic_array_append(&context->symbols, &data_bool);
+
+    ds_dynamic_array func_dup_args = {0};
+    ds_dynamic_array_init(&func_dup_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_dup_args, &DS_STRING_SLICE("a")), DS_ERROR_OOM);
+    ds_dynamic_array func_dup_rets = {0};
+    ds_dynamic_array_init(&func_dup_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_dup_rets, &DS_STRING_SLICE("a")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_dup_rets, &DS_STRING_SLICE("a")), DS_ERROR_OOM);
+    stack_context_symbol func_dup = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_DUP), .args = func_dup_args, .rets = func_dup_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_dup);
+
+    ds_dynamic_array func_swp_args = {0};
+    ds_dynamic_array_init(&func_swp_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_swp_args, &DS_STRING_SLICE("a")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_swp_args, &DS_STRING_SLICE("b")), DS_ERROR_OOM);
+    ds_dynamic_array func_swp_rets = {0};
+    ds_dynamic_array_init(&func_swp_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_swp_rets, &DS_STRING_SLICE("b")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_swp_rets, &DS_STRING_SLICE("a")), DS_ERROR_OOM);
+    stack_context_symbol func_swp = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_SWP), .args = func_swp_args, .rets = func_swp_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_swp);
+
+    ds_dynamic_array func_rot_args = {0};
+    ds_dynamic_array_init(&func_rot_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_rot_args, &DS_STRING_SLICE("a")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_rot_args, &DS_STRING_SLICE("b")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_rot_args, &DS_STRING_SLICE("c")), DS_ERROR_OOM);
+    ds_dynamic_array func_rot_rets = {0};
+    ds_dynamic_array_init(&func_rot_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_rot_rets, &DS_STRING_SLICE("b")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_rot_rets, &DS_STRING_SLICE("c")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_rot_rets, &DS_STRING_SLICE("a")), DS_ERROR_OOM);
+    stack_context_symbol func_rot = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_ROT), .args = func_rot_args, .rets = func_rot_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_rot);
+
+    ds_dynamic_array func_rot4_args = {0};
+    ds_dynamic_array_init(&func_rot4_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_rot4_args, &DS_STRING_SLICE("a")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_rot4_args, &DS_STRING_SLICE("b")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_rot4_args, &DS_STRING_SLICE("c")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_rot4_args, &DS_STRING_SLICE("d")), DS_ERROR_OOM);
+    ds_dynamic_array func_rot4_rets = {0};
+    ds_dynamic_array_init(&func_rot4_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_rot4_rets, &DS_STRING_SLICE("b")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_rot4_rets, &DS_STRING_SLICE("c")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_rot4_rets, &DS_STRING_SLICE("d")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_rot4_rets, &DS_STRING_SLICE("a")), DS_ERROR_OOM);
+    stack_context_symbol func_rot4 = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_ROT4), .args = func_rot4_args, .rets = func_rot4_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_rot4);
+
+    ds_dynamic_array func_pop_args = {0};
+    ds_dynamic_array_init(&func_pop_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_pop_args, &DS_STRING_SLICE("a")), DS_ERROR_OOM);
+    ds_dynamic_array func_pop_rets = {0};
+    ds_dynamic_array_init(&func_pop_rets, sizeof(ds_string_slice));
+    stack_context_symbol func_pop = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_POP), .args = func_pop_args, .rets = func_pop_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_pop);
+
+    ds_dynamic_array func_ptr_alloc_args = {0};
+    ds_dynamic_array_init(&func_ptr_alloc_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_ptr_alloc_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_ptr_alloc_rets = {0};
+    ds_dynamic_array_init(&func_ptr_alloc_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_ptr_alloc_rets, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    stack_context_symbol func_ptr_alloc = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_PTR_ALLOC), .args = func_ptr_alloc_args, .rets = func_ptr_alloc_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_ptr_alloc);
+
+    ds_dynamic_array func_ptr_add_args = {0};
+    ds_dynamic_array_init(&func_ptr_add_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_ptr_add_args, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_ptr_add_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_ptr_add_rets = {0};
+    ds_dynamic_array_init(&func_ptr_add_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_ptr_add_rets, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    stack_context_symbol func_ptr_add = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_PTR_OFFSET), .args = func_ptr_add_args, .rets = func_ptr_add_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_ptr_add);
+
+    ds_dynamic_array func_ptr_copy_args = {0};
+    ds_dynamic_array_init(&func_ptr_copy_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_ptr_copy_args, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_ptr_copy_args, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    ds_dynamic_array func_ptr_copy_rets = {0};
+    ds_dynamic_array_init(&func_ptr_copy_rets, sizeof(ds_string_slice));
+    stack_context_symbol func_ptr_copy = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_PTR_COPY), .args = func_ptr_copy_args, .rets = func_ptr_copy_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_ptr_copy);
+
+    ds_dynamic_array func_add_args = {0};
+    ds_dynamic_array_init(&func_add_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_add_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_add_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_add_rets = {0};
+    ds_dynamic_array_init(&func_add_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_add_rets, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    stack_context_symbol func_add = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_PLUS), .args = func_add_args, .rets = func_add_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_add);
+
+    ds_dynamic_array func_sub_args = {0};
+    ds_dynamic_array_init(&func_sub_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_sub_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_sub_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_sub_rets = {0};
+    ds_dynamic_array_init(&func_sub_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_sub_rets, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    stack_context_symbol func_sub = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_MINUS), .args = func_sub_args, .rets = func_sub_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_sub);
+
+    ds_dynamic_array func_mul_args = {0};
+    ds_dynamic_array_init(&func_mul_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_mul_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_mul_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_mul_rets = {0};
+    ds_dynamic_array_init(&func_mul_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_mul_rets, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    stack_context_symbol func_mul = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_STAR), .args = func_mul_args, .rets = func_mul_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_mul);
+
+    ds_dynamic_array func_div_args = {0};
+    ds_dynamic_array_init(&func_div_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_div_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_div_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_div_rets = {0};
+    ds_dynamic_array_init(&func_div_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_div_rets, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    stack_context_symbol func_div = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_DIV), .args = func_div_args, .rets = func_div_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_div);
+
+    ds_dynamic_array func_mod_args = {0};
+    ds_dynamic_array_init(&func_mod_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_mod_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_mod_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_mod_rets = {0};
+    ds_dynamic_array_init(&func_mod_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_mod_rets, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    stack_context_symbol func_mod = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_MOD), .args = func_mod_args, .rets = func_mod_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_mod);
+
+    ds_dynamic_array func_or_args = {0};
+    ds_dynamic_array_init(&func_or_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_or_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_or_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_or_rets = {0};
+    ds_dynamic_array_init(&func_or_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_or_rets, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    stack_context_symbol func_or = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_OR), .args = func_or_args, .rets = func_or_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_or);
+
+    ds_dynamic_array func_and_args = {0};
+    ds_dynamic_array_init(&func_and_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_and_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_and_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_and_rets = {0};
+    ds_dynamic_array_init(&func_and_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_and_rets, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    stack_context_symbol func_and = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_AND), .args = func_and_args, .rets = func_and_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_and);
+
+    ds_dynamic_array func_xor_args = {0};
+    ds_dynamic_array_init(&func_xor_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_xor_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_xor_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_xor_rets = {0};
+    ds_dynamic_array_init(&func_xor_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_xor_rets, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    stack_context_symbol func_xor = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_XOR), .args = func_xor_args, .rets = func_xor_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_xor);
+
+    ds_dynamic_array func_shr_args = {0};
+    ds_dynamic_array_init(&func_shr_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_shr_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_shr_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_shr_rets = {0};
+    ds_dynamic_array_init(&func_shr_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_shr_rets, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    stack_context_symbol func_shr = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_SHR), .args = func_shr_args, .rets = func_shr_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_shr);
+
+    ds_dynamic_array func_shl_args = {0};
+    ds_dynamic_array_init(&func_shl_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_shl_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_shl_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_shl_rets = {0};
+    ds_dynamic_array_init(&func_shl_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_shl_rets, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    stack_context_symbol func_shl = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_SHL), .args = func_shl_args, .rets = func_shl_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_shl);
+
+    ds_dynamic_array func_gt_args = {0};
+    ds_dynamic_array_init(&func_gt_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_gt_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_gt_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_gt_rets = {0};
+    ds_dynamic_array_init(&func_gt_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_gt_rets, &DS_STRING_SLICE(STACK_DATA_BOOL)), DS_ERROR_OOM);
+    stack_context_symbol func_gt = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_GT), .args = func_gt_args, .rets = func_gt_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_gt);
+
+    ds_dynamic_array func_lt_args = {0};
+    ds_dynamic_array_init(&func_lt_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_lt_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_lt_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_lt_rets = {0};
+    ds_dynamic_array_init(&func_lt_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_lt_rets, &DS_STRING_SLICE(STACK_DATA_BOOL)), DS_ERROR_OOM);
+    stack_context_symbol func_lt = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_LT), .args = func_lt_args, .rets = func_lt_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_lt);
+
+    ds_dynamic_array func_eq_args = {0};
+    ds_dynamic_array_init(&func_eq_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_eq_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_eq_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_eq_rets = {0};
+    ds_dynamic_array_init(&func_eq_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_eq_rets, &DS_STRING_SLICE(STACK_DATA_BOOL)), DS_ERROR_OOM);
+    stack_context_symbol func_eq = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_EQ), .args = func_eq_args, .rets = func_eq_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_eq);
+
+#ifdef __linux__
+    ds_dynamic_array func_syscall1_args = {0};
+    ds_dynamic_array_init(&func_syscall1_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_syscall1_args, &DS_STRING_SLICE("a")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_syscall1_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_syscall1_rets = {0};
+    ds_dynamic_array_init(&func_syscall1_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_syscall1_rets, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    stack_context_symbol func_syscall1 = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_SYSCALL1), .args = func_syscall1_args, .rets = func_syscall1_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_syscall1);
+
+    ds_dynamic_array func_syscall3_args = {0};
+    ds_dynamic_array_init(&func_syscall3_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_syscall3_args, &DS_STRING_SLICE("a")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_syscall3_args, &DS_STRING_SLICE("b")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_syscall3_args, &DS_STRING_SLICE("c")), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_syscall3_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_syscall3_rets = {0};
+    ds_dynamic_array_init(&func_syscall3_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_syscall3_rets, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    stack_context_symbol func_syscall3 = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_SYSCALL3), .args = func_syscall3_args, .rets = func_syscall3_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_syscall3);
+#else
+#error "Your OS sucks!"
+#endif // __linux__
+
+    ds_dynamic_array func_int_ref_args = {0};
+    ds_dynamic_array_init(&func_int_ref_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_int_ref_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_int_ref_rets = {0};
+    ds_dynamic_array_init(&func_int_ref_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_int_ref_rets, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    stack_context_symbol func_int_ref = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_INT_REF), .args = func_int_ref_args, .rets = func_int_ref_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_int_ref);
+
+    ds_dynamic_array func_int_deref_args = {0};
+    ds_dynamic_array_init(&func_int_deref_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_int_deref_args, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    ds_dynamic_array func_int_deref_rets = {0};
+    ds_dynamic_array_init(&func_int_deref_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_int_deref_rets, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    stack_context_symbol func_int_deref = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_INT_DEREF), .args = func_int_deref_args, .rets = func_int_deref_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_int_deref);
+
+    ds_dynamic_array func_ptr_ref_args = {0};
+    ds_dynamic_array_init(&func_ptr_ref_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_ptr_ref_args, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    ds_dynamic_array func_ptr_ref_rets = {0};
+    ds_dynamic_array_init(&func_ptr_ref_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_ptr_ref_rets, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    stack_context_symbol func_ptr_ref = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_PTR_REF), .args = func_ptr_ref_args, .rets = func_ptr_ref_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_ptr_ref);
+
+    ds_dynamic_array func_ptr_deref_args = {0};
+    ds_dynamic_array_init(&func_ptr_deref_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_ptr_deref_args, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    ds_dynamic_array func_ptr_deref_rets = {0};
+    ds_dynamic_array_init(&func_ptr_deref_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_ptr_deref_rets, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    stack_context_symbol func_ptr_deref = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_PTR_DEREF), .args = func_ptr_deref_args, .rets = func_ptr_deref_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_ptr_deref);
+
+    ds_dynamic_array func_bool_ref_args = {0};
+    ds_dynamic_array_init(&func_bool_ref_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_bool_ref_args, &DS_STRING_SLICE(STACK_DATA_BOOL)), DS_ERROR_OOM);
+    ds_dynamic_array func_bool_ref_rets = {0};
+    ds_dynamic_array_init(&func_bool_ref_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_bool_ref_rets, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    stack_context_symbol func_bool_ref = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_BOOL_REF), .args = func_bool_ref_args, .rets = func_bool_ref_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_bool_ref);
+
+    ds_dynamic_array func_bool_deref_args = {0};
+    ds_dynamic_array_init(&func_bool_deref_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_bool_deref_args, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    ds_dynamic_array func_bool_deref_rets = {0};
+    ds_dynamic_array_init(&func_bool_deref_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_bool_deref_rets, &DS_STRING_SLICE(STACK_DATA_BOOL)), DS_ERROR_OOM);
+    stack_context_symbol func_bool_deref = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_BOOL_DEREF), .args = func_bool_deref_args, .rets = func_bool_deref_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_bool_deref);
 
     context->failed = 0;
 }
@@ -2227,10 +2662,6 @@ static int stack_context_typecheck_data_def(stack_context *context, stack_ast_da
         result = 1;
     }
 
-    if (data->extern_) {
-        return_defer(0);
-    }
-
 defer:
     return result;
 }
@@ -2309,6 +2740,7 @@ static int stack_context_typecheck_expr_name(stack_context *context,
     int result = 0;
 
     if (stack_context_symbol_get(context, name->value, &symbol) != 0) {
+        printf("%.*s\n", name->value.len, name->value.str);
         stack_context_is_func_defined_errorf(*name);
         return_defer(1);
     }
@@ -2465,8 +2897,6 @@ int stack_context_typecheck(stack_context *context, stack_ast_prog *prog) {
     for (unsigned int i = 0; i < prog->funcs.count; i++) {
         stack_ast_func func = {0};
         DS_UNREACHABLE(ds_dynamic_array_get(&prog->funcs, i, &func));
-
-        if (func.extern_) { continue; }
 
         if (stack_context_typecheck_func(context, &func) != 0) {
             result = 1;
@@ -3429,7 +3859,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT(";");
     EMIT(";   INPUT: (dst, src)");
     EMIT(";   OUTPUT: ()");
-    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_COPY8)), NULL), STACK_FUNC_PTR_COPY8);
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_COPY)), NULL), STACK_FUNC_PTR_COPY);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 24                    ; allocate 3 local variables");
@@ -3454,6 +3884,81 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    ret");
     EMIT("");
 
+    // REF/DEREF
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_INT_REF)), NULL), STACK_FUNC_INT_REF);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    ; deref data");
+    EMIT("    call    stack_pop_addr");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_INT_DEREF)), NULL), STACK_FUNC_INT_DEREF);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    ; deref data");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push_addr");
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_REF)), NULL), STACK_FUNC_PTR_REF);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    ; deref data");
+    EMIT("    call    stack_pop_addr");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_DEREF)), NULL), STACK_FUNC_PTR_DEREF);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    ; deref data");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push_addr");
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_BOOL_REF)), NULL), STACK_FUNC_BOOL_REF);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    ; deref data");
+    EMIT("    call    stack_pop_addr");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_BOOL_DEREF)), NULL), STACK_FUNC_BOOL_DEREF);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    ; deref data");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push_addr");
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+
+#ifdef __linux__
     /// SYSCALL1
     EMIT(";");
     EMIT(";");
@@ -3528,6 +4033,7 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
+#endif // __linux__
 }
 
 static void stack_assembler_emit_constants(stack_assembler *assembler) {
@@ -3774,9 +4280,7 @@ static void stack_assembler_emit_program(stack_assembler *assembler, stack_ast_p
     for (unsigned int i = 0; i < prog->funcs.count; i++) {
         stack_ast_func func = {0};
         DS_UNREACHABLE(ds_dynamic_array_get(&prog->funcs, i, &func));
-        if (!func.extern_) {
-            stack_assembler_emit_func(assembler, &func);
-        }
+        stack_assembler_emit_func(assembler, &func);
     }
 }
 
@@ -3959,7 +4463,7 @@ defer:
     stack_assembler_free(&assembler);
     stack_context_free(&context);
     stack_preprocessor_free(&preprocessor);
-    stack_ast_free(&prog);
+    // stack_ast_free(&prog);
     stack_parser_free(&parser);
     stack_lexer_free(&lexer);
     if (buffer != NULL) DS_FREE(NULL, buffer);
