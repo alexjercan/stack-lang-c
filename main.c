@@ -1221,7 +1221,6 @@ void stack_preprocessor_free(stack_preprocessor *preprocessor) {
 #define STACK_DATA_OFFSET "offset"
 #define STACK_DATA_SET "set"
 #define STACK_DATA_SIZEOF "sizeof"
-#define STACK_FUNC_PTR_MEMCPY "ptr.memcpy"
 
 #define STACK_DATA_INT "int"
 #define STACK_DATA_BOOL "bool"
@@ -1414,7 +1413,7 @@ static void stack_preprocessor_generate_data_init(stack_preprocessor *preprocess
         ds_string_builder_to_slice(&sb, &name);
         DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
 
-        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_PTR_MEMCPY), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_PTR_COPY), data.name.parser, data.name.pos))), DS_ERROR_OOM);
         DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_POP), data.name.parser, data.name.pos))), DS_ERROR_OOM);
     }
 
@@ -1537,7 +1536,7 @@ static void stack_preprocessor_generate_data_setters(stack_preprocessor *preproc
         ds_string_builder_to_slice(&sb, &name);
         DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
 
-        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_PTR_MEMCPY), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_PTR_COPY), data.name.parser, data.name.pos))), DS_ERROR_OOM);
         DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_POP), data.name.parser, data.name.pos))), DS_ERROR_OOM);
 
         stack_ast_func set = {
@@ -1887,8 +1886,10 @@ void stack_context_init(stack_context *context) {
     ds_dynamic_array_init(&func_ptr_copy_args, sizeof(ds_string_slice));
     DS_EXPECT(ds_dynamic_array_append(&func_ptr_copy_args, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
     DS_EXPECT(ds_dynamic_array_append(&func_ptr_copy_args, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    DS_EXPECT(ds_dynamic_array_append(&func_ptr_copy_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
     ds_dynamic_array func_ptr_copy_rets = {0};
     ds_dynamic_array_init(&func_ptr_copy_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_ptr_copy_rets, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
     stack_context_symbol func_ptr_copy = (stack_context_symbol){
         .kind = STACK_CONTEXT_SYMBOL_FUNC,
         .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_PTR_COPY), .args = func_ptr_copy_args, .rets = func_ptr_copy_rets}
@@ -3852,32 +3853,50 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
     EMIT("");
-    // PTR COPY 8
+    // PTR COPY
     EMIT(";");
     EMIT(";");
-    EMIT("; memory copy byte");
+    EMIT("; memory copy");
     EMIT(";");
-    EMIT(";   INPUT: (dst, src)");
+    EMIT(";   INPUT: (dst, src, len)");
     EMIT(";   OUTPUT: ()");
     EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PTR_COPY)), NULL), STACK_FUNC_PTR_COPY);
     EMIT("    push    rbp                        ; save return address");
     EMIT("    mov     rbp, rsp                   ; set up stack frame");
     EMIT("    sub     rsp, 24                    ; allocate 3 local variables");
     EMIT("");
-    EMIT("; copy one byte");
-    EMIT("    ; t0 <- src");
+    EMIT("    ; t0 <- len");
     EMIT("    call    stack_pop");
     EMIT("    mov     qword [rbp - loc_0], rax");
     EMIT("");
-    EMIT("    ; t1 <- dst");
+    EMIT("    ; t1 <- src");
     EMIT("    call    stack_pop");
     EMIT("    mov     qword [rbp - loc_1], rax");
     EMIT("");
-    EMIT("    ; copy byte *dst = *src");
-    EMIT("    mov     rdi, qword [rbp - loc_1]");
-    EMIT("    mov     rsi, qword [rbp - loc_0]");
-    EMIT("    mov     al, byte [rsi]");
-    EMIT("    mov     byte [rdi], al");
+    EMIT("    ; t2 <- dst");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     qword [rbp - loc_2], rax");
+    EMIT("");
+    EMIT("    mov     rdi, qword [rbp - loc_2]");
+    EMIT("    mov     rsi, qword [rbp - loc_1]");
+    EMIT("    mov     rdx, qword [rbp - loc_0]");
+    EMIT("");
+    EMIT(".next_byte:");
+    EMIT("    cmp     rdx, 0                     ; check if done");
+    EMIT("    jle     .done");
+    EMIT("");
+    EMIT("    mov     al, byte [rsi]             ; get byte from self");
+    EMIT("    mov     byte [rdi], al             ; copy byte to new object");
+    EMIT("");
+    EMIT("    inc     rdi                        ; increment destination");
+    EMIT("    inc     rsi                        ; increment source");
+    EMIT("    dec     rdx                        ; decrement count");
+    EMIT("");
+    EMIT("    jmp .next_byte");
+    EMIT(".done:");
+    EMIT("");
+    EMIT("    mov     rdi, qword [rbp - loc_2]");
+    EMIT("    call    stack_push");
     EMIT("");
     EMIT("    add     rsp, 24                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");

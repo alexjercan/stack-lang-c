@@ -944,7 +944,7 @@ const STACK_FUNC_EQ "="
 
 const STACK_FUNC_PTR_ALLOC "ptr.alloc"
 const STACK_FUNC_PTR_OFFSET "ptr.+"
-const STACK_FUNC_PTR_COPY8 "ptr.@"
+const STACK_FUNC_PTR_COPY "ptr.@"
 
 const STACK_FUNC_SYSCALL1 "syscall1"
 const STACK_FUNC_SYSCALL3 "syscall3"
@@ -1517,32 +1517,50 @@ func stack_assembler.emit.keywords (stack_assembler) () in
     dup "    pop     rbp                        ; restore return address" emit
     dup "    ret" emit
     dup "" emit
-    -- PTR COPY 8
+    -- PTR COPY
     dup ";" emit
     dup ";" emit
-    dup "; memory copy byte" emit
+    dup "; memory copy" emit
     dup ";" emit
-    dup ";   INPUT: (dst, src)" emit
+    dup ";   INPUT: (dst, src, len)" emit
     dup ";   OUTPUT: ()" emit
-    dup dup STACK_FUNC_PTR_COPY8 dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup dup STACK_FUNC_PTR_COPY dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
     dup "    push    rbp                        ; save return address" emit
     dup "    mov     rbp, rsp                   ; set up stack frame" emit
     dup "    sub     rsp, 24                    ; allocate 3 local variables" emit
     dup "" emit
-    dup "; copy one byte" emit
-    dup "    ; t0 <- src" emit
+    dup "    ; t0 <- len" emit
     dup "    call    stack_pop" emit
     dup "    mov     qword [rbp - loc_0], rax" emit
     dup "" emit
-    dup "    ; t1 <- dst" emit
+    dup "    ; t1 <- src" emit
     dup "    call    stack_pop" emit
     dup "    mov     qword [rbp - loc_1], rax" emit
     dup "" emit
-    dup "    ; copy byte *dst = *src" emit
-    dup "    mov     rdi, qword [rbp - loc_1]" emit
-    dup "    mov     rsi, qword [rbp - loc_0]" emit
-    dup "    mov     al, byte [rsi]" emit
-    dup "    mov     byte [rdi], al" emit
+    dup "    ; t2 <- dst" emit
+    dup "    call    stack_pop" emit
+    dup "    mov     qword [rbp - loc_2], rax" emit
+    dup "" emit
+    dup "    mov     rdi, qword [rbp - loc_2]" emit
+    dup "    mov     rsi, qword [rbp - loc_1]" emit
+    dup "    mov     rdx, qword [rbp - loc_0]" emit
+    dup "" emit
+    dup ".next_byte:" emit
+    dup "    cmp     rdx, 0                     ; check if done" emit
+    dup "    jle     .done" emit
+    dup "" emit
+    dup "    mov     al, byte [rsi]             ; get byte from self" emit
+    dup "    mov     byte [rdi], al             ; copy byte to new object" emit
+    dup "" emit
+    dup "    inc     rdi                        ; increment destination" emit
+    dup "    inc     rsi                        ; increment source" emit
+    dup "    dec     rdx                        ; decrement count" emit
+    dup "" emit
+    dup "    jmp .next_byte" emit
+    dup ".done:" emit
+    dup "" emit
+    dup "    mov     rdi, qword [rbp - loc_2]" emit
+    dup "    call    stack_push" emit
     dup "" emit
     dup "    add     rsp, 24                    ; deallocate local variables" emit
     dup "    pop     rbp                        ; restore return address" emit

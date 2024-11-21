@@ -42,26 +42,8 @@ func ptr.realloc (ptr, int, int) (ptr) in -- src, osz, sz
     else
         ptr.alloc -- src, osz, dst
         rot' -- dst, src, osz
-        ptr.memcpy -- dst
+        ptr.@ -- dst
     fi -- ptr
-end
-
-func ptr.memcpy' (ptr, ptr, ptr, int) (ptr) in -- ret, dst, src, sz
-    dup 0 <= if -- ret, dst, src, sz
-        pop pop pop -- ret
-    else
-        rot' -- ret, sz, dst, src
-        dup2 -- ret, sz, dst, src, dst, src
-        ptr.@ -- ret, sz, dst, src
-        1 ptr.+ -- ret, sz, dst, src+1
-        swp 1 ptr.+ swp -- ret, sz, dst+1, src+1
-        rot 1 - -- ret, dst+1, src+1, sz-1
-        ptr.memcpy' -- ret
-    fi
-end
-
-func ptr.memcpy (ptr, ptr, int) (ptr) in -- dst, src, sz
-    rot dup rot4' rot4' ptr.memcpy'
 end
 
 func ptr.memcmp' (ptr, ptr, int) (int) in -- s1, s2, n
@@ -170,9 +152,9 @@ func string.concat (string, string) (string) in -- s1, s2
     dup2 string.len swp string.len + -- s1, s2, L
     dup rot4' string.memory-needed ptr.alloc -- L, s1, s2, ptr
     dup rot4' -- L, ptr, s1, s2, ptr
-    rot dup string.str swp string.len dup rot4' ptr.memcpy -- L, ptr, s2, L1, ptr
+    rot dup string.str swp string.len dup rot4' ptr.@ -- L, ptr, s2, L1, ptr
     swp ptr.+ -- L, ptr, s2, ptr+L1
-    swp dup string.str swp string.len ptr.memcpy -- L, ptr, ptr+L1
+    swp dup string.str swp string.len ptr.@ -- L, ptr, ptr+L1
     pop -- L, ptr
     string.init
 end
@@ -185,7 +167,7 @@ func string.substr (string, int, int) (string) in -- s, i, n
     dup rot4' -- ptr, str+i, n, ptr
     rot' -- ptr, ptr, str+i, n
     dup rot4' -- ptr, n, ptr, str+i, n
-    ptr.memcpy pop -- ptr, n
+    ptr.@ pop -- ptr, n
     swp -- n, ptr
     string.init
 end
@@ -380,7 +362,7 @@ func array.append (array, ptr) (bool) in -- a, ptr
     swp array.items swp ptr.+ -- ptr, a, L, xs+L*sz
     rot4 rot4 -- L, xs+L*sz, ptr, a
     dup array.sz swp rot4' -- L, a, xs+L*sz, ptr, sz
-    ptr.memcpy pop -- L, a
+    ptr.@ pop -- L, a
     swp -- a, L
     1 + -- a, L+1
     array.count.set true -- bool
@@ -470,7 +452,7 @@ end
 
 func byte.init (ptr) (int) in -- chr*
     int.sizeof ptr.alloc -- str, ptr
-    dup rot' swp 1 ptr.memcpy pop -- ptr
+    dup rot' swp 1 ptr.@ pop -- ptr
     int.* -- byte
 end
 
@@ -508,6 +490,6 @@ end
 func byte.chr (int) (string) in -- chr
     int.& -- &int
     1 string.memory-needed ptr.alloc -- &int, ptr
-    swp 1 ptr.memcpy -- ptr
+    swp 1 ptr.@ -- ptr
     1 swp string.init -- ptr
 end
