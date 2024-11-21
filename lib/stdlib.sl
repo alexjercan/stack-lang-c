@@ -205,17 +205,17 @@ end
 
 func string.stdin () (string) in -- ()
     STDIN stdlib.fread.<eof> -- s, ok
-    not if panic fi -- s
+    unwrap -- s
 end
 
 func string.stdout (string) () in -- s
     STDOUT swp stdlib.fwrite -- bool
-    not if panic fi
+    unwrap
 end
 
 func string.stderr (string) () in -- s
     STDERR swp stdlib.fwrite -- bool
-    not if panic fi
+    unwrap
 end
 
 -- SYSCALLS
@@ -239,9 +239,17 @@ const stdlib.MAX_LINE 1024
 
 const abort 1 sys.exit
 
-const panic
+const here -- () (string)
     __file__ ":" string.concat __line__ int.show string.concat ":" string.concat __col__ int.show string.concat ": " string.concat
-    "panic!\n" string.concat STDERR swp stdlib.fwrite pop abort
+
+const panic -- () ()
+    here "panic!\n" string.concat STDERR swp stdlib.fwrite pop abort
+
+const unwrap -- (ok) ()
+    not if panic fi
+
+const todo -- () ()
+    here "todo!\n" string.concat STDERR swp stdlib.fwrite pop abort
 
 func stdlib.fopen (string, string) (int, bool) in -- fn, md
     swp string.str swp

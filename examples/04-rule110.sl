@@ -42,15 +42,15 @@ func rule110.xyz (array, int) (int, int, int) in
     swp rot' -- a, i, c
 
     dup3 wrap_dec -- a, i, c, a, i-1
-    array.get not if panic fi int.* -- a, i, c, x
+    array.get unwrap int.* -- a, i, c, x
     rot4' -- x, a, i, c
 
     dup3 pop -- x, a, i, c, a, i
-    array.get not if panic fi int.* -- x, a, i, c, y
+    array.get unwrap int.* -- x, a, i, c, y
     rot4' -- x, y, a, i, c
 
     dup3 wrap_inc -- x, y, a, i, c, a, i+1
-    array.get not if panic fi int.* -- x, y, a, i, c, z
+    array.get unwrap int.* -- x, y, a, i, c, z
     rot4' -- x, y, z, a, i, c
 
     pop3 -- x, y, z
@@ -60,7 +60,7 @@ func rule110' (array, array, int) () in -- xs', xs, i
     rule110.xyz -- xs', x, y, z
     rule110.match -- xs', v
     int.& array.append -- bool
-    not if panic fi -- ()
+    unwrap -- ()
 end
 
 func rule110.rec (array, array, int) () in -- xs', xs, i
@@ -87,7 +87,7 @@ func show_items' (int, array) () in -- i, a
     else
         dup2 -- a, i, a, i
         array.get -- a, i, ptr, bool
-        not if panic fi -- a, i, ptr
+        unwrap -- a, i, ptr
         int.* int.show string.stdout -- a, i
         1 + swp -- i+1, a
         show_items' -- ()
@@ -99,20 +99,20 @@ func show_items (array) () in 0 swp show_items' end
 func main () (int) in
     int.sizeof array.init.with_sz -- a
 
-    dup 0 int.& array.append not if panic fi -- a
-    dup 0 int.& array.append not if panic fi -- a
-    dup 0 int.& array.append not if panic fi -- a
-    dup 1 int.& array.append not if panic fi -- a
-    dup 0 int.& array.append not if panic fi -- a
-    dup 0 int.& array.append not if panic fi -- a
-    dup 1 int.& array.append not if panic fi -- a
-    dup 1 int.& array.append not if panic fi -- a
-    dup 0 int.& array.append not if panic fi -- a
-    dup 1 int.& array.append not if panic fi -- a
-    dup 1 int.& array.append not if panic fi -- a
-    dup 1 int.& array.append not if panic fi -- a
-    dup 1 int.& array.append not if panic fi -- a
-    dup 1 int.& array.append not if panic fi -- a
+    dup 0 int.& array.append unwrap -- a
+    dup 0 int.& array.append unwrap -- a
+    dup 0 int.& array.append unwrap -- a
+    dup 1 int.& array.append unwrap -- a
+    dup 0 int.& array.append unwrap -- a
+    dup 0 int.& array.append unwrap -- a
+    dup 1 int.& array.append unwrap -- a
+    dup 1 int.& array.append unwrap -- a
+    dup 0 int.& array.append unwrap -- a
+    dup 1 int.& array.append unwrap -- a
+    dup 1 int.& array.append unwrap -- a
+    dup 1 int.& array.append unwrap -- a
+    dup 1 int.& array.append unwrap -- a
+    dup 1 int.& array.append unwrap -- a
 
     dup show_items rule110 -- a
     dup show_items rule110 -- a

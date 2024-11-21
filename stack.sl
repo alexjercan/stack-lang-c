@@ -51,6 +51,10 @@ const STACK_ILLEGAL_STRING_EOF  4
 
 data stack_token (int kind, string value, int pos, int err)
 
+func stack_token.init.empty () (stack_token) in
+    0 "" 0 0 stack_token.init
+end
+
 func stack_token.init.ok (int, string, int) (stack_token) in -- kind, value, pos
     STACK_ILLEGAL_NO_ERROR stack_token.init
 end
@@ -228,11 +232,23 @@ const STACK_AST_EXPR_COND 4
 
 data stack_parser (stack_lexer lexer, stack_token tok, stack_token next_tok)
 
+func stack_parser.init.with_lexer (stack_lexer) (stack_parser) in
+    todo stack_token.init.empty stack_token.init.empty stack_parser.init
+end
+
 data stack_ast_node (string value)
 data stack_ast_cond (stack_ast_node cond, array if_, array else_)
 data stack_ast_expr (int kind, ptr expr)
 data stack_ast_func (stack_ast_node name, array exprs)
 data stack_ast (array funcs)
+
+func stack_ast.init.empty () (stack_ast) in
+    stack_ast_func.sizeof array.init.with_sz stack_ast.init
+end
+
+func stack_parser.parse (stack_parser, stack_ast) (stack_ast, bool) in -- ast, ok
+    swp pop todo false
+end
 
 -- STACK ASSEMBLER
 
@@ -261,16 +277,16 @@ func emit (stack_assembler, string) () in -- asm, s
     swp stack_assembler.fd swp -- fd, s
     "\n" string.concat -- fd, s
     stdlib.fwrite
-    not if panic fi
+    unwrap
 end
 
 func stack_assembler.func.name' (int, string, array) (int) in -- i, name, array<string>
     dup array.count -- i, name, array<string>, c
     rot4 dup rot -- name, array<string>, i, i, c
     >= if -- name, array<string>, i
-        rot' swp string.& array.append not if panic fi -- i
+        rot' swp string.& array.append unwrap -- i
     else
-        dup2 array.get not if panic fi -- name, array<string>, i, ptr
+        dup2 array.get unwrap -- name, array<string>, i, ptr
         string.* -- name, array<string>, i, string
         rot4 dup rot string.= if -- array<string>, i, name
             rot pop2  -- i
@@ -291,9 +307,9 @@ func stack_assembler.literal.name' (int, stack_literal, array) (int) in -- i, na
     dup array.count -- i, literal, array<stack_literal>, c
     rot4 dup rot -- literal, array<stack_literal>, i, i, c
     >= if -- literal, array<stack_literal>, i
-        rot' swp stack_literal.& array.append not if panic fi -- i
+        rot' swp stack_literal.& array.append unwrap -- i
     else
-        dup2 array.get not if panic fi -- stack_literal, array<string>, i, ptr
+        dup2 array.get unwrap -- stack_literal, array<string>, i, ptr
         stack_literal.* -- literal, array<stack_literal>, i, item
         rot4 dup rot stack_literal.= if -- array<stack_literal>, i, literal
             rot pop2  -- i
@@ -404,7 +420,7 @@ func stack_assembler.emit.exprs' (int, stack_assembler, array) () in -- asm, arr
     >= if -- asm, array<expr>, i
         pop3
     else
-        dup2 array.get not if panic fi -- asm, array<expr>, i, ptr
+        dup2 array.get unwrap -- asm, array<expr>, i, ptr
         stack_ast_expr.* -- asm, array<expr>, i, expr
         rot4 dup rot stack_assembler.emit.expr rot' -- asm, array<expr>, i
         1 + rot' -- i+1, asm, array<expr>
@@ -441,7 +457,7 @@ func stack_assembler.emit.ast.funcs' (int, stack_assembler, array) () in -- i, a
     >= if -- asm, array<func>, i
         pop3
     else
-        dup2 array.get not if panic fi -- asm, array<func>, i, ptr
+        dup2 array.get unwrap -- asm, array<func>, i, ptr
         stack_ast_func.* -- asm, array<func>, i, func
         rot4 dup rot stack_assembler.emit.func rot' -- asm, array<func>, i
         1 + rot' -- i+1, asm, array<func>
@@ -553,7 +569,7 @@ func stack_assembler.emit.literals' (int, stack_assembler, array) () in -- i, as
     >= if -- asm, array<stack_literal>, i
         pop3
     else
-        dup2 array.get not if panic fi -- asm, array<stack_literal>, i, ptr
+        dup2 array.get unwrap -- asm, array<stack_literal>, i, ptr
         stack_literal.* -- asm, array<stack_literal>, i, stack_literal
         rot4 dup rot rot4 dup rot4' stack_assembler.emit.literal -- array<stack_literal>, asm, i
         rot swp 1 + rot' -- i+1, asm, array<stack_literal>
@@ -610,7 +626,7 @@ func stack_args.parse' (array, int, stack_args) (stack_args) in -- array, i, arg
         pop2
     else
         -- args array i string
-        swp dup2 array.get not if panic fi ptr.* dup ptr.strlen swp string.init -- args, array, i, string
+        swp dup2 array.get unwrap ptr.* dup ptr.strlen swp string.init -- args, array, i, string
 
         dup "--help" string.= swp dup "-h" string.= rot or if -- args, array, i, string
             pop stack_args.usage 0 sys.exit
@@ -641,12 +657,21 @@ func main (int, ptr) (int) in -- argc, argv
     dup stack_args.filename dup string.len 0 = if -- args, filename
         pop STDOUT
     else
-        "r" stdlib.fopen not if panic fi
+        "r" stdlib.fopen unwrap
     fi -- args, fd
 
-    stdlib.fread.<eof> not if panic fi -- args, string
+    stdlib.fread.<eof> unwrap -- args, string
     stack_lexer.init.with_buffer -- args, stack_lexer
-    dup stack_lexer.dump -- args, stack_lexer
+
+    swp dup stack_args.lexer if  -- stack_lexer, args
+        swp dup stack_lexer.dump -- args, stack_lexer
+        0 sys.exit swp
+    fi swp -- args, stack_lexer
+
+    stack_parser.init.with_lexer -- args, stack_parser
+    stack_ast.init.empty -- args, stack_parser, ast
+    stack_parser.parse -- args, stack_ast, ok
+    unwrap -- args, stack_ast
 
     pop2
 

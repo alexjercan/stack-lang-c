@@ -22,4 +22,4 @@ install:
 	cp -r lib $(LIBDIR)
 
 clean:
-	rm -rf main
+	rm -rf main slc main.o slc.o main.asm slc.asm
