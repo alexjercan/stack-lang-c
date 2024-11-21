@@ -237,13 +237,11 @@ const O_0644   420
 
 const stdlib.MAX_LINE 1024
 
-func abort () () in
-    1 sys.exit
-end
+const abort 1 sys.exit
 
-func panic () () in
-    "panic" STDERR swp stdlib.fwrite pop abort
-end
+const panic
+    __file__ ":" string.concat __line__ int.show string.concat ":" string.concat __col__ int.show string.concat ": " string.concat
+    "panic!\n" string.concat STDERR swp stdlib.fwrite pop abort
 
 func stdlib.fopen (string, string) (int, bool) in -- fn, md
     swp string.str swp

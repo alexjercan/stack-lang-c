@@ -55,6 +55,10 @@
 #define STACK_FUNC_BOOL_REF "bool.&"
 #define STACK_FUNC_BOOL_DEREF "bool.*"
 
+#define STACK_CONST_LINE "__line__"
+#define STACK_CONST_COL "__col__"
+#define STACK_CONST_FILE "__file__"
+
 /// LEXER
 
 #define SYMBOL_COMMA ','
@@ -353,15 +357,15 @@ int stack_lexer_pos_to_lc(stack_lexer *lexer, unsigned int pos, unsigned int *li
         return_defer(1);
     }
 
-    *line = 1;
-    *col = 1;
+    if (line != NULL) *line = 1;
+    if (col != NULL) *col = 1;
 
     for (unsigned int i = 0; i < pos; i++) {
         if (lexer->buffer[i] == '\n') {
-            *line += 1;
-            *col = 1;
+            if (line != NULL) *line += 1;
+            if (col != NULL) *col = 1;
         } else {
-            *col += 1;
+            if (col != NULL) *col += 1;
         }
     }
 
@@ -1550,14 +1554,56 @@ static void stack_preprocessor_generate_data_setters(stack_preprocessor *preproc
     }
 }
 
+static void stack_preprocessor_expand_const_update_pos(stack_preprocessor *preprocessor, stack_ast_expr *src, stack_ast_expr *dst) {
+    switch (dst->kind) {
+    case STACK_AST_EXPR_NUMBER:
+        dst->number.pos = src->name.pos;
+        dst->number.parser = src->name.parser;
+        break;
+    case STACK_AST_EXPR_BOOLEAN:
+        dst->boolean.pos = src->name.pos;
+        dst->boolean.parser = src->name.parser;
+        break;
+    case STACK_AST_EXPR_STRING:
+        dst->string.pos = src->name.pos;
+        dst->string.parser = src->name.parser;
+        break;
+    case STACK_AST_EXPR_NAME:
+        dst->name.pos = src->name.pos;
+        dst->name.parser = src->name.parser;
+        break;
+    case STACK_AST_EXPR_COND: {
+        for (unsigned int j = 0; j < dst->cond.if_.count; j++) {
+            stack_ast_expr *item = NULL;
+            DS_UNREACHABLE(ds_dynamic_array_get_ref(&dst->cond.if_, j, (void **)&item));
+            stack_preprocessor_expand_const_update_pos(preprocessor, src, item);
+        }
+        for (unsigned int j = 0; j < dst->cond.else_.count; j++) {
+            stack_ast_expr *item = NULL;
+            DS_UNREACHABLE(ds_dynamic_array_get_ref(&dst->cond.else_, j, (void **)&item));
+            stack_preprocessor_expand_const_update_pos(preprocessor, src, item);
+        }
+        break;
+    }
+    }
+}
+
 static void stack_preprocessor_expand_const_in_exprs(stack_preprocessor *preprocessor, stack_ast_const c, ds_dynamic_array *exprs /* stack_ast_expr */) {
     for (int i = exprs->count - 1; i >= 0; i--) {
         stack_ast_expr *item = NULL;
         DS_UNREACHABLE(ds_dynamic_array_get_ref(exprs, i, (void **)&item));
 
         if (item->kind == STACK_AST_EXPR_NAME && ds_string_slice_equals(&c.name.value, &item->name.value)) {
+            DS_EXPECT(ds_dynamic_array_insert_many(exprs, i + 1, c.exprs.items, c.exprs.count), DS_ERROR_OOM);
+
+            for (unsigned int j = 0; j < c.exprs.count; j++) {
+                unsigned int index = (unsigned int)i + 1 + j;
+                stack_ast_expr *item2 = NULL;
+                DS_UNREACHABLE(ds_dynamic_array_get_ref(exprs, index, (void **)&item2));
+                stack_preprocessor_expand_const_update_pos(preprocessor, item, item2);
+            }
+
             DS_UNREACHABLE(ds_dynamic_array_delete(exprs, i));
-            DS_EXPECT(ds_dynamic_array_insert_many(exprs, i, c.exprs.items, c.exprs.count), DS_ERROR_OOM);
         } else if (item->kind == STACK_AST_EXPR_COND) {
             stack_preprocessor_expand_const_in_exprs(preprocessor, c, &item->cond.if_);
             stack_preprocessor_expand_const_in_exprs(preprocessor, c, &item->cond.else_);
@@ -1578,6 +1624,55 @@ static void stack_preprocessor_expand_const(stack_preprocessor *preprocessor, st
         DS_UNREACHABLE(ds_dynamic_array_get_ref(&prog->funcs, i, (void **)&item));
 
         stack_preprocessor_expand_const_in_exprs(preprocessor, c, &item->body);
+    }
+}
+
+static void stack_preprocessor_expand_special_in_exprs(stack_preprocessor *preprocessor, ds_string_slice c, ds_dynamic_array *exprs /* stack_ast_expr */) {
+    for (int i = exprs->count - 1; i >= 0; i--) {
+        stack_ast_expr *item = NULL;
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(exprs, i, (void **)&item));
+
+        if (item->kind == STACK_AST_EXPR_NAME && ds_string_slice_equals(&c, &item->name.value)) {
+            stack_parser *parser = item->name.parser;
+            if (ds_string_slice_equals(&c, &DS_STRING_SLICE(STACK_CONST_FILE))) {
+                ds_string_builder sb = {0};
+                ds_string_slice name = {0};
+                ds_string_builder_init(&sb);
+                DS_EXPECT(ds_string_builder_append(&sb, "\"%s\"", parser->filename), DS_ERROR_OOM);
+                ds_string_builder_to_slice(&sb, &name);
+                *item = STACK_AST_EXPR_STRING(STACK_AST_NODE(name, parser, item->name.pos));
+            } else if (ds_string_slice_equals(&c, &DS_STRING_SLICE(STACK_CONST_LINE))) {
+                unsigned int line = 0;
+                DS_UNREACHABLE(stack_lexer_pos_to_lc(parser->lexer, item->name.pos, &line, NULL));
+                ds_string_builder sb = {0};
+                ds_string_slice name = {0};
+                ds_string_builder_init(&sb);
+                DS_EXPECT(ds_string_builder_append(&sb, "%d", line), DS_ERROR_OOM);
+                ds_string_builder_to_slice(&sb, &name);
+                *item = STACK_AST_EXPR_NUMBER(STACK_AST_NODE(name, parser, item->name.pos));
+            } else if (ds_string_slice_equals(&c, &DS_STRING_SLICE(STACK_CONST_COL))) {
+                unsigned int col = 0;
+                DS_UNREACHABLE(stack_lexer_pos_to_lc(parser->lexer, item->name.pos, NULL, &col));
+                ds_string_builder sb = {0};
+                ds_string_slice name = {0};
+                ds_string_builder_init(&sb);
+                DS_EXPECT(ds_string_builder_append(&sb, "%d", col), DS_ERROR_OOM);
+                ds_string_builder_to_slice(&sb, &name);
+                *item = STACK_AST_EXPR_NUMBER(STACK_AST_NODE(name, parser, item->name.pos));
+            }
+        } else if (item->kind == STACK_AST_EXPR_COND) {
+            stack_preprocessor_expand_special_in_exprs(preprocessor, c, &item->cond.if_);
+            stack_preprocessor_expand_special_in_exprs(preprocessor, c, &item->cond.else_);
+        }
+    }
+}
+
+static void stack_preprocessor_expand_special(stack_preprocessor *preprocessor, ds_string_slice c, stack_ast_prog *prog) {
+    for (unsigned int i = 0; i < prog->funcs.count; i++) {
+        stack_ast_func *item = NULL;
+        DS_UNREACHABLE(ds_dynamic_array_get_ref(&prog->funcs, i, (void **)&item));
+
+        stack_preprocessor_expand_special_in_exprs(preprocessor, c, &item->body);
     }
 }
 
@@ -1671,6 +1766,10 @@ int stack_preprocessor_run(stack_preprocessor *preprocessor, stack_ast_prog *pro
 
         stack_preprocessor_expand_const(preprocessor, item, prog);
     }
+
+    stack_preprocessor_expand_special(preprocessor, DS_STRING_SLICE(STACK_CONST_FILE), prog);
+    stack_preprocessor_expand_special(preprocessor, DS_STRING_SLICE(STACK_CONST_LINE), prog);
+    stack_preprocessor_expand_special(preprocessor, DS_STRING_SLICE(STACK_CONST_COL), prog);
 
 defer:
     ds_string_builder_free(&sb);
