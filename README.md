@@ -48,7 +48,7 @@ stack.
 
 The `ptr` data type is used to represent a pointer. It's value is an int64. All
 data types will be able to be converted between and into `ptr` for easy memory
-management.
+management (by referencing and dereferencing).
 
 #### 1.4. Functions
 
@@ -83,6 +83,10 @@ The dup function can be used to duplicate `any` item that is currently on the
 stack. The type of the `a` parameter is dependent of the context where this
 function is used. The stack compiler will use inference to determine the type
 of `a`.
+
+> **_NOTE:_**  This function will duplicate the pointer to the `a`, so changes
+> to the first item will reflect in the second one as well. To create an actual
+> copy you will need to allocate and memcpy the item.
 
 ##### 1.4.2. `swp`
 
