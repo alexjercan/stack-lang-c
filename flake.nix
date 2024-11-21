@@ -42,7 +42,7 @@
             set +o pipefail
 
             MEMCHECKER=valgrind
-            MAIN=main
+            MAIN=slc
             TESTS_DIR=tests
             TOTAL_TESTS=0
             PASSED_TESTS=0

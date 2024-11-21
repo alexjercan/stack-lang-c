@@ -104,6 +104,18 @@ func ptr.memcmp (ptr, ptr, int) (int) in -- s1, s2, n
     ptr.memcmp'
 end
 
+func ptr.strlen' (ptr, int) (int) in -- ptr, result
+    swp dup byte.init BYTE_NULL = if -- len, ptr
+        pop
+    else
+        1 ptr.+ swp 1 + ptr.strlen'
+    fi -- int
+end
+
+func ptr.strlen (ptr) (int) in -- ptr
+    0 ptr.strlen'
+end
+
 -- DATA INT
 data int extern
 
@@ -154,6 +166,8 @@ end
 
 -- DATA BOOL
 data bool extern
+
+const bool.sizeof INT_SIZE
 
 func > (int, int) (bool) extern
 func < (int, int) (bool) extern

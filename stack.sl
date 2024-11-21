@@ -114,11 +114,11 @@ end
 func stack_lexer.next.string (int, stack_lexer, int, string) (stack_token) in -- pos, stack_lexer, ch, result
     swp dup BYTE_QUOTE = not if -- pos, stack_lexer, result, ch
         dup BYTE_EOF = if -- pos, stack_lexer, result, ch
-            pop3 STACK_TOKEN_ILLEGAL "" STACK_ILLEGAL_STRING_EOF rot stack_token.init
+            pop3 STACK_TOKEN_ILLEGAL "" rot STACK_ILLEGAL_STRING_EOF stack_token.init
         else dup BYTE_NULL = if
-            pop3 STACK_TOKEN_ILLEGAL "" STACK_ILLEGAL_STRING_NULL rot stack_token.init
+            pop3 STACK_TOKEN_ILLEGAL "" rot STACK_ILLEGAL_STRING_NULL stack_token.init
         else dup BYTE_\N = if
-            pop3 STACK_TOKEN_ILLEGAL "" STACK_ILLEGAL_STRING_\N rot stack_token.init
+            pop3 STACK_TOKEN_ILLEGAL "" rot STACK_ILLEGAL_STRING_\N stack_token.init
         else
             dup BYTE_\ = if -- pos, stack_lexer, result, ch
                 byte.chr string.concat -- pos, stack_lexer, result
@@ -163,18 +163,20 @@ func stack_lexer.next.name (int, stack_lexer, int) (stack_token) in -- pos, stac
     else dup "false" string.= if
         pop3 STACK_TOKEN_BOOLEAN "false" rot stack_token.init.ok
     else dup "if" string.= if
-        pop3 STACK_TOKEN_BOOLEAN "" rot stack_token.init.ok
+        pop3 STACK_TOKEN_IF "" rot stack_token.init.ok
     else dup "else" string.= if
-        pop3 STACK_TOKEN_BOOLEAN "" rot stack_token.init.ok
+        pop3 STACK_TOKEN_ELSE "" rot stack_token.init.ok
     else dup "fi" string.= if
-        pop3 STACK_TOKEN_BOOLEAN "" rot stack_token.init.ok
+        pop3 STACK_TOKEN_FI "" rot stack_token.init.ok
     else dup "extern" string.= if
-        pop3 STACK_TOKEN_BOOLEAN "" rot stack_token.init.ok
+        pop3 STACK_TOKEN_EXTERN "" rot stack_token.init.ok
     else dup "const" string.= if
-        pop3 STACK_TOKEN_BOOLEAN "" rot stack_token.init.ok
+        pop3 STACK_TOKEN_CONST "" rot stack_token.init.ok
+    else dup "@import" string.= if
+        pop3 STACK_TOKEN_IMPORT "" rot stack_token.init.ok
     else
         rot4' pop2 STACK_TOKEN_NAME rot' stack_token.init.ok
-    fi fi fi fi fi fi fi fi fi fi fi fi -- stack_token
+    fi fi fi fi fi fi fi fi fi fi fi fi fi -- stack_token
 end
 
 func stack_lexer.next (stack_lexer) (stack_token) in
@@ -585,41 +587,72 @@ func stack_assembler.emit (stack_assembler, stack_ast) () in -- asm, ast
     pop2
 end
 
-func main () (int) in
-    "-101 \"asd\" func main () (int) in 0 end # -- comment " stack_lexer.init.with_buffer -- stack_lexer
+data stack_args (string filename, bool lexer)
 
-    dup stack_lexer.dump -- stack_lexer
+func stack_args.init.empty () (stack_args) in
+    "" false stack_args.init
+end
 
-    pop
+func stack_args.usage () () in
+    "usage: slc [option] [input]\n" string.stdout
+    "stack lang compiler\n" string.stdout
+    "\n" string.stdout
+    "options:\n" string.stdout
+    "  -h, --help\n" string.stdout
+    "      print this help message\n" string.stdout
+    "\n" string.stdout
+    "  -l, --lexer\n" string.stdout
+    "      flag to stop on the lexer phase\n" string.stdout
+    "\n" string.stdout
+    "  i, input\n" string.stdout
+    "      the input file\n" string.stdout
+    "\n" string.stdout
+end
 
-    -- STDOUT stack_assembler.init.with_fd -- asm
+func stack_args.parse' (array, int, stack_args) (stack_args) in -- array, i, args
+    swp rot dup2 array.count >= if -- args, i, array
+        pop2
+    else
+        -- args array i string
+        swp dup2 array.get not if panic fi ptr.* dup ptr.strlen swp string.init -- args, array, i, string
 
-    -- -- asm
-    -- STACK_FUNC_MAIN stack_ast_node.init -- node
+        dup "--help" string.= swp dup "-h" string.= rot or if -- args, array, i, string
+            pop stack_args.usage 0 sys.exit
+        else dup "--lexer" string.= swp dup "-l" string.= rot or if
+            rot4 dup true stack_args.lexer.set rot4' pop
+        else
+            -- array, i, string args L
+            rot4 dup stack_args.filename string.len 0 > if -- array, i, string, args
+                rot4' stack_args.usage
+                "Got unexpected CLI argument: `" swp string.concat "`\n" string.concat string.stderr 1 sys.exit
+            else
+                dup rot stack_args.filename.set rot'
+            fi -- args, array, i
+        fi fi -- args, array, i
 
-    -- STACK_AST_EXPR_COND -- s
-    -- "if" stack_ast_node.init -- s, if
-    -- STACK_AST_EXPR_NUMBER "27" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- s, if, 27
-    -- stack_ast_expr.sizeof array.init.with_sz -- s, if, 27, array<expr>
-    -- dup rot stack_ast_expr.& array.append not if panic fi -- s, if, array<expr>
-    -- STACK_AST_EXPR_NUMBER "42" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- s, if, array<expr>, 42
-    -- stack_ast_expr.sizeof array.init.with_sz -- s, if, array<expr>, 42, array<expr>
-    -- dup rot stack_ast_expr.& array.append not if panic fi -- s, if, array<expr>, array<expr>
-    -- stack_ast_cond.init stack_ast_cond.& stack_ast_expr.init -- if
+        1 + rot -- array, i+1, args
+        stack_args.parse' -- args
+    fi -- args
+end
 
-    -- STACK_AST_EXPR_BOOLEAN "true" stack_ast_node.init stack_ast_node.& stack_ast_expr.init -- bool
+func stack_args.parse (int, ptr) (stack_args) in -- argc, argv
+    swp dup ptr.sizeof rot4 array.init 1 stack_args.init.empty stack_args.parse'
+end
 
-    -- stack_ast_expr.sizeof array.init.with_sz -- node, if, bool, array<expr>
-    -- dup rot stack_ast_expr.& array.append not if panic fi
-    -- dup rot stack_ast_expr.& array.append not if panic fi
-    -- stack_ast_func.init -- func
+func main (int, ptr) (int) in -- argc, argv
+    stack_args.parse -- args
 
-    -- stack_ast_func.sizeof array.init.with_sz -- func, array<func>
-    -- dup rot stack_ast_func.& array.append not if panic fi -- array<func>
-    -- stack_ast.init -- ast
+    dup stack_args.filename dup string.len 0 = if -- args, filename
+        pop STDOUT
+    else
+        "r" stdlib.fopen not if panic fi
+    fi -- args, fd
 
-    -- -- asm, ast
-    -- stack_assembler.emit -- ()
+    stdlib.fread.<eof> not if panic fi -- args, string
+    stack_lexer.init.with_buffer -- args, stack_lexer
+    dup stack_lexer.dump -- args, stack_lexer
+
+    pop2
 
     0
 end

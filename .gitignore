@@ -4,3 +4,4 @@ main
 *.asm
 *.o
 compile_flags.txt
+slc

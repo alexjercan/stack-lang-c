@@ -2618,8 +2618,17 @@ static void stack_assembler_emit_entry(stack_assembler *assembler) {
     EMIT("    ; Initialize the memory");
     EMIT("    call allocator_init");
     EMIT("");
+    EMIT("    ; store argc on the stack");
+    EMIT("    mov     rdi, qword [rsp]");
+    EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    ; store argv on the stack");
+    EMIT("    mov     rdi, rsp");
+    EMIT("    add     rdi, 8");
+    EMIT("    call    stack_push");
+    EMIT("");
     EMIT("    ; Call the main method");
-    EMIT("    call   func.%lu ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_MAIN)), NULL), STACK_FUNC_MAIN);
+    EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_MAIN)), NULL), STACK_FUNC_MAIN);
     EMIT("");
     EMIT("    ; Exit the program");
     EMIT("    call    stack_pop");

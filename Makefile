@@ -9,6 +9,9 @@ all: build
 
 build:
 	$(CC) $(CFLAGS) -o main main.c
+	./main stack.sl -a > slc.asm
+	fasm slc.asm
+	ld slc.o -o slc
 
 .PHONY: clean install
 
