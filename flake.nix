@@ -42,7 +42,7 @@
             set +o pipefail
 
             MEMCHECKER=valgrind
-            MAIN=slc
+            MAIN=main
             TESTS_DIR=tests
             TOTAL_TESTS=0
             PASSED_TESTS=0
@@ -97,13 +97,14 @@
             }
 
             usage() {
-                echo "Usage: $0 [--all | --lexer | --parser] [--memcheck] [-h | --help]"
+                echo "Usage: $0 [--all | --lexer | --parser] [--memcheck] [--main <main>] [-h | --help]"
                 echo
                 echo "Options:"
                 echo "  --all           Enable 'all' mode."
                 echo "  --lexer         Enable 'lexer' mode."
                 echo "  --parser        Enable 'parser' mode."
                 echo "  --memcheck      Enable memory check."
+                echo "  --main <main>   Switch to a different main. Default is 'main'"
                 echo "  -h, --help      Show this help message and exit."
             }
 
@@ -130,6 +131,17 @@
                             ;;
                         --memcheck)
                             MEMCHECK=1
+                            shift
+                            ;;
+                        --main)
+                            if [ -z "$2" ]; then
+                                echo "$1"
+                                echo "$2"
+                                usage
+                                exit 1
+                            fi
+                            MAIN="$2"
+                            shift
                             shift
                             ;;
                         -h|--help)
