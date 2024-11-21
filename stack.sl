@@ -18,9 +18,8 @@ const STACK_TOKEN_IF	    12
 const STACK_TOKEN_ELSE	    13
 const STACK_TOKEN_FI	    14
 const STACK_TOKEN_DATA	    15
-const STACK_TOKEN_EXTERN	16
-const STACK_TOKEN_IMPORT	17
-const STACK_TOKEN_CONST	    18
+const STACK_TOKEN_IMPORT	16
+const STACK_TOKEN_CONST	    17
 
 func stack_token_kind.map (int) (string) in
     dup STACK_TOKEN_EOF = if pop "<EOF>"
@@ -39,10 +38,9 @@ func stack_token_kind.map (int) (string) in
     else dup STACK_TOKEN_ELSE = if pop "ELSE"
     else dup STACK_TOKEN_FI = if pop "FI"
     else dup STACK_TOKEN_DATA = if pop "DATA"
-    else dup STACK_TOKEN_EXTERN = if pop "EXTERN"
     else dup STACK_TOKEN_IMPORT = if pop "IMPORT"
     else dup STACK_TOKEN_CONST = if pop "CONST"
-    else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- (string)
+    else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- (string)
 end
 
 const STACK_ILLEGAL_NO_ERROR    0
@@ -168,15 +166,13 @@ func stack_lexer.next.name (int, stack_lexer, int) (stack_token) in -- pos, stac
         pop3 STACK_TOKEN_ELSE "" rot stack_token.init.ok
     else dup "fi" string.= if
         pop3 STACK_TOKEN_FI "" rot stack_token.init.ok
-    else dup "extern" string.= if
-        pop3 STACK_TOKEN_EXTERN "" rot stack_token.init.ok
     else dup "const" string.= if
         pop3 STACK_TOKEN_CONST "" rot stack_token.init.ok
     else dup "@import" string.= if
         pop3 STACK_TOKEN_IMPORT "" rot stack_token.init.ok
     else
         rot4' pop2 STACK_TOKEN_NAME rot' stack_token.init.ok
-    fi fi fi fi fi fi fi fi fi fi fi fi fi -- stack_token
+    fi fi fi fi fi fi fi fi fi fi fi fi -- stack_token
 end
 
 func stack_lexer.next (stack_lexer) (stack_token) in
