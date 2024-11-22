@@ -59,7 +59,31 @@ func stack_token.init.ok (int, string, int) (stack_token) in -- kind, value, pos
     STACK_ILLEGAL_NO_ERROR stack_token.init
 end
 
-data stack_lexer (string buffer, int pos, int read_pos, int ch)
+data stack_lexer (string buffer, int pos, int read_pos, int ch, string filename)
+
+func stack_lexer.init.with_buffer (string, string) (stack_lexer) in -- buffer, filename
+    0 0 0 rot4 stack_lexer.init dup stack_lexer.read pop -- stack_lexer
+end
+
+func stack_lexer.pos.to_lc' (stack_lexer, int) (int, int) in -- lexer, pos
+    dup 0 >= if -- lexer, pos
+        swp dup stack_lexer.buffer -- pos, lexer, string
+        -- lexer, pos
+        rot dup rot swp string.!! BYTE_\N = if -- lexer, pos
+            1 - stack_lexer.pos.to_lc' -- line, col
+            pop 1 + 1 -- line+1, 1
+        else
+            1 - stack_lexer.pos.to_lc' -- line, col
+            1 + -- line, col+1
+        fi
+    else
+        pop2 1 1
+    fi -- int, int
+end
+
+func stack_lexer.pos.to_lc (stack_lexer, int) (int, int) in -- lexer, pos
+    1 - stack_lexer.pos.to_lc'
+end
 
 func stack_lexer.peek (stack_lexer) (int) in
     dup stack_lexer.buffer dup2 -- lexer, buffer, lexer, buffer
@@ -88,10 +112,6 @@ func stack_lexer.skip.until_newline (stack_lexer) () in
     pop or not if -- stack_lexer
         dup stack_lexer.read pop stack_lexer.skip.until_newline -- ()
     else pop fi
-end
-
-func stack_lexer.init.with_buffer (string) (stack_lexer) in
-    0 0 0 stack_lexer.init dup stack_lexer.read pop -- stack_lexer
 end
 
 func stack_lexer.next.number' (int, stack_lexer, int, string) (string) in -- pos, stack_lexer, ch, result
@@ -181,7 +201,7 @@ end
 
 func stack_lexer.next (stack_lexer) (stack_token) in
     dup stack_lexer.skip.whitespace -- stack_lexer
-    dup stack_lexer.pos swp -- pos, stack_lexer
+    dup stack_lexer.pos 0 + swp -- pos, stack_lexer
     dup stack_lexer.ch -- pos, stack_lexer, ch
     dup BYTE_EOF = if -- pos, stack_lexer, ch
         pop stack_lexer.read pop STACK_TOKEN_EOF "" rot stack_token.init.ok
@@ -315,6 +335,32 @@ func stack_parser.parse.cond (stack_parser) (stack_ast_cond) in
     pop stack_ast_cond.init -- cond
 end
 
+func stack_parser.illegal.showf (stack_parser) () in
+    dup stack_parser.lexer stack_lexer.filename string.stdout ":" string.stdout
+
+    dup dup stack_parser.lexer swp stack_parser.peek stack_token.pos -- parser, lexer, pos
+    stack_lexer.pos.to_lc -- parser, line, col
+    swp int.show string.stdout ":" string.stdout int.show string.stdout
+    ", " string.stdout "Lexical Error: " string.stdout
+
+    dup stack_parser.peek dup stack_token.err -- parser, tok, err
+    dup STACK_ILLEGAL_INVALID = if -- parser, tok, err
+        "Invalid character: " string.stdout pop2
+    else dup STACK_ILLEGAL_STRING_NULL = if
+        "String contains null character" string.stdout pop2
+    else dup STACK_ILLEGAL_STRING_\N = if
+        "String contains new line character" string.stdout pop2
+    else dup STACK_ILLEGAL_STRING_EOF = if
+        "Unterminated string" string.stdout pop2
+    else
+        panic pop2
+    fi fi fi fi -- parser
+
+    "\n" string.stdout
+
+    pop
+end
+
 func stack_parser.parse.expr (stack_parser) (stack_ast_expr, bool) in
     dup stack_parser.peek stack_token.kind STACK_TOKEN_NAME = if -- parser
         dup stack_parser.read -- parser, tok
@@ -340,9 +386,12 @@ func stack_parser.parse.expr (stack_parser) (stack_ast_expr, bool) in
         stack_parser.parse.cond -- stack_ast_cond
         STACK_AST_EXPR_COND swp stack_ast_cond.& stack_ast_expr.init -- expr
         true
+    else dup stack_parser.peek stack_token.kind STACK_TOKEN_ILLEGAL = if
+        dup stack_parser.illegal.showf
+        pop 0 0 int.& stack_ast_expr.init false
     else
         pop 0 0 int.& stack_ast_expr.init false
-    fi fi fi fi fi -- expr, ok
+    fi fi fi fi fi fi -- expr, ok
 end
 
 func stack_parser.parse.func (stack_parser) (stack_ast_func) in -- parser
@@ -650,7 +699,7 @@ func stack_ast.dump' (int, array) () in
         else dup stack_ast_feature.kind STACK_AST_FEATURE_IMPORT = if -- i, array, feat
             "@import " string.stdout
             stack_ast_feature.feature stack_ast_const.* dup stack_ast_const.name stack_ast_node.value string.stdout -- i, array, import
-            "\n" string.stdout
+            "\n\n" string.stdout
 
             pop
         else
@@ -1097,6 +1146,7 @@ func main (int, ptr) (int) in -- argc, argv
     fi dup -- args, fd, fd
 
     stdlib.fread.<eof> unwrap -- args, fd, string
+    rot dup stack_args.filename dup string.len 0 = if pop "stdin" fi swp rot4' -- args, fd, string, filename
     stack_lexer.init.with_buffer -- args, fd, stack_lexer
 
     rot dup stack_args.lexer if  -- fd, stack_lexer, args

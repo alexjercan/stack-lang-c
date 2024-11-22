@@ -1,5 +1,3 @@
-func plus in + end
-
-func main in
-    27 42 plus
+func main () (int) in
+    0
 end
