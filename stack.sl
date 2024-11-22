@@ -603,30 +603,39 @@ func stack_assembler.emit.func (stack_assembler, stack_ast_func) () in -- asm, f
     pop2
 end
 
-func stack_assembler.emit.ast.funcs' (int, stack_assembler, array) () in -- i, asm, a
-    dup array.count -- i, asm, array<func>, c
-    rot4 dup rot -- asm, array<func>, i, i, c
-    >= if -- asm, array<func>, i
+func stack_assembler.emit.feature (stack_assembler, stack_ast_feature) () in -- asm, feature
+    dup stack_ast_feature.kind
+    dup STACK_AST_FEATURE_DATA = if -- asm, feat, kind
+        todo pop3
+    else dup STACK_AST_FEATURE_FUNC = if
+        pop stack_ast_feature.feature stack_ast_func.* stack_assembler.emit.func
+    else
+        todo pop3
+    fi fi -- ()
+end
+
+func stack_assembler.emit.ast.features' (int, stack_assembler, array) () in -- i, asm, array<stack_ast_feature>
+    dup array.count -- i, asm, array<feature>, c
+    rot4 dup rot -- asm, array<feature>, i, i, c
+    >= if -- asm, array<feature>, i
         pop3
     else
-        dup2 array.get unwrap -- asm, array<func>, i, ptr
-        stack_ast_func.* -- asm, array<func>, i, func
-        rot4 dup rot stack_assembler.emit.func rot' -- asm, array<func>, i
-        1 + rot' -- i+1, asm, array<func>
-        stack_assembler.emit.ast.funcs' -- ()
+        dup2 array.get unwrap -- asm, array<feature>, i, ptr
+        stack_ast_feature.* -- asm, array<feature>, i, feature
+        rot4 dup rot stack_assembler.emit.feature rot' -- asm, array<feature>, i
+        1 + rot' -- i+1, asm, array<feature>
+        stack_assembler.emit.ast.features' -- ()
     fi -- ()
 end
 
-func stack_assembler.emit.ast.funcs (stack_assembler, array) () in 0 rot' stack_assembler.emit.ast.funcs' end
+func stack_assembler.emit.ast.features (stack_assembler, array) () in 0 rot' stack_assembler.emit.ast.features' end
 
 func stack_assembler.emit.ast (stack_assembler, stack_ast) () in -- asm, prog
     swp
     dup "section '.text' executable" emit
     dup ""                           emit
 
-    -- dup2 swp stack_ast.funcs stack_assembler.emit.ast.funcs
-    todo
-    -- TODO: iterate features and match on kind if func ->
+    dup2 swp stack_ast.features stack_assembler.emit.ast.features
 
     pop2
 end
