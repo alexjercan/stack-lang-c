@@ -921,9 +921,13 @@ func stack_assembler.emit.feature (stack_assembler, stack_ast_feature) () in -- 
         todo pop3
     else dup STACK_AST_FEATURE_FUNC = if
         pop stack_ast_feature.feature stack_ast_func.* stack_assembler.emit.func
+    else dup STACK_AST_FEATURE_CONST = if
+        pop3 -- nothing to do for const in asm
+    else dup STACK_AST_FEATURE_IMPORT = if
+        pop3 -- nothing to do for import in asm
     else
         todo pop3
-    fi fi -- ()
+    fi fi fi fi -- ()
 end
 
 func stack_assembler.emit.ast.features' (int, stack_assembler, array) () in -- i, asm, array<stack_ast_feature>
