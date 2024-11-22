@@ -1,0 +1,13 @@
+data void
+
+data test
+    int: x
+
+data ivec2
+    x: int
+    y: int
+
+data string
+    len: int
+    str: ptr
+
