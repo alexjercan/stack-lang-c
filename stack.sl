@@ -243,9 +243,18 @@ func stack_parser.parse.exprs.until (stack_parser, int, array) (array) in
     rot' dup2 swp stack_parser.peek stack_token.kind = if -- arr p kind
         pop stack_parser.read pop -- array
     else
-        swp dup stack_parser.parse.expr -- arr kind p expr
+        swp dup stack_parser.parse.expr unwrap -- arr kind p expr
         rot4 dup rot stack_ast_expr.& array.append unwrap -- kind parser arr
         rot' swp rot stack_parser.parse.exprs.until -- array
+    fi -- array
+end
+
+func stack_parser.parse.exprs.while (stack_parser, array) (array) in -- parser, array<expr>
+    swp dup stack_parser.parse.expr if -- array, parser, expr
+        rot dup rot stack_ast_expr.& array.append unwrap -- parser, array
+        stack_parser.parse.exprs.while -- array
+    else
+        pop2
     fi -- array
 end
 
@@ -254,7 +263,7 @@ func stack_parser.parse.exprs.until2 (stack_parser, int, int, array) (array) in
     swp dup stack_parser.peek stack_token.kind rot4 = rot or if -- arr, parser, k1, k2, parser
         pop3 stack_parser.read pop -- array
     else
-        pop rot4 rot4 dup stack_parser.parse.expr -- k1, k2, array, parser, expr
+        pop rot4 rot4 dup stack_parser.parse.expr unwrap -- k1, k2, array, parser, expr
         rot dup rot stack_ast_expr.& array.append unwrap -- k1, k2, parser, array
         swp rot4' stack_parser.parse.exprs.until2 -- array
     fi -- array
@@ -306,29 +315,34 @@ func stack_parser.parse.cond (stack_parser) (stack_ast_cond) in
     pop stack_ast_cond.init -- cond
 end
 
-func stack_parser.parse.expr (stack_parser) (stack_ast_expr) in
+func stack_parser.parse.expr (stack_parser) (stack_ast_expr, bool) in
     dup stack_parser.peek stack_token.kind STACK_TOKEN_NAME = if -- parser
         dup stack_parser.read -- parser, tok
         dup stack_token.value swp stack_token.pos stack_ast_node.init -- node
         STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- expr
+        true
     else dup stack_parser.peek stack_token.kind STACK_TOKEN_NUMBER = if
         dup stack_parser.read -- parser, tok
         dup stack_token.value swp stack_token.pos stack_ast_node.init -- node
         STACK_AST_EXPR_NUMBER swp stack_ast_node.& stack_ast_expr.init -- expr
+        true
     else dup stack_parser.peek stack_token.kind STACK_TOKEN_BOOLEAN = if
         dup stack_parser.read -- parser, tok
         dup stack_token.value swp stack_token.pos stack_ast_node.init -- node
         STACK_AST_EXPR_BOOLEAN swp stack_ast_node.& stack_ast_expr.init -- expr
+        true
     else dup stack_parser.peek stack_token.kind STACK_TOKEN_STRING = if
         dup stack_parser.read -- parser, tok
         dup stack_token.value swp stack_token.pos stack_ast_node.init -- node
         STACK_AST_EXPR_STRING swp stack_ast_node.& stack_ast_expr.init -- expr
+        true
     else dup stack_parser.peek stack_token.kind STACK_TOKEN_IF = if
         stack_parser.parse.cond -- stack_ast_cond
         STACK_AST_EXPR_COND swp stack_ast_cond.& stack_ast_expr.init -- expr
+        true
     else
-        panic pop 0 0 int.& stack_ast_expr.init
-    fi fi fi fi fi -- expr
+        pop 0 0 int.& stack_ast_expr.init false
+    fi fi fi fi fi -- expr, ok
 end
 
 func stack_parser.parse.func (stack_parser) (stack_ast_func) in -- parser
@@ -390,6 +404,17 @@ func stack_parser.parse.data (stack_parser) (stack_ast_data) in -- parser
     stack_ast_data.init -- data
 end
 
+func stack_parser.parse.const (stack_parser) (stack_ast_const) in -- parser
+    dup stack_parser.read stack_token.kind STACK_TOKEN_CONST = unwrap -- parser
+    dup stack_parser.read dup stack_token.kind STACK_TOKEN_NAME = unwrap -- parser tok
+    dup2 stack_token.value rot stack_token.pos stack_ast_node.init swp -- name, parser
+
+    dup stack_ast_expr.sizeof array.init.with_sz stack_parser.parse.exprs.while swp -- name, array<stack_ast_data_field>, parser
+
+    pop -- name, array
+    stack_ast_const.init -- const
+end
+
 func stack_parser.parse' (stack_parser, stack_ast) (stack_ast) in -- parser, ast
     swp dup stack_parser.peek dup stack_token.kind STACK_TOKEN_EOF = if -- ast, parser, tok
         pop2
@@ -403,7 +428,8 @@ func stack_parser.parse' (stack_parser, stack_ast) (stack_ast) in -- parser, ast
         else dup stack_token.kind STACK_TOKEN_IMPORT = if
             todo pop swp
         else dup stack_token.kind STACK_TOKEN_CONST = if
-            todo pop swp
+            pop dup stack_parser.parse.const -- ast, parser, const
+            rot dup rot stack_ast.features.append.const -- parser, ast
         else
             panic pop swp
         fi fi fi fi -- parser, ast
@@ -433,9 +459,11 @@ data stack_ast_data_field (stack_ast_node type, stack_ast_node name)
 
 data stack_ast_data (stack_ast_node name, array fields)
 data stack_ast_func (stack_ast_node name, array args, array rets, array exprs)
+data stack_ast_const (stack_ast_node name, array exprs)
 
 const STACK_AST_FEATURE_DATA 0
 const STACK_AST_FEATURE_FUNC 1
+const STACK_AST_FEATURE_CONST 2
 
 data stack_ast_feature (int kind, ptr feature)
 
@@ -455,6 +483,10 @@ end
 
 func stack_ast.features.append.data (stack_ast, stack_ast_data) () in
     stack_ast_data.& STACK_AST_FEATURE_DATA swp stack_ast_feature.init stack_ast.features.append
+end
+
+func stack_ast.features.append.const (stack_ast, stack_ast_const) () in
+    stack_ast_const.& STACK_AST_FEATURE_CONST swp stack_ast_feature.init stack_ast.features.append
 end
 
 const stack_ast.dump.indent 4
@@ -589,9 +621,19 @@ func stack_ast.dump' (int, array) () in
             "\n" string.stdout
 
             pop
+        else dup stack_ast_feature.kind STACK_AST_FEATURE_CONST = if -- i, array, feat
+            "const " string.stdout
+            stack_ast_feature.feature stack_ast_const.* dup stack_ast_const.name stack_ast_node.value string.stdout -- i, array, const
+            "\n" string.stdout
+
+            dup stack_ast_const.exprs -- i, array, const, exprs
+            stack_ast.dump.indent swp stack_ast.dump.exprs -- i, array, const
+            "\n" string.stdout
+
+            pop
         else
             todo pop
-        fi fi -- i, array
+        fi fi fi -- i, array
 
         swp 1 + swp stack_ast.dump'
     else
