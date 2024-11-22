@@ -1,0 +1,19 @@
+func sum
+    arg0: int
+    arg1: int
+    ret0: int
+    body:
+        doing
+        some
+        stuff
+
+func prod
+    arg0: string
+    arg1: int
+    ret0: string
+    ret1: bool
+    body:
+        sum
+        sum
+        sum
+

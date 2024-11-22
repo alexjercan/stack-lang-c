@@ -1,0 +1,13 @@
+func main
+    ret0: int
+    body:
+        read_some
+        stuff
+        =
+        IF
+            simple_if
+        ELSE
+            some_other
+            stuff
+        FI
+

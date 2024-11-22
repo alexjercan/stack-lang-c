@@ -1,0 +1,19 @@
+func main
+    ret0: int
+    body:
+        read_some
+        stuff
+        =
+        IF
+            do_some_on
+            the_if_branch
+            IF
+                do_some_more
+                stuff_only_if
+            ELSE
+            FI
+        ELSE
+            some_other
+            stuff
+        FI
+

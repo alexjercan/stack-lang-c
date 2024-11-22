@@ -249,6 +249,35 @@ func stack_parser.parse.exprs.until (stack_parser, int, array) (array) in
     fi -- array
 end
 
+func stack_parser.parse.names.until' (stack_parser, array) (array) in
+    swp dup stack_parser.read -- arr, p, tok
+
+    dup stack_token.kind STACK_TOKEN_NAME = if -- arr, p, tok
+        -- ok
+    else
+        todo
+    fi -- arr, p, tok
+
+    dup2 stack_token.value rot stack_token.pos stack_ast_node.init -- arr, p, node
+    rot dup rot stack_ast_node.& array.append unwrap -- parser arr
+
+    swp dup stack_parser.read dup stack_token.kind STACK_TOKEN_RPAREN = if -- arr, parser, tok
+        pop2
+    else dup stack_token.kind STACK_TOKEN_COMMA = if
+        pop swp stack_parser.parse.names.until'
+    else
+        todo pop2
+    fi fi -- array
+end
+
+func stack_parser.parse.names.until (stack_parser, array) (array) in
+    swp dup stack_parser.peek stack_token.kind STACK_TOKEN_RPAREN = if -- arr p
+        stack_parser.read pop -- array
+    else
+        swp stack_parser.parse.names.until'
+    fi -- array
+end
+
 func stack_parser.parse.expr (stack_parser) (stack_ast_expr) in
     dup stack_parser.peek stack_token.kind STACK_TOKEN_NAME = if -- parser
         dup stack_parser.read -- parser, tok
@@ -278,10 +307,14 @@ func stack_parser.parse.func (stack_parser) (stack_ast_func) in -- parser
     dup stack_parser.read dup stack_token.kind STACK_TOKEN_NAME = not if todo fi -- parser tok
     dup2 stack_token.value rot stack_token.pos stack_ast_node.init swp -- name, parser
 
-    -- TODO: add args and rets
+    dup stack_parser.read stack_token.kind STACK_TOKEN_LPAREN = not if todo fi -- name, parser
+    dup stack_ast_node.sizeof array.init.with_sz stack_parser.parse.names.until swp -- name, array<stack_ast_node>, parser
+
+    dup stack_parser.read stack_token.kind STACK_TOKEN_LPAREN = not if todo fi -- name, args, parser
+    dup stack_ast_node.sizeof array.init.with_sz stack_parser.parse.names.until swp -- name, args, rets, parser
 
     dup stack_parser.read stack_token.kind STACK_TOKEN_IN = not if todo fi -- name, parser
-    STACK_TOKEN_END stack_ast_expr.sizeof array.init.with_sz stack_parser.parse.exprs.until -- name, array
+    dup STACK_TOKEN_END stack_ast_expr.sizeof array.init.with_sz stack_parser.parse.exprs.until swp pop -- name, args, rets, exprs
     stack_ast_func.init -- func
 end
 
@@ -324,7 +357,7 @@ const STACK_AST_EXPR_COND 4
 data stack_ast_expr (int kind, ptr expr)
 
 data stack_ast_data (stack_ast_node name)
-data stack_ast_func (stack_ast_node name, array exprs)
+data stack_ast_func (stack_ast_node name, array args, array rets, array exprs)
 
 const STACK_AST_FEATURE_DATA 0
 const STACK_AST_FEATURE_FUNC 1
@@ -345,7 +378,7 @@ func stack_ast.features.append.func (stack_ast, stack_ast_func) () in
     stack_ast_func.& STACK_AST_FEATURE_FUNC swp stack_ast_feature.init stack_ast.features.append
 end
 
-const stack_ast.dump.indent 2
+const stack_ast.dump.indent 4
 
 func stack_ast.dump.exprs' (int, int, array) () in -- indent, i, exprs
     dup2 array.count < if -- indent, i, exprs
@@ -378,6 +411,38 @@ end
 
 func stack_ast.dump.exprs (int, array) () in 0 swp stack_ast.dump.exprs' end
 
+func stack_ast.dump.args' (int, int, array) () in -- indent, i, names
+    dup2 array.count < if -- indent, i, name
+        dup2 swp array.get unwrap stack_ast_node.* -- indent, i, names, node
+
+        rot4 dup " " swp string.repeat string.stdout -- i, names, node, indent
+        rot4 dup int.show "arg" swp string.concat string.stdout ": " string.stdout -- names, node, indent, i
+        rot stack_ast_node.value string.stdout "\n" string.stdout -- names, indent, i
+
+        1 + rot stack_ast.dump.args' -- ()
+    else
+        pop3
+    fi -- ()
+end
+
+func stack_ast.dump.args (int, array) () in 0 swp stack_ast.dump.args' end
+
+func stack_ast.dump.rets' (int, int, array) () in -- indent, i, names
+    dup2 array.count < if -- indent, i, name
+        dup2 swp array.get unwrap stack_ast_node.* -- indent, i, names, node
+
+        rot4 dup " " swp string.repeat string.stdout -- i, names, node, indent
+        rot4 dup int.show "ret" swp string.concat string.stdout ": " string.stdout -- names, node, indent, i
+        rot stack_ast_node.value string.stdout "\n" string.stdout -- names, indent, i
+
+        1 + rot stack_ast.dump.rets' -- ()
+    else
+        pop3
+    fi -- ()
+end
+
+func stack_ast.dump.rets (int, array) () in 0 swp stack_ast.dump.rets' end
+
 func stack_ast.dump' (int, array) () in
     dup2 array.count < if -- i, array
         dup2 swp array.get unwrap stack_ast_feature.* -- i, array, feat
@@ -387,9 +452,19 @@ func stack_ast.dump' (int, array) () in
             "func " string.stdout
             stack_ast_feature.feature stack_ast_func.* dup stack_ast_func.name stack_ast_node.value string.stdout -- i, array, func
             "\n" string.stdout
-            stack_ast_func.exprs -- i, array, exprs
+
+            dup stack_ast_func.args -- i, array, func, args
+            stack_ast.dump.indent swp stack_ast.dump.args -- i, array, func
+
+            dup stack_ast_func.rets -- i, array, func, rets
+            stack_ast.dump.indent swp stack_ast.dump.rets -- i, array, func
+
+            dup stack_ast_func.exprs -- i, array, func, exprs
             " " stack_ast.dump.indent string.repeat string.stdout "body:\n" string.stdout
-            stack_ast.dump.indent stack_ast.dump.indent + swp stack_ast.dump.exprs -- i, array
+            stack_ast.dump.indent stack_ast.dump.indent + swp stack_ast.dump.exprs -- i, array, func
+            "\n" string.stdout
+
+            pop
         else
             todo pop
         fi fi -- i, array
