@@ -263,11 +263,7 @@ end
 func stack_parser.parse.names.until' (stack_parser, array) (array) in
     swp dup stack_parser.read -- arr, p, tok
 
-    dup stack_token.kind STACK_TOKEN_NAME = if -- arr, p, tok
-        -- ok
-    else
-        todo
-    fi -- arr, p, tok
+    dup stack_token.kind STACK_TOKEN_NAME = unwrap -- arr, p, tok
 
     dup2 stack_token.value rot stack_token.pos stack_ast_node.init -- arr, p, node
     rot dup rot stack_ast_node.& array.append unwrap -- parser arr
@@ -277,7 +273,7 @@ func stack_parser.parse.names.until' (stack_parser, array) (array) in
     else dup stack_token.kind STACK_TOKEN_COMMA = if
         pop swp stack_parser.parse.names.until'
     else
-        todo pop2
+        panic pop2
     fi fi -- array
 end
 
@@ -331,22 +327,22 @@ func stack_parser.parse.expr (stack_parser) (stack_ast_expr) in
         stack_parser.parse.cond -- stack_ast_cond
         STACK_AST_EXPR_COND swp stack_ast_cond.& stack_ast_expr.init -- expr
     else
-        todo pop 0 0 int.& stack_ast_expr.init
+        panic pop 0 0 int.& stack_ast_expr.init
     fi fi fi fi fi -- expr
 end
 
 func stack_parser.parse.func (stack_parser) (stack_ast_func) in -- parser
-    dup stack_parser.read stack_token.kind STACK_TOKEN_FUNC = not if todo fi -- parser
-    dup stack_parser.read dup stack_token.kind STACK_TOKEN_NAME = not if todo fi -- parser tok
+    dup stack_parser.read stack_token.kind STACK_TOKEN_FUNC = unwrap -- parser
+    dup stack_parser.read dup stack_token.kind STACK_TOKEN_NAME = unwrap -- parser tok
     dup2 stack_token.value rot stack_token.pos stack_ast_node.init swp -- name, parser
 
-    dup stack_parser.read stack_token.kind STACK_TOKEN_LPAREN = not if todo fi -- name, parser
+    dup stack_parser.read stack_token.kind STACK_TOKEN_LPAREN = unwrap -- name, parser
     dup stack_ast_node.sizeof array.init.with_sz stack_parser.parse.names.until swp -- name, array<stack_ast_node>, parser
 
-    dup stack_parser.read stack_token.kind STACK_TOKEN_LPAREN = not if todo fi -- name, args, parser
+    dup stack_parser.read stack_token.kind STACK_TOKEN_LPAREN = unwrap -- name, args, parser
     dup stack_ast_node.sizeof array.init.with_sz stack_parser.parse.names.until swp -- name, args, rets, parser
 
-    dup stack_parser.read stack_token.kind STACK_TOKEN_IN = not if todo fi -- name, parser
+    dup stack_parser.read stack_token.kind STACK_TOKEN_IN = unwrap -- name, parser
     dup STACK_TOKEN_END stack_ast_expr.sizeof array.init.with_sz stack_parser.parse.exprs.until swp pop -- name, args, rets, exprs
     stack_ast_func.init -- func
 end
@@ -365,7 +361,7 @@ func stack_parser.parse' (stack_parser, stack_ast) (stack_ast) in -- parser, ast
         else dup stack_token.kind STACK_TOKEN_CONST = if
             todo pop swp
         else
-            todo pop swp
+            panic pop swp
         fi fi fi fi -- parser, ast
 
         stack_parser.parse' -- ast
@@ -453,7 +449,7 @@ func stack_ast.dump.exprs' (int, int, array) () in -- indent, i, exprs
             swp dup rot -- i, exprs, indent, indent, cond
             stack_ast.dump.cond -- i, exprs, indent
         else
-            todo pop2
+            panic pop2
         fi fi fi fi fi -- i, exprs, indent
 
         rot 1 + rot stack_ast.dump.exprs' -- ()
