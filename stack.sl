@@ -224,31 +224,183 @@ end
 
 -- STACK PARSER
 
+data stack_parser (stack_lexer lexer, stack_token tok, stack_token next_tok)
+
+func stack_parser.init.with_lexer (stack_lexer) (stack_parser) in
+    stack_token.init.empty stack_token.init.empty stack_parser.init
+    dup stack_parser.read pop
+end
+
+func stack_parser.peek (stack_parser) (stack_token) in stack_parser.next_tok end
+
+func stack_parser.read (stack_parser) (stack_token) in
+    dup dup stack_parser.peek stack_parser.tok.set
+    dup dup stack_parser.lexer stack_lexer.next stack_parser.next_tok.set
+    stack_parser.tok
+end
+
+func stack_parser.parse.exprs.until (stack_parser, int, array) (array) in
+    rot' dup2 swp stack_parser.peek stack_token.kind = if -- arr p kind
+        pop stack_parser.read pop -- array
+    else
+        swp dup stack_parser.parse.expr -- arr kind p expr
+        rot4 dup rot stack_ast_expr.& array.append unwrap -- kind parser arr
+        rot' swp rot stack_parser.parse.exprs.until -- array
+    fi -- array
+end
+
+func stack_parser.parse.expr (stack_parser) (stack_ast_expr) in
+    dup stack_parser.peek stack_token.kind STACK_TOKEN_NAME = if -- parser
+        dup stack_parser.read -- parser, tok
+        dup stack_token.value swp stack_token.pos stack_ast_node.init -- node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- expr
+    else dup stack_parser.peek stack_token.kind STACK_TOKEN_NUMBER = if
+        dup stack_parser.read -- parser, tok
+        dup stack_token.value swp stack_token.pos stack_ast_node.init -- node
+        STACK_AST_EXPR_NUMBER swp stack_ast_node.& stack_ast_expr.init -- expr
+    else dup stack_parser.peek stack_token.kind STACK_TOKEN_BOOLEAN = if
+        dup stack_parser.read -- parser, tok
+        dup stack_token.value swp stack_token.pos stack_ast_node.init -- node
+        STACK_AST_EXPR_BOOLEAN swp stack_ast_node.& stack_ast_expr.init -- expr
+    else dup stack_parser.peek stack_token.kind STACK_TOKEN_STRING = if
+        dup stack_parser.read -- parser, tok
+        dup stack_token.value swp stack_token.pos stack_ast_node.init -- node
+        STACK_AST_EXPR_STRING swp stack_ast_node.& stack_ast_expr.init -- expr
+    else dup stack_parser.peek stack_token.kind STACK_TOKEN_IF = if
+        todo pop 0 0 int.& stack_ast_expr.init
+    else
+        todo pop 0 0 int.& stack_ast_expr.init
+    fi fi fi fi fi -- expr
+end
+
+func stack_parser.parse.func (stack_parser) (stack_ast_func) in -- parser
+    dup stack_parser.read stack_token.kind STACK_TOKEN_FUNC = not if todo fi -- parser
+    dup stack_parser.read dup stack_token.kind STACK_TOKEN_NAME = not if todo fi -- parser tok
+    dup2 stack_token.value rot stack_token.pos stack_ast_node.init swp -- name, parser
+
+    -- TODO: add args and rets
+
+    dup stack_parser.read stack_token.kind STACK_TOKEN_IN = not if todo fi -- name, parser
+    STACK_TOKEN_END stack_ast_expr.sizeof array.init.with_sz stack_parser.parse.exprs.until -- name, array
+    stack_ast_func.init -- func
+end
+
+func stack_parser.parse' (stack_parser, stack_ast) (stack_ast) in -- parser, ast
+    swp dup stack_parser.peek dup stack_token.kind STACK_TOKEN_EOF = if -- ast, parser, tok
+        pop2
+    else
+        dup stack_token.kind STACK_TOKEN_DATA = if -- ast, parser, tok
+            todo pop swp
+        else dup stack_token.kind STACK_TOKEN_FUNC = if
+            pop dup stack_parser.parse.func -- ast, parser, func
+            rot dup rot stack_ast.features.append.func -- parser, ast
+        else dup stack_token.kind STACK_TOKEN_IMPORT = if
+            todo pop swp
+        else dup stack_token.kind STACK_TOKEN_CONST = if
+            todo pop swp
+        else
+            todo pop swp
+        fi fi fi fi -- parser, ast
+
+        stack_parser.parse' -- ast
+    fi -- ast
+end
+
+func stack_parser.parse (stack_parser) (stack_ast, bool) in -- ast
+    stack_ast.init.empty -- stack_parser, ast
+    stack_parser.parse' true -- ast, ok
+end
+
+data stack_ast_node (stack_parser parser, string value, int pos)
+
+data stack_ast_cond (stack_ast_node cond, array if_, array else_)
+
 const STACK_AST_EXPR_NUMBER 0
 const STACK_AST_EXPR_BOOLEAN 1
 const STACK_AST_EXPR_STRING 2
 const STACK_AST_EXPR_NAME 3
 const STACK_AST_EXPR_COND 4
 
-data stack_parser (stack_lexer lexer, stack_token tok, stack_token next_tok)
-
-func stack_parser.init.with_lexer (stack_lexer) (stack_parser) in
-    todo stack_token.init.empty stack_token.init.empty stack_parser.init
-end
-
-data stack_ast_node (string value)
-data stack_ast_cond (stack_ast_node cond, array if_, array else_)
 data stack_ast_expr (int kind, ptr expr)
+
+data stack_ast_data (stack_ast_node name)
 data stack_ast_func (stack_ast_node name, array exprs)
-data stack_ast (array funcs)
+
+const STACK_AST_FEATURE_DATA 0
+const STACK_AST_FEATURE_FUNC 1
+
+data stack_ast_feature (int kind, ptr feature)
+
+data stack_ast (array features)
 
 func stack_ast.init.empty () (stack_ast) in
     stack_ast_func.sizeof array.init.with_sz stack_ast.init
 end
 
-func stack_parser.parse (stack_parser, stack_ast) (stack_ast, bool) in -- ast, ok
-    swp pop todo false
+func stack_ast.features.append (stack_ast, stack_ast_feature) () in
+    swp stack_ast.features swp stack_ast_feature.& array.append unwrap
 end
+
+func stack_ast.features.append.func (stack_ast, stack_ast_func) () in
+    stack_ast_func.& STACK_AST_FEATURE_FUNC swp stack_ast_feature.init stack_ast.features.append
+end
+
+const stack_ast.dump.indent 2
+
+func stack_ast.dump.exprs' (int, int, array) () in -- indent, i, exprs
+    dup2 array.count < if -- indent, i, exprs
+        dup2 swp array.get unwrap stack_ast_expr.* -- indent, i, exprs, expr
+        rot4 swp -- i, exprs, indent, expr
+
+        dup stack_ast_expr.kind dup STACK_AST_EXPR_NUMBER = if -- i, exprs, indent, expr, kind
+            pop dup2 swp " " swp string.repeat string.stdout
+            stack_ast_expr.expr stack_ast_node.* stack_ast_node.value string.stdout "\n" string.stdout pop
+        else dup STACK_AST_EXPR_BOOLEAN = if
+            pop dup2 swp " " swp string.repeat string.stdout
+            stack_ast_expr.expr stack_ast_node.* stack_ast_node.value string.stdout "\n" string.stdout pop
+        else dup STACK_AST_EXPR_STRING = if
+            pop dup2 swp " " swp string.repeat string.stdout
+            stack_ast_expr.expr stack_ast_node.* stack_ast_node.value string.stdout "\n" string.stdout pop
+        else dup STACK_AST_EXPR_NAME = if
+            pop dup2 swp " " swp string.repeat string.stdout
+            stack_ast_expr.expr stack_ast_node.* stack_ast_node.value string.stdout "\n" string.stdout pop
+        else dup STACK_AST_EXPR_COND = if
+            todo pop2
+        else
+            todo pop2
+        fi fi fi fi fi -- i, exprs, indent
+
+        rot 1 + rot stack_ast.dump.exprs' -- ()
+    else
+        pop3
+    fi -- ()
+end
+
+func stack_ast.dump.exprs (int, array) () in 0 swp stack_ast.dump.exprs' end
+
+func stack_ast.dump' (int, array) () in
+    dup2 array.count < if -- i, array
+        dup2 swp array.get unwrap stack_ast_feature.* -- i, array, feat
+        dup stack_ast_feature.kind STACK_AST_FEATURE_DATA = if -- i, array, feat
+            todo pop
+        else dup stack_ast_feature.kind STACK_AST_FEATURE_FUNC = if -- i, array, feat
+            "func " string.stdout
+            stack_ast_feature.feature stack_ast_func.* dup stack_ast_func.name stack_ast_node.value string.stdout -- i, array, func
+            "\n" string.stdout
+            stack_ast_func.exprs -- i, array, exprs
+            " " stack_ast.dump.indent string.repeat string.stdout "body:\n" string.stdout
+            stack_ast.dump.indent stack_ast.dump.indent + swp stack_ast.dump.exprs -- i, array
+        else
+            todo pop
+        fi fi -- i, array
+
+        swp 1 + swp stack_ast.dump'
+    else
+        pop2
+    fi -- ()
+end
+
+func stack_ast.dump (stack_ast) () in stack_ast.features 0 swp stack_ast.dump' end
 
 -- STACK ASSEMBLER
 
@@ -472,7 +624,9 @@ func stack_assembler.emit.ast (stack_assembler, stack_ast) () in -- asm, prog
     dup "section '.text' executable" emit
     dup ""                           emit
 
-    dup2 swp stack_ast.funcs stack_assembler.emit.ast.funcs
+    -- dup2 swp stack_ast.funcs stack_assembler.emit.ast.funcs
+    todo
+    -- TODO: iterate features and match on kind if func ->
 
     pop2
 end
@@ -599,10 +753,10 @@ func stack_assembler.emit (stack_assembler, stack_ast) () in -- asm, ast
     pop2
 end
 
-data stack_args (string filename, bool lexer)
+data stack_args (string filename, bool lexer, bool parser, bool assembler)
 
 func stack_args.init.empty () (stack_args) in
-    "" false stack_args.init
+    "" false false false stack_args.init
 end
 
 func stack_args.usage () () in
@@ -615,6 +769,12 @@ func stack_args.usage () () in
     "\n" string.stdout
     "  -l, --lexer\n" string.stdout
     "      flag to stop on the lexer phase\n" string.stdout
+    "\n" string.stdout
+    "  -p, --parser\n" string.stdout
+    "      flag to stop on the parser phase\n" string.stdout
+    "\n" string.stdout
+    "  -a, --assembler\n" string.stdout
+    "      flag to stop on the assembler phase\n" string.stdout
     "\n" string.stdout
     "  i, input\n" string.stdout
     "      the input file\n" string.stdout
@@ -632,6 +792,10 @@ func stack_args.parse' (array, int, stack_args) (stack_args) in -- array, i, arg
             pop stack_args.usage 0 sys.exit
         else dup "--lexer" string.= swp dup "-l" string.= rot or if
             rot4 dup true stack_args.lexer.set rot4' pop
+        else dup "--parser" string.= swp dup "-p" string.= rot or if
+            rot4 dup true stack_args.parser.set rot4' pop
+        else dup "--assembler" string.= swp dup "-a" string.= rot or if
+            rot4 dup true stack_args.assembler.set rot4' pop
         else
             -- array, i, string args L
             rot4 dup stack_args.filename string.len 0 > if -- array, i, string, args
@@ -640,7 +804,7 @@ func stack_args.parse' (array, int, stack_args) (stack_args) in -- array, i, arg
             else
                 dup rot stack_args.filename.set rot'
             fi -- args, array, i
-        fi fi -- args, array, i
+        fi fi fi fi -- args, array, i
 
         1 + rot -- array, i+1, args
         stack_args.parse' -- args
@@ -655,25 +819,32 @@ func main (int, ptr) (int) in -- argc, argv
     stack_args.parse -- args
 
     dup stack_args.filename dup string.len 0 = if -- args, filename
-        pop STDOUT
+        pop STDIN
     else
         "r" stdlib.fopen unwrap
-    fi -- args, fd
+    fi dup -- args, fd, fd
 
-    stdlib.fread.<eof> unwrap -- args, string
-    stack_lexer.init.with_buffer -- args, stack_lexer
+    stdlib.fread.<eof> unwrap -- args, fd, string
+    stack_lexer.init.with_buffer -- args, fd, stack_lexer
 
-    swp dup stack_args.lexer if  -- stack_lexer, args
-        swp dup stack_lexer.dump -- args, stack_lexer
+    rot dup stack_args.lexer if  -- fd, stack_lexer, args
+        swp dup stack_lexer.dump -- fd, args, stack_lexer
         0 sys.exit swp
-    fi swp -- args, stack_lexer
+    fi rot' -- args, fd, stack_lexer
 
-    stack_parser.init.with_lexer -- args, stack_parser
-    stack_ast.init.empty -- args, stack_parser, ast
-    stack_parser.parse -- args, stack_ast, ok
-    unwrap -- args, stack_ast
+    stack_parser.init.with_lexer -- args, fd, stack_parser
+    stack_parser.parse -- args, fd, stack_ast, ok
+    unwrap -- args, fd, stack_ast
 
-    pop2
+    rot dup stack_args.parser if -- fd, stack_ast, args
+        swp dup stack_ast.dump -- fd, args, stack_lexer
+        0 sys.exit swp
+    fi rot' -- args, fd, stack_ast
+
+    STDOUT stack_assembler.init.with_fd -- args, fd, stack_ast, asm
+    swp stack_assembler.emit -- args, fd
+
+    stdlib.fclose unwrap pop
 
     0
 end
