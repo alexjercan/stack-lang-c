@@ -415,6 +415,15 @@ func stack_parser.parse.const (stack_parser) (stack_ast_const) in -- parser
     stack_ast_const.init -- const
 end
 
+func stack_parser.parse.import (stack_parser) (stack_ast_import) in -- parser
+    dup stack_parser.read stack_token.kind STACK_TOKEN_IMPORT = unwrap -- parser
+    dup stack_parser.read dup stack_token.kind STACK_TOKEN_NAME = unwrap -- parser tok
+    dup2 stack_token.value rot stack_token.pos stack_ast_node.init swp -- name, parser
+
+    pop -- name
+    stack_ast_import.init -- import
+end
+
 func stack_parser.parse' (stack_parser, stack_ast) (stack_ast) in -- parser, ast
     swp dup stack_parser.peek dup stack_token.kind STACK_TOKEN_EOF = if -- ast, parser, tok
         pop2
@@ -426,7 +435,8 @@ func stack_parser.parse' (stack_parser, stack_ast) (stack_ast) in -- parser, ast
             pop dup stack_parser.parse.func -- ast, parser, func
             rot dup rot stack_ast.features.append.func -- parser, ast
         else dup stack_token.kind STACK_TOKEN_IMPORT = if
-            todo pop swp
+            pop dup stack_parser.parse.import -- ast, parser, import
+            rot dup rot stack_ast.features.append.import -- parser, ast
         else dup stack_token.kind STACK_TOKEN_CONST = if
             pop dup stack_parser.parse.const -- ast, parser, const
             rot dup rot stack_ast.features.append.const -- parser, ast
@@ -460,10 +470,12 @@ data stack_ast_data_field (stack_ast_node type, stack_ast_node name)
 data stack_ast_data (stack_ast_node name, array fields)
 data stack_ast_func (stack_ast_node name, array args, array rets, array exprs)
 data stack_ast_const (stack_ast_node name, array exprs)
+data stack_ast_import (stack_ast_node name)
 
 const STACK_AST_FEATURE_DATA 0
 const STACK_AST_FEATURE_FUNC 1
 const STACK_AST_FEATURE_CONST 2
+const STACK_AST_FEATURE_IMPORT 3
 
 data stack_ast_feature (int kind, ptr feature)
 
@@ -487,6 +499,10 @@ end
 
 func stack_ast.features.append.const (stack_ast, stack_ast_const) () in
     stack_ast_const.& STACK_AST_FEATURE_CONST swp stack_ast_feature.init stack_ast.features.append
+end
+
+func stack_ast.features.append.import (stack_ast, stack_ast_import) () in
+    stack_ast_import.& STACK_AST_FEATURE_IMPORT swp stack_ast_feature.init stack_ast.features.append
 end
 
 const stack_ast.dump.indent 4
@@ -631,9 +647,15 @@ func stack_ast.dump' (int, array) () in
             "\n" string.stdout
 
             pop
+        else dup stack_ast_feature.kind STACK_AST_FEATURE_IMPORT = if -- i, array, feat
+            "@import " string.stdout
+            stack_ast_feature.feature stack_ast_const.* dup stack_ast_const.name stack_ast_node.value string.stdout -- i, array, import
+            "\n" string.stdout
+
+            pop
         else
             todo pop
-        fi fi fi -- i, array
+        fi fi fi fi -- i, array
 
         swp 1 + swp stack_ast.dump'
     else
