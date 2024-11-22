@@ -19,9 +19,7 @@
 #define STACK_FUNC_DUP "dup"
 #define STACK_FUNC_SWP "swp"
 #define STACK_FUNC_ROT "rot"
-#define STACK_FUNC_ROTP "rot'"
 #define STACK_FUNC_ROT4 "rot4"
-#define STACK_FUNC_ROT4P "rot4'"
 #define STACK_FUNC_POP "pop"
 
 #define STACK_FUNC_PLUS "+"
@@ -915,6 +913,7 @@ defer:
 
 static void stack_ast_func_free(stack_ast_func *func) {
     stack_ast_node_free(&func->name);
+
     for (unsigned int i = 0; i < func->args.count; i++) {
         stack_ast_node *arg = NULL;
         DS_UNREACHABLE(ds_dynamic_array_get_ref(&func->args, i, (void **)&arg));
@@ -1397,7 +1396,8 @@ static void stack_preprocessor_generate_data_init(stack_preprocessor *preprocess
         DS_UNREACHABLE(ds_dynamic_array_get(&data.fields, i, &item));
 
         DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_DUP), data.name.parser, data.name.pos))), DS_ERROR_OOM);
-        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_ROTP), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_ROT), data.name.parser, data.name.pos))), DS_ERROR_OOM);
+        DS_EXPECT(ds_dynamic_array_append(&body, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_ROT), data.name.parser, data.name.pos))), DS_ERROR_OOM);
 
         ds_string_builder_init(&sb);
         DS_EXPECT(ds_string_builder_append(&sb, "%.*s.%.*s.%s", data.name.value.len, data.name.value.str, item.name.value.len, item.name.value.str, STACK_DATA_OFFSET), DS_ERROR_OOM);
@@ -1559,18 +1559,22 @@ static void stack_preprocessor_expand_const_update_pos(stack_preprocessor *prepr
     case STACK_AST_EXPR_NUMBER:
         dst->number.pos = src->name.pos;
         dst->number.parser = src->name.parser;
+        dst->number.allocd = false;
         break;
     case STACK_AST_EXPR_BOOLEAN:
         dst->boolean.pos = src->name.pos;
         dst->boolean.parser = src->name.parser;
+        dst->boolean.allocd = false;
         break;
     case STACK_AST_EXPR_STRING:
         dst->string.pos = src->name.pos;
         dst->string.parser = src->name.parser;
+        dst->string.allocd = false;
         break;
     case STACK_AST_EXPR_NAME:
         dst->name.pos = src->name.pos;
         dst->name.parser = src->name.parser;
+        dst->name.allocd = false;
         break;
     case STACK_AST_EXPR_COND: {
         for (unsigned int j = 0; j < dst->cond.if_.count; j++) {
