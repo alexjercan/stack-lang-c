@@ -1111,8 +1111,105 @@ func stack_preprocessor.run.expand.special (int, stack_preprocessor, stack_ast) 
     fi -- ()
 end
 
+func stack_preprocessor.run.generate.data.sizeof (int, stack_parser, stack_ast_data) (array) in -- i, parser, data
+    dup stack_ast_data.fields -- i, parser, data array<field>
+    rot4 swp dup2 array.count < if -- parser, data, i, array
+        swp dup rot' -- parser, data, i, array, i
+        array.get unwrap -- parser, data, i, ptr
+        stack_ast_data_field.* stack_ast_data_field.type -- parser, data, i, node
+        stack_ast_node.value -- parser, data, i, type
+        "." string.concat STACK_SIZEOF string.concat -- parser, data, i, type.sizeof
+        rot4' -- type.sizeof, parser, data, i
+        1 + -- type.sizeof, parser, data, i+1
+        rot' -- type.sizeof, i+1, parser, data
+        dup3 stack_preprocessor.run.generate.data.sizeof -- "type.sizeof, i+1, parser, data, array
+        swp pop -- "type.sizeof, i+1, parser, array
+        rot pop -- "type.sizeof, parser, array
+        rot' swp -- array, parser, "type.sizeof
+        swp dup rot4' -- parser, array, "type.sizeof, parser
+        swp 0 stack_ast_node.init -- parser, array, node
+        STACK_AST_EXPR_NAME -- parser, array<expr>, node, kind
+        swp stack_ast_node.& -- parser, array<expr>, kind, ptr
+        stack_ast_expr.init -- parser, array<expr>, expr
+        stack_ast_expr.& -- parser, array<expr>, ptr
+        dup2 array.append unwrap pop -- parser, array
+
+        swp STACK_FUNC_PLUS -- array, parser +
+        0 stack_ast_node.init -- array, node
+        STACK_AST_EXPR_NAME -- array, node, kind
+        swp stack_ast_node.& stack_ast_expr.init -- array, expr
+        swp dup rot -- array, array, expr
+        stack_ast_expr.& array.append unwrap -- array
+    else
+        pop3 -- parser
+        0 int.show -- parser, string
+        0 stack_ast_node.init -- node
+        STACK_AST_EXPR_NUMBER -- node, kind
+        swp stack_ast_node.& stack_ast_expr.init -- expr
+        stack_ast_expr.sizeof array.init.with_sz -- expr, array
+        dup rot stack_ast_expr.& array.append unwrap -- array
+    fi -- array
+end
+
+func stack_preprocessor.run.generate.data.const (stack_ast, stack_ast_data) () in -- ast, data
+    "" "stack.sl" stack_lexer.init.with_buffer -- lexer
+    stack_parser.init.with_lexer -- ast, data, parser
+    swp -- ast, parser, data
+
+    dup2 -- ..., parser, data
+    dup stack_ast_data.name stack_ast_node.value "." string.concat STACK_SIZEOF string.concat -- ..., parser, data, s
+    rot dup rot4' -- ..., parser, data, s, parser
+    swp 0 -- ..., parser, data, parser, s, 0
+    stack_ast_node.init -- ..., parser, data, node
+    dup3 pop -- ..., parser, data, node parser, data
+    0 rot' stack_preprocessor.run.generate.data.sizeof -- ..., parser, data, node, exprs
+    stack_ast_const.init -- ... parser, data, const
+    rot' pop2 -- ast, parser, data, const
+    rot4 swp -- parser, data, ast, const
+    dup2 stack_ast.features.append.const pop rot' -- ast, parser, data
+
+    pop3
+end
+
+func stack_preprocessor.run.generate.data.init (stack_ast, stack_ast_data) () in -- ast, data
+    todo pop2
+end
+
+func stack_preprocessor.run.generate.data.getters (stack_ast, stack_ast_data) () in -- ast, data
+    todo pop2
+end
+
+func stack_preprocessor.run.generate.data.setters (stack_ast, stack_ast_data) () in -- ast, data
+    todo pop2
+end
+
+func stack_preprocessor.run.generate.data (int, stack_preprocessor, stack_ast) () in -- i, pre, ast
+    rot swp -- pre, i, ast
+    dup stack_ast.features dup array.count rot4 dup rot < if -- pre ast array<feat> i
+        dup2 array.get unwrap stack_ast_feature.* dup stack_ast_feature.kind rot4 pop -- pre, ast, i, feat, kind
+        dup STACK_AST_FEATURE_DATA = if -- pre, ast, i, feat, kind
+            pop stack_ast_feature.feature -- pre, ast, i, ptr
+            stack_ast_data.* -- pre, ast, i, data
+            rot swp -- pre, i, ast, data
+
+            dup2 stack_preprocessor.run.generate.data.const -- ...
+            -- dup2 stack_preprocessor.run.generate.data.init -- ...
+            -- dup2 stack_preprocessor.run.generate.data.getters -- ...
+            -- dup2 stack_preprocessor.run.generate.data.setters -- ...
+
+            pop swp
+        else
+            pop2
+        fi -- pre, ast, i
+
+        1 + rot' stack_preprocessor.run.generate.data -- ()
+    else
+        pop pop pop pop
+    fi -- ()
+end
+
 func stack_preprocessor.run' (stack_preprocessor, stack_ast) () in -- pre, ast
-    -- TODO: generate data code consts init getters setters
+    dup2 0 rot' stack_preprocessor.run.generate.data -- pre, ast
 
     dup2 0 rot' stack_preprocessor.run.expand.consts -- pre, ast
     dup2 0 rot' stack_preprocessor.run.expand.funcs -- pre, ast
