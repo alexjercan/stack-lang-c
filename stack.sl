@@ -1078,10 +1078,16 @@ func stack_assembler.emit (stack_assembler, stack_ast) () in -- asm, ast
     pop2
 end
 
-data stack_args (string filename, bool lexer, bool parser, bool assembler)
+data stack_args
+    ( string filename
+    , bool lexer
+    , bool parser
+    , bool preprocessor
+    , bool assembler
+    )
 
 func stack_args.init.empty () (stack_args) in
-    "" false false false stack_args.init
+    "" false false false false stack_args.init
 end
 
 func stack_args.usage () () in
@@ -1097,6 +1103,9 @@ func stack_args.usage () () in
     "\n" string.stdout
     "  -p, --parser\n" string.stdout
     "      flag to stop on the parser phase\n" string.stdout
+    "\n" string.stdout
+    "  -P, --preprocessor\n" string.stdout
+    "      flag to stop on the preprocessor phase\n" string.stdout
     "\n" string.stdout
     "  -a, --assembler\n" string.stdout
     "      flag to stop on the assembler phase\n" string.stdout
@@ -1119,6 +1128,8 @@ func stack_args.parse' (array, int, stack_args) (stack_args) in -- array, i, arg
             rot4 dup true stack_args.lexer.set rot4' pop
         else dup "--parser" string.= swp dup "-p" string.= rot or if
             rot4 dup true stack_args.parser.set rot4' pop
+        else dup "--preprocessor" string.= swp dup "-P" string.= rot or if
+            rot4 dup true stack_args.parser.set rot4' pop
         else dup "--assembler" string.= swp dup "-a" string.= rot or if
             rot4 dup true stack_args.assembler.set rot4' pop
         else
@@ -1129,7 +1140,7 @@ func stack_args.parse' (array, int, stack_args) (stack_args) in -- array, i, arg
             else
                 dup rot stack_args.filename.set rot'
             fi -- args, array, i
-        fi fi fi fi -- args, array, i
+        fi fi fi fi fi -- args, array, i
 
         1 + rot -- array, i+1, args
         stack_args.parse' -- args
@@ -1150,27 +1161,46 @@ func main (int, ptr) (int) in -- argc, argv
     fi dup -- args, fd, fd
 
     stdlib.fread.<eof> unwrap -- args, fd, string
-    rot dup stack_args.filename dup string.len 0 = if pop "stdin" fi swp rot4' -- args, fd, string, filename
-    stack_lexer.init.with_buffer -- args, fd, stack_lexer
+    swp stdlib.fclose unwrap -- args, string
+    swp dup stack_args.filename -- string, args, fname
+    dup string.len 0 = if pop "stdin" fi -- string, args, fname
+    swp rot' -- args, string, filename
+    stack_lexer.init.with_buffer -- args, stack_lexer
 
-    rot dup stack_args.lexer if  -- fd, stack_lexer, args
-        swp dup stack_lexer.dump -- fd, args, stack_lexer
+    swp dup stack_args.lexer if  -- stack_lexer, args
+        swp dup stack_lexer.dump -- args, stack_lexer
         0 sys.exit swp
-    fi rot' -- args, fd, stack_lexer
+    fi swp -- args, stack_lexer
 
     stack_parser.init.with_lexer -- args, fd, stack_parser
     stack_parser.parse -- args, fd, stack_ast, ok
     unwrap -- args, fd, stack_ast
 
-    rot dup stack_args.parser if -- fd, stack_ast, args
-        swp dup stack_ast.dump -- fd, args, stack_lexer
+    swp dup stack_args.parser if -- stack_ast, args
+        swp dup stack_ast.dump -- args, stack_lexer
         0 sys.exit swp
-    fi rot' -- args, fd, stack_ast
+    fi swp -- args, stack_ast
 
-    STDOUT stack_assembler.init.with_fd -- args, fd, stack_ast, asm
-    swp stack_assembler.emit -- args, fd
+    -- TODO: preprocessor stage
 
-    stdlib.fclose unwrap pop
+    swp dup stack_args.preprocessor if -- stack_ast, args
+        swp dup stack_ast.dump -- args, stack_lexer
+        0 sys.exit swp
+    fi swp -- args, stack_ast
+
+    -- TODO: typecheck stage
+
+    STDOUT stack_assembler.init.with_fd -- args, stack_ast, asm
+    swp stack_assembler.emit -- args
+
+    dup stack_args.assembler if -- args
+        0 sys.exit
+    fi -- args
+
+    -- TODO: fasm stage
+    -- TODO: ld stage
+
+    pop
 
     0
 end
