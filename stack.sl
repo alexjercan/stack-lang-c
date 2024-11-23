@@ -531,7 +531,7 @@ data stack_ast_feature (int kind, ptr feature)
 data stack_ast (array features)
 
 func stack_ast.init.empty () (stack_ast) in
-    stack_ast_func.sizeof array.init.with_sz stack_ast.init
+    stack_ast_feature.sizeof array.init.with_sz stack_ast.init
 end
 
 func stack_ast.append (stack_ast, stack_ast) () in -- ast, ast'
