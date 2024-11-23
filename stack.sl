@@ -1113,7 +1113,6 @@ end
 
 func stack_preprocessor.run' (stack_preprocessor, stack_ast) () in -- pre, ast
     -- TODO: generate data code consts init getters setters
-    -- TODO: generate consts for int ptr bool
 
     dup2 0 rot' stack_preprocessor.run.expand.consts -- pre, ast
     dup2 0 rot' stack_preprocessor.run.expand.funcs -- pre, ast
