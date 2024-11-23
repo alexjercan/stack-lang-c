@@ -728,6 +728,55 @@ func stack_home () (string) in
     "."
 end
 
+const STACK_DATA_INT "int"
+const STACK_DATA_PTR "ptr"
+const STACK_DATA_BOOL "bool"
+
+const STACK_SIZEOF "sizeof"
+
+func stack_preprocessor.run.base.consts (stack_preprocessor, stack_ast) () in -- pre, ast
+    "" "stack.sl" stack_lexer.init.with_buffer -- lexer
+    stack_parser.init.with_lexer -- pre, ast, parser
+
+    dup dup -- pre, ast, parser, parser, parser
+    STACK_DATA_INT "." string.concat STACK_SIZEOF string.concat -- parser, parser, value
+    0 stack_ast_node.init swp -- sizeof_node parser
+    int.sizeof int.show -- sizeof_node, parser, string
+    0 stack_ast_node.init -- sizeof_node, 8_node
+    STACK_AST_EXPR_NUMBER -- sizeof_node, 8_node, kind
+    swp stack_ast_node.& stack_ast_expr.init -- sizeof_node, 8_expr
+    stack_ast_expr.sizeof array.init.with_sz -- sizeof_node, expr, array
+    dup rot stack_ast_expr.& array.append unwrap -- sizeof_node, array
+    stack_ast_const.init -- pre, ast, parser, int.sizeof
+    dup3 rot swp stack_ast.features.append.const pop pop -- pre, ast, parser
+
+    dup dup -- pre, ast, parser, parser, parser
+    STACK_DATA_PTR "." string.concat STACK_SIZEOF string.concat -- parser, parser, value
+    0 stack_ast_node.init swp -- sizeof_node parser
+    int.sizeof int.show -- sizeof_node, parser, string
+    0 stack_ast_node.init -- sizeof_node, 8_node
+    STACK_AST_EXPR_NUMBER -- sizeof_node, 8_node, kind
+    swp stack_ast_node.& stack_ast_expr.init -- sizeof_node, 8_expr
+    stack_ast_expr.sizeof array.init.with_sz -- sizeof_node, expr, array
+    dup rot stack_ast_expr.& array.append unwrap -- sizeof_node, array
+    stack_ast_const.init -- pre, ast, parser, int.sizeof
+    dup3 rot swp stack_ast.features.append.const pop pop -- pre, ast, parser
+
+    dup dup -- pre, ast, parser, parser, parser
+    STACK_DATA_BOOL "." string.concat STACK_SIZEOF string.concat -- parser, parser, value
+    0 stack_ast_node.init swp -- sizeof_node parser
+    int.sizeof int.show -- sizeof_node, parser, string
+    0 stack_ast_node.init -- sizeof_node, 8_node
+    STACK_AST_EXPR_NUMBER -- sizeof_node, 8_node, kind
+    swp stack_ast_node.& stack_ast_expr.init -- sizeof_node, 8_expr
+    stack_ast_expr.sizeof array.init.with_sz -- sizeof_node, expr, array
+    dup rot stack_ast_expr.& array.append unwrap -- sizeof_node, array
+    stack_ast_const.init -- pre, ast, parser, int.sizeof
+    dup3 rot swp stack_ast.features.append.const pop pop -- pre, ast, parser
+
+    pop3
+end
+
 func stack_preprocessor.run.import (int, stack_preprocessor, stack_ast) () in -- i, pre, ast
     rot swp -- pre, i, ast
     dup stack_ast.features dup array.count rot4 dup rot < if -- pre ast array<feat> i
@@ -744,7 +793,7 @@ func stack_preprocessor.run.import (int, stack_preprocessor, stack_ast) () in --
             stack_parser.parse unwrap -- pre ast i, ast'
 
             stack_preprocessor.init -- pre ast i ast', pre'
-            dup2 swp stack_preprocessor.run pop -- pre ast i ast'
+            dup2 swp stack_preprocessor.run' pop -- pre ast i ast'
 
             rot dup rot stack_ast.append -- pre i ast
             swp rot'
@@ -957,17 +1006,24 @@ func stack_preprocessor.run.expand.funcs (int, stack_preprocessor, stack_ast) ()
     fi -- ()
 end
 
-func stack_preprocessor.run (stack_preprocessor, stack_ast) () in -- pre, ast
-    dup2 0 rot' stack_preprocessor.run.import -- ptr, ast
-
+func stack_preprocessor.run' (stack_preprocessor, stack_ast) () in -- pre, ast
     -- TODO: generate data code consts init getters setters
     -- TODO: generate consts for int ptr bool
 
-    dup2 0 rot' stack_preprocessor.run.expand.consts -- ptr, ast
-    dup2 0 rot' stack_preprocessor.run.expand.funcs -- ptr, ast
-
+    dup2 0 rot' stack_preprocessor.run.expand.consts -- pre, ast
+    dup2 0 rot' stack_preprocessor.run.expand.funcs -- pre, ast
 
     -- TODO: expand special __line__ __file__ __col__
+
+    pop2
+end
+
+func stack_preprocessor.run (stack_preprocessor, stack_ast) () in -- pre, ast
+    dup2 0 rot' stack_preprocessor.run.import -- pre, ast
+
+    dup2 stack_preprocessor.run.base.consts -- pre, ast
+
+    dup2 stack_preprocessor.run' -- pre, ast
 
     pop2
 end
