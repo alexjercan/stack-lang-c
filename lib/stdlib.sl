@@ -336,6 +336,15 @@ func array.get (array, int) (ptr, bool) in -- a, i
     fi -- ptr, ok
 end
 
+func array.insert (array, int, ptr) (bool) in -- dst, i, item
+    rot dup array.sz -- i, item, dst, sz
+    array.init.with_sz -- i, item, dst, array
+    rot -- i, dst, array, item
+    dup2 array.append unwrap pop -- i, dst, array
+    rot swp -- dst, i, array
+    array.insert_many
+end
+
 func array.insert_many (array, int, array) (bool) in -- dst, i, array
     swp rot' -- i, xs, xs'
     dup2 array.capacity swp array.capacity + -- i, xs, xs', C''
@@ -382,6 +391,8 @@ func array.insert_many (array, int, array) (bool) in -- dst, i, array
     swp array.sz * rot4' -- tmp, ptr+(i+L')*sz, (L-i)*sz, dst, i, array
 
     pop3 rot swp ptr.@ pop -- ...
+
+    -- 3. copy src to dest-
 
     dup3 -- ..., dst, i, array
 

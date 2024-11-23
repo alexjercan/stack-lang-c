@@ -734,6 +734,10 @@ const STACK_DATA_BOOL "bool"
 
 const STACK_SIZEOF "sizeof"
 
+const STACK_SPECIAL_FILE "__file__"
+const STACK_SPECIAL_LINE "__line__"
+const STACK_SPECIAL_COL "__col__"
+
 func stack_preprocessor.run.base.consts (stack_preprocessor, stack_ast) () in -- pre, ast
     "" "stack.sl" stack_lexer.init.with_buffer -- lexer
     stack_parser.init.with_lexer -- pre, ast, parser
@@ -1006,6 +1010,107 @@ func stack_preprocessor.run.expand.funcs (int, stack_preprocessor, stack_ast) ()
     fi -- ()
 end
 
+func stack_preprocessor.run.expand.special.exprs (int, array) () in -- i, array<expr>
+    dup array.count rot dup rot < if -- array<feat>, i
+        dup2 -- ..., arr, i
+        array.get unwrap stack_ast_expr.* -- ..., expr
+        dup stack_ast_expr.kind -- ..., expr, kind
+        dup STACK_AST_EXPR_NAME = if -- ..., expr, kind
+            pop stack_ast_expr.expr stack_ast_node.* -- ..., node
+            dup stack_ast_node.value -- ..., node, name
+            dup STACK_SPECIAL_FILE string.= if -- ..., node, name
+                pop -- ..., node
+                dup -- ..., node, node
+                stack_ast_node.parser -- ..., node, parser
+                swp stack_ast_node.pos -- ..., parser, pos
+                swp dup -- ..., pos, parser, parser
+                stack_parser.lexer -- ... pos, parser, lexer
+                stack_lexer.filename -- ... pos, parser, filename
+                "\"" swp string.concat "\"" string.concat -- pos, parser, "filename"
+                rot stack_ast_node.init -- array, i, node
+                STACK_AST_EXPR_STRING -- array, i, node, kind
+                swp stack_ast_node.& -- array, i, kind, ptr
+                stack_ast_expr.init -- array, i, expr
+                rot' dup2 array.delete unwrap rot -- array, i, expr
+                dup3 -- ..., expr, array, i, expr
+                stack_ast_expr.& array.insert unwrap pop -- array, i
+            else dup STACK_SPECIAL_LINE string.= if
+                pop -- ..., node
+                dup -- ..., node, node
+                stack_ast_node.parser -- ..., node, parser
+                dup stack_parser.lexer -- ..., node, parser, lexer
+                rot stack_ast_node.pos -- ..., parser, lexer, pos
+                dup rot swp  -- ..., parser, pos, lexer, pos
+                stack_lexer.pos.to_lc pop -- ..., parser, pos, line
+                int.show swp -- ..., parser, "line, pos
+                stack_ast_node.init -- array, i, node
+                STACK_AST_EXPR_NUMBER -- array, i, node, kind
+                swp stack_ast_node.& -- array, i, kind, ptr
+                stack_ast_expr.init -- array, i, expr
+                rot' dup2 array.delete unwrap rot -- array, i, expr
+                dup3 -- ..., expr, array, i, expr
+                stack_ast_expr.& array.insert unwrap pop -- array, i
+            else dup STACK_SPECIAL_COL string.= if
+                pop -- ..., node
+                dup -- ..., node, node
+                stack_ast_node.parser -- ..., node, parser
+                dup stack_parser.lexer -- ..., node, parser, lexer
+                rot stack_ast_node.pos -- ..., parser, lexer, pos
+                dup rot swp  -- ..., parser, pos, lexer, pos
+                stack_lexer.pos.to_lc swp pop -- ..., parser, pos, line
+                int.show swp -- ..., parser, "line, pos
+                stack_ast_node.init -- array, i, node
+                STACK_AST_EXPR_NUMBER -- array, i, node, kind
+                swp stack_ast_node.& -- array, i, kind, ptr
+                stack_ast_expr.init -- array, i, expr
+                rot' dup2 array.delete unwrap rot -- array, i, expr
+                dup3 -- ..., expr, array, i, expr
+                stack_ast_expr.& array.insert unwrap pop -- array, i
+            else
+                pop2
+            fi fi fi -- arr, i
+        else dup STACK_AST_EXPR_COND = if
+            pop stack_ast_expr.expr stack_ast_cond.* -- ..., cond
+
+            dup stack_ast_cond.if_ -- ..., cond, if_
+            0 swp stack_preprocessor.run.expand.special.exprs -- ..., cond
+
+            dup stack_ast_cond.else_ -- ..., cond, else_
+            0 swp stack_preprocessor.run.expand.special.exprs -- ..., cond
+
+            pop -- ...
+        else
+            pop2
+        fi fi -- arr, i
+
+        1 + swp stack_preprocessor.run.expand.special.exprs -- ()
+    else
+        pop pop
+    fi -- ()
+end
+
+func stack_preprocessor.run.expand.special (int, stack_preprocessor, stack_ast) () in -- i, pre, ast
+    rot swp -- pre, i, ast
+    dup stack_ast.features dup array.count rot4 dup rot < if -- pre ast array<feat> i
+        dup2 array.get unwrap stack_ast_feature.* dup stack_ast_feature.kind rot4 pop -- pre, ast, i, feat, kind
+        dup STACK_AST_FEATURE_FUNC = if -- pre, ast, i, feat, kind
+            pop stack_ast_feature.feature -- pre, ast, i, ptr
+            stack_ast_func.* -- pre, ast, i, func'
+            stack_ast_func.exprs -- pre, ast, i, exprs'
+
+            0 swp -- pre, ast, i, 0, exprs'
+            stack_preprocessor.run.expand.special.exprs -- pre, ast, i
+            rot'
+        else
+            pop2 rot'
+        fi -- i, pre, ast
+
+        rot 1 + rot' stack_preprocessor.run.expand.special
+    else
+        pop pop pop pop
+    fi -- ()
+end
+
 func stack_preprocessor.run' (stack_preprocessor, stack_ast) () in -- pre, ast
     -- TODO: generate data code consts init getters setters
     -- TODO: generate consts for int ptr bool
@@ -1013,7 +1118,7 @@ func stack_preprocessor.run' (stack_preprocessor, stack_ast) () in -- pre, ast
     dup2 0 rot' stack_preprocessor.run.expand.consts -- pre, ast
     dup2 0 rot' stack_preprocessor.run.expand.funcs -- pre, ast
 
-    -- TODO: expand special __line__ __file__ __col__
+    dup2 0 rot' stack_preprocessor.run.expand.special -- pre, ast
 
     pop2
 end
