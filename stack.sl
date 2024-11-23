@@ -840,8 +840,6 @@ func stack_preprocessor.run.expand.exprs (int, array, stack_ast_const) () in -- 
 
                 pop -- ..., array, i, exprs
 
-                swp dup int.show string.stdout "\n" string.stdout swp -- REMOVE
-
                 array.insert_many unwrap -- ...
             fi -- array i const
 
