@@ -22,5 +22,22 @@ func main () (int) in
     dup 69 int.& array.append unwrap -- a
     dup 42 int.& array.append unwrap -- a
 
+    int.sizeof array.init.with_sz -- a, a'
+    dup 1 int.& array.append unwrap -- a, a'
+    dup 2 int.& array.append unwrap -- a, a'
+    dup 3 int.& array.append unwrap -- a, a'
+    dup 4 int.& array.append unwrap -- a, a'
+
+    dup 1 array.delete unwrap -- a, a'
+
+    dup2 array.extend unwrap pop -- a
+
+    dup 1 array.delete unwrap -- a
+
+    int.sizeof array.init.with_sz -- a, a'
+    dup 33 int.& array.append unwrap -- a, a'
+
+    dup2 1 swp array.insert_many unwrap pop -- a
+
     show_items 0
 end

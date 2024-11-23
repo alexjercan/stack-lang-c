@@ -336,6 +336,120 @@ func array.get (array, int) (ptr, bool) in -- a, i
     fi -- ptr, ok
 end
 
+func array.insert_many (array, int, array) (bool) in -- dst, i, array
+    swp rot' -- i, xs, xs'
+    dup2 array.capacity swp array.capacity + -- i, xs, xs', C''
+    rot dup2 dup array.sz dup2 swp array.capacity * swp rot4 * -- xs', C'', xs, xs, C*sz, C''*sz
+    rot array.items rot' -- xs', C'', xs, ptr C*sz, C''*sz
+    ptr.realloc -- xs', C'', xs, ptr
+    dup2 array.items.set -- xs' C'', xs, ptr
+    rot' swp dup2 -- xs', ptr, xs, C'', xs, C''
+    array.capacity.set pop -- xs', ptr, xs
+    swp pop rot' -- dst, i, array
+
+    -- 1. Copy dest to tmp
+    dup3 -- dst, i, array, dst, i, array
+    dup3 -- ..., dst, i, array
+
+    dup3 -- ..., dst, i, array
+    pop -- ..., dst, i
+    swp dup array.count rot - -- ..., dst, L-i
+    swp array.sz * ptr.alloc rot4' -- dst, i, array, tmp, dst, i, array
+
+    dup3 -- ..., dst, i, array
+    pop -- ..., dst, i
+    swp dup array.sz  -- ..., i, dst, sz
+    rot * -- ..., dst, i*sz
+    swp array.items swp ptr.+ rot4' -- dst, i, array, tmp, ptr+i*sz, dst, i, array
+
+    dup3 -- ..., dst, i, array
+    pop -- ..., dst, i
+    swp dup array.count rot - -- ..., dst, L-i
+    swp array.sz * rot4' -- dst, i, array, tmp, ptr+i*sz, (L-i)*sz, dst, i, array
+
+    pop3 ptr.@ rot4' -- ..., tmp, dst, i, array
+
+    -- 2. copy tmp to dest+
+
+    dup3 -- ..., tmp, ..., dst i array
+    array.count + -- ..., tmp, ..., dst, i+L'
+    swp dup array.sz rot * -- ..., tmp, ..., dst (i+L')*sz
+    swp array.items swp ptr.+ rot4' -- ..., tmp, ptr+(i+L')*sz, dst, i, array
+
+    dup3 -- ..., dst, i, array
+    pop -- ..., dst, i
+    swp dup array.count rot - -- ..., dst, L-i
+    swp array.sz * rot4' -- tmp, ptr+(i+L')*sz, (L-i)*sz, dst, i, array
+
+    pop3 rot swp ptr.@ pop -- ...
+
+    dup3 -- ..., dst, i, array
+
+    dup3 -- ..., dst i array
+    pop -- ..., dst, i
+    swp dup array.sz rot * -- ..., dst, i*sz
+    swp array.items swp ptr.+ rot4' -- ptr+i*sz, dst, i, array
+
+    dup3 -- ..., dst i array
+    array.items rot' pop2 rot4' -- ptr+i*sz ptr' dst i array
+
+    dup3 -- ..., dst i array
+    rot array.sz -- ..., i, array, sz
+    swp array.count * -- i, L'*sz
+    swp pop rot4' -- ptr+i*sz, ptr, L'*sz, dst, i, array
+
+    pop3 ptr.@ pop -- ...
+
+    swp pop dup2 -- dst array dst array
+    array.count swp array.count + -- dst, array, L''
+    swp pop array.count.set -- ()
+
+    true
+end
+
+func array.delete (array, int) (bool) in -- a, i
+    dup2 swp array.sz * -- array, i, i*sz
+    rot dup array.items -- i, i*sz, array ptr
+    rot ptr.+ -- i, array ptr+i*sz
+    rot' swp -- ptr+i*sz, array, i
+
+    dup2 1 + swp array.sz * -- ..., array, i, (i+1)*sz
+    rot dup array.items -- ..., i, i+1*sz, array ptr
+    rot ptr.+ -- ..., i, array, ptr+(i+1)*sz
+    rot' swp -- ptr+i*sz, ptr+(i+1)*sz, array, i
+
+    dup2 1 + swp array.count swp - -- ..., array, i, L-(i+1)
+    rot dup array.sz -- ..., i, L-(i+1) array sz
+    rot * -- ..., i, array, sz*(L-i-1)
+    rot' swp -- ptr+i*sz, ptr+(i+1)*sz, (L-i-1)*sz, array, i
+
+    dup2 -- ..., array, i
+    swp -- ..., i, array
+    dup array.count 1 - -- ..., i, array, L-1
+    array.count.set pop -- ptr+i*sz, ptr+(i+1)*sz, (L-i-1)*sz, array, i
+
+    pop2 -- ptr+i*sz ptr+(i+1)*sz (L-i-1)*sz
+    ptr.@ pop true
+end
+
+func array.extend (array, array) (bool) in -- xs, xs'
+    dup2 array.capacity swp array.capacity + -- xs, xs', C''
+    rot dup2 dup array.sz dup2 swp array.capacity * swp rot4 * -- xs', C'', xs, xs, C*sz, C''*sz
+    rot array.items rot' -- xs', C'', xs, ptr C*sz, C''*sz
+    ptr.realloc -- xs', C'', xs, ptr
+    dup2 array.items.set -- xs' C'', xs, ptr
+    rot' swp dup2 -- xs', ptr, xs, C'', xs, C''
+    array.capacity.set pop -- xs', ptr, xs
+    rot dup2 -- ptr, xs, xs', xs, xs'
+    array.count swp array.count + -- ptr, xs, xs' L''
+    rot dup array.count 0 + rot' dup rot array.count.set -- ptr, xs', L, xs
+    array.sz * -- ptr, xs', L*sz
+    rot swp ptr.+ -- xs', ptr+L*sz
+    swp dup array.items swp -- ptr+L*sz, ptr', xs'
+    dup array.sz swp array.count * -- ptr+L*sz, ptr', L'*sz'
+    ptr.@ pop true -- ok
+end
+
 func array.append (array, ptr) (bool) in -- a, ptr
     swp -- ptr, a
     dup array.count -- ptr, a, L

@@ -534,6 +534,10 @@ func stack_ast.init.empty () (stack_ast) in
     stack_ast_func.sizeof array.init.with_sz stack_ast.init
 end
 
+func stack_ast.append (stack_ast, stack_ast) () in -- ast, ast'
+    stack_ast.features swp stack_ast.features swp array.extend unwrap
+end
+
 func stack_ast.features.append (stack_ast, stack_ast_feature) () in
     swp stack_ast.features swp stack_ast_feature.& array.append unwrap
 end
@@ -703,6 +707,7 @@ func stack_ast.dump' (int, array) () in
 
             pop
         else
+            dup stack_ast_feature.kind int.show string.stdout "\n" string.stdout
             todo pop
         fi fi fi fi -- i, array
 
@@ -713,6 +718,261 @@ func stack_ast.dump' (int, array) () in
 end
 
 func stack_ast.dump (stack_ast) () in stack_ast.features 0 swp stack_ast.dump' end
+
+-- STACK PREPROCESSOR
+
+data stack_preprocessor ()
+
+func stack_home () (string) in
+    -- TODO: get env for "STACK_HOME"
+    "."
+end
+
+func stack_preprocessor.run.import (int, stack_preprocessor, stack_ast) () in -- i, pre, ast
+    rot swp -- pre, i, ast
+    dup stack_ast.features dup array.count rot4 dup rot < if -- pre ast array<feat> i
+        dup2 array.get unwrap stack_ast_feature.* dup stack_ast_feature.kind rot4 pop -- pre, ast, i, feat, kind
+        dup STACK_AST_FEATURE_IMPORT = if -- pre, ast, i, feat, kind
+            pop stack_ast_feature.feature stack_ast_import.* stack_ast_import.name stack_ast_node.value stack_home -- pre ast i filename home
+            "/lib" string.concat "/" string.concat swp string.concat ".sl" string.concat -- pre ast i path
+            dup "r" stdlib.fopen unwrap -- pre ast i path fd
+            dup stdlib.fread.<eof> unwrap -- pre ast i path, fd, string
+            swp stdlib.fclose unwrap -- pre ast i path string
+
+            swp stack_lexer.init.with_buffer -- pre ast i stack_lexer
+            stack_parser.init.with_lexer -- pre ast i stack_parser
+            stack_parser.parse unwrap -- pre ast i, ast'
+
+            stack_preprocessor.init -- pre ast i ast', pre'
+            dup2 swp stack_preprocessor.run pop -- pre ast i ast'
+
+            rot dup rot stack_ast.append -- pre i ast
+            swp rot'
+        else
+            pop pop rot'
+        fi -- i, pre, ast
+
+        rot 1 + rot' stack_preprocessor.run.import
+    else
+        pop pop pop pop
+    fi -- ()
+end
+
+func stack_preprocessor.run.expand.update (int, array, stack_ast_node) () in
+    rot' -- node, i, array
+    dup array.count -- node, i, array, L
+    rot swp -- node, array i L
+    dup2 < if -- node array i L
+        pop
+        dup2 array.get unwrap -- node array i ptr
+        stack_ast_expr.* dup stack_ast_expr.kind -- node array i expr kind
+        dup STACK_AST_EXPR_NAME = -- node array i expr kind bool
+        swp dup STACK_AST_EXPR_NUMBER = rot or -- node array i expr kind bool
+        swp dup STACK_AST_EXPR_STRING = rot or -- node array i expr kind bool
+        swp dup STACK_AST_EXPR_BOOLEAN = rot or if -- node array i expr kind
+            pop -- node array i expr
+            stack_ast_expr.expr stack_ast_node.* -- node array i node'
+            rot4 -- array i node' node
+
+            dup2 -- ..., node' node
+            stack_ast_node.pos stack_ast_node.pos.set -- ...
+
+            dup2 -- ..., node', node
+            stack_ast_node.parser stack_ast_node.parser.set -- ...
+
+            swp pop
+        else dup STACK_AST_EXPR_COND = if
+            pop -- node array i expr
+
+            rot4 swp -- array i node expr
+            stack_ast_expr.expr stack_ast_cond.* -- array i node cond
+
+            dup2  -- ..., node cond
+            stack_ast_cond.if_ -- ..., node if_
+            0 swp rot -- ..., 0 if_ node
+            stack_preprocessor.run.expand.update -- ...
+
+            dup2  -- ..., node cond
+            stack_ast_cond.else_ -- ..., node else_
+            0 swp rot -- ..., 0 if_ node
+            stack_preprocessor.run.expand.update -- ...
+
+            pop
+        else
+            todo pop pop rot
+        fi fi -- array i node
+
+        swp 1 + -- array node i+1
+        rot' stack_preprocessor.run.expand.update
+    else
+        pop pop pop pop
+    fi -- ()
+end
+
+func stack_preprocessor.run.expand.exprs (int, array, stack_ast_const) () in -- i, exprs, const
+    rot' -- const, i, array
+    dup array.count -- const, i, array, L
+    rot swp -- const array i L
+    dup2 < if -- const array i L
+        pop -- const array i
+        dup2 array.get unwrap -- const array i ptr
+        stack_ast_expr.* dup stack_ast_expr.kind -- const array i expr kind
+        dup STACK_AST_EXPR_NAME = if -- const array i expr kind
+            pop -- const array i expr
+            rot4 swp -- array i const expr
+            stack_ast_expr.expr stack_ast_node.* -- array i const node
+            stack_ast_node.value -- array i const name
+            swp dup -- array i name const const
+            stack_ast_const.name stack_ast_node.value -- array i name const name_c
+            rot string.= if -- array i const
+                dup3 -- ...
+                stack_ast_const.exprs -- ..., array i exprs
+                rot' -- ..., exprs array i
+                dup2 -- ..., exprs, array, i, array i
+                array.get unwrap stack_ast_expr.* -- ..., exprs, array, i, name
+                rot' dup2 -- ..., exprs, name, array, i, array i
+                array.delete unwrap -- ... exprs, name, array, i
+                rot4 rot4 -- ..., array, i, exprs, name
+
+                dup2 0 rot' -- ..., array, i, exprs, name, 0, exprs, name
+                stack_ast_expr.expr stack_ast_node.*
+                stack_preprocessor.run.expand.update -- ..., array, i, exprs, name
+
+                pop -- ..., array, i, exprs
+
+                swp dup int.show string.stdout "\n" string.stdout swp -- REMOVE
+
+                array.insert_many unwrap -- ...
+            fi -- array i const
+
+            rot'
+        else dup STACK_AST_EXPR_COND = if
+            pop -- const array i expr
+
+            rot4 swp -- array i const expr
+            stack_ast_expr.expr stack_ast_cond.* -- array i const cond
+
+            dup2  -- ..., const cond
+            stack_ast_cond.if_ -- ..., const if_
+            0 swp rot -- ..., 0 if_ const
+            stack_preprocessor.run.expand.exprs -- ...
+
+            dup2 -- ..., const cond
+            stack_ast_cond.else_ -- ..., const else_
+            0 swp rot -- ..., 0 else_ const
+            stack_preprocessor.run.expand.exprs -- ...
+
+            pop rot'
+        else
+            pop pop
+        fi fi -- const array i
+
+        1 + rot' swp stack_preprocessor.run.expand.exprs
+    else
+        pop pop pop pop
+    fi -- ()
+end
+
+func stack_preprocessor.run.expand.consts' (int, stack_preprocessor, stack_ast, stack_ast_const) () in -- i, pre, ast, const
+    swp rot4 swp -- pre, const, i, ast
+    dup stack_ast.features dup array.count rot4 dup rot < if -- pre const ast array<feat> i
+        dup2 array.get unwrap stack_ast_feature.* dup stack_ast_feature.kind rot4 pop -- pre, const, ast, i, feat, kind
+        dup STACK_AST_FEATURE_CONST = if -- pre, const, ast, i, feat, kind
+            pop stack_ast_feature.feature -- pre, const, ast, i, ptr
+            stack_ast_const.* -- pre, const, ast, i, const'
+            stack_ast_const.exprs -- pre, const, ast, i, exprs'
+            rot4 dup rot' -- pre, ast, i, const, exprs', const
+            0 rot' -- pre, ast, i, const, 0, exprs', const
+            stack_preprocessor.run.expand.exprs -- pre, ast, i, const
+            swp rot4'
+        else
+            pop pop rot4' swp
+        fi -- i, pre, ast, const
+
+        rot4 1 + rot4' stack_preprocessor.run.expand.consts'
+    else
+        pop pop pop pop pop
+    fi -- ()
+end
+
+func stack_preprocessor.run.expand.consts  (int, stack_preprocessor, stack_ast) () in -- i, pre, ast
+    rot swp -- pre, i, ast
+    dup stack_ast.features dup array.count rot4 dup rot < if -- pre ast array<feat> i
+        dup2 array.get unwrap stack_ast_feature.* dup stack_ast_feature.kind rot4 pop -- pre, ast, i, feat, kind
+        dup STACK_AST_FEATURE_CONST = if -- pre, ast, i, feat, kind
+            pop stack_ast_feature.feature -- pre, ast, i, ptr
+            stack_ast_const.* -- pre, ast, i, const
+            swp rot4' -- i, pre, ast, const
+            dup3 -- ..., pre, ast, const
+            0 rot4' -- ..., j, pre, ast, const
+            stack_preprocessor.run.expand.consts' pop -- i, pre, ast
+        else
+            pop pop rot'
+        fi -- i, pre, ast
+
+        rot 1 + rot' stack_preprocessor.run.expand.consts
+    else
+        pop pop pop pop
+    fi -- ()
+end
+
+func stack_preprocessor.run.expand.funcs' (int, stack_preprocessor, stack_ast, stack_ast_const) () in -- i, pre, ast, const
+    swp rot4 swp -- pre, const, i, ast
+    dup stack_ast.features dup array.count rot4 dup rot < if -- pre const ast array<feat> i
+        dup2 array.get unwrap stack_ast_feature.* dup stack_ast_feature.kind rot4 pop -- pre, const, ast, i, feat, kind
+        dup STACK_AST_FEATURE_FUNC = if -- pre, const, ast, i, feat, kind
+            pop stack_ast_feature.feature -- pre, const, ast, i, ptr
+            stack_ast_func.* -- pre, const, ast, i, func'
+            stack_ast_func.exprs -- pre, const, i, exprs'
+            rot4 dup rot' -- pre, ast, i, const, exprs', const
+            0 rot' -- pre, ast, i, const, 0, exprs', const
+            stack_preprocessor.run.expand.exprs -- pre, ast, i, const
+            swp rot4'
+        else
+            pop pop rot4' swp
+        fi -- i, pre, ast, const
+
+        rot4 1 + rot4' stack_preprocessor.run.expand.funcs'
+    else
+        pop pop pop pop pop
+    fi -- ()
+end
+
+func stack_preprocessor.run.expand.funcs (int, stack_preprocessor, stack_ast) () in -- i, pre, ast
+    rot swp -- pre, i, ast
+    dup stack_ast.features dup array.count rot4 dup rot < if -- pre ast array<feat> i
+        dup2 array.get unwrap stack_ast_feature.* dup stack_ast_feature.kind rot4 pop -- pre, ast, i, feat, kind
+        dup STACK_AST_FEATURE_CONST = if -- pre, ast, i, feat, kind
+            pop stack_ast_feature.feature -- pre, ast, i, ptr
+            stack_ast_const.* -- pre, ast, i, const
+            swp rot4' -- i, pre, ast, const
+            dup3 -- ..., pre, ast, const
+            0 rot4' -- ..., j, pre, ast, const
+            stack_preprocessor.run.expand.funcs' pop -- i, pre, ast
+        else
+            pop pop rot'
+        fi -- i, pre, ast
+
+        rot 1 + rot' stack_preprocessor.run.expand.funcs
+    else
+        pop pop pop pop
+    fi -- ()
+end
+
+func stack_preprocessor.run (stack_preprocessor, stack_ast) () in -- pre, ast
+    dup2 0 rot' stack_preprocessor.run.import -- ptr, ast
+
+    -- TODO: generate data code consts init getters setters
+    -- TODO: generate consts for int ptr bool
+
+    dup2 0 rot' stack_preprocessor.run.expand.consts -- ptr, ast
+    dup2 0 rot' stack_preprocessor.run.expand.funcs -- ptr, ast
+
+
+    -- TODO: expand special __line__ __file__ __col__
+
+    pop2
+end
 
 -- STACK ASSEMBLER
 
@@ -827,7 +1087,9 @@ func stack_assembler.emit.expr.string (stack_assembler, stack_ast_node) () in --
 end
 
 func stack_assembler.emit.expr.name (stack_assembler, stack_ast_node) () in -- asm, name
-    dup stack_ast_node.value rot dup rot stack_assembler.func.name "    call    " swp string.concat
+    dup stack_ast_node.value rot dup rot stack_assembler.func.name "    call    " swp string.concat -- name, asm, str
+    " ; " string.concat  -- name, asm, str
+    rot dup stack_ast_node.value rot swp string.concat swp rot' -- name, asm, str
 
     swp dup rot emit
 
@@ -835,7 +1097,7 @@ func stack_assembler.emit.expr.name (stack_assembler, stack_ast_node) () in -- a
 end
 
 func stack_assembler.emit.expr.cond (stack_assembler, stack_ast_cond) () in -- asm, cond
-    swp dup stack_assembler.if_counter swp -- cond, i, asm
+    swp dup stack_assembler.if_counter dup 1 + swp 0 + rot' dup2 stack_assembler.if_counter.set pop -- cond, i, asm
 
     dup "    call    stack_pop" emit
     dup "    test    rax, rax" emit
@@ -857,8 +1119,7 @@ func stack_assembler.emit.expr.cond (stack_assembler, stack_ast_cond) () in -- a
     dup2 swp -- cond, i, asm, asm, i
     int.show ".fi" swp string.concat ":" string.concat emit -- cond, i, asm
 
-
-    swp 1 + stack_assembler.if_counter.set pop
+    pop3
 end
 
 func stack_assembler.emit.expr (stack_assembler, stack_ast_expr) () in -- asm, expr
@@ -918,7 +1179,7 @@ end
 func stack_assembler.emit.feature (stack_assembler, stack_ast_feature) () in -- asm, feature
     dup stack_ast_feature.kind
     dup STACK_AST_FEATURE_DATA = if -- asm, feat, kind
-        todo pop3
+        pop3 -- TODO: data.* and data.&
     else dup STACK_AST_FEATURE_FUNC = if
         pop stack_ast_feature.feature stack_ast_func.* stack_assembler.emit.func
     else dup STACK_AST_FEATURE_CONST = if
@@ -1129,7 +1390,7 @@ func stack_args.parse' (array, int, stack_args) (stack_args) in -- array, i, arg
         else dup "--parser" string.= swp dup "-p" string.= rot or if
             rot4 dup true stack_args.parser.set rot4' pop
         else dup "--preprocessor" string.= swp dup "-P" string.= rot or if
-            rot4 dup true stack_args.parser.set rot4' pop
+            rot4 dup true stack_args.preprocessor.set rot4' pop
         else dup "--assembler" string.= swp dup "-a" string.= rot or if
             rot4 dup true stack_args.assembler.set rot4' pop
         else
@@ -1181,7 +1442,8 @@ func main (int, ptr) (int) in -- argc, argv
         0 sys.exit swp
     fi swp -- args, stack_ast
 
-    -- TODO: preprocessor stage
+    stack_preprocessor.init -- args, ast, pre
+    dup2 swp stack_preprocessor.run pop -- args, ast
 
     swp dup stack_args.preprocessor if -- stack_ast, args
         swp dup stack_ast.dump -- args, stack_lexer

@@ -1311,6 +1311,11 @@ static void stack_preprocessor_generate_data_consts(stack_preprocessor *preproce
 
             DS_EXPECT(ds_dynamic_array_append(&exprs, &STACK_AST_EXPR_NAME(STACK_AST_NODE(DS_STRING_SLICE(STACK_FUNC_PLUS), data.name.parser, data.name.pos))), DS_ERROR_OOM);
         }
+    } else {
+        ds_string_builder_init(&sb);
+        DS_EXPECT(ds_string_builder_append(&sb, "0"), DS_ERROR_OOM);
+        ds_string_builder_to_slice(&sb, &name);
+        DS_EXPECT(ds_dynamic_array_append(&exprs, &STACK_AST_EXPR_NUMBER(STACK_AST_NODE_A(name, data.name.parser, data.name.pos))), DS_ERROR_OOM);
     }
 
     stack_ast_const size_of = {
