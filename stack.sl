@@ -1151,9 +1151,7 @@ func stack_preprocessor.run.generate.data.sizeof (int, stack_parser, stack_ast_d
     fi -- array
 end
 
-func stack_preprocessor.run.generate.data.const (stack_ast, stack_ast_data) () in -- ast, data
-    "" "stack.sl" stack_lexer.init.with_buffer -- lexer
-    stack_parser.init.with_lexer -- ast, data, parser
+func stack_preprocessor.run.generate.data.const (stack_ast, stack_ast_data, stack_parser) () in -- ast, data
     swp -- ast, parser, data
 
     dup2 -- ..., parser, data
@@ -1168,19 +1166,21 @@ func stack_preprocessor.run.generate.data.const (stack_ast, stack_ast_data) () i
     rot4 swp -- parser, data, ast, const
     dup2 stack_ast.features.append.const pop rot' -- ast, parser, data
 
+    -- TODO: offset
+
     pop3
 end
 
-func stack_preprocessor.run.generate.data.init (stack_ast, stack_ast_data) () in -- ast, data
-    todo pop2
+func stack_preprocessor.run.generate.data.init (stack_ast, stack_ast_data, stack_parser) () in -- ast, data
+    todo pop3
 end
 
-func stack_preprocessor.run.generate.data.getters (stack_ast, stack_ast_data) () in -- ast, data
-    todo pop2
+func stack_preprocessor.run.generate.data.getters (stack_ast, stack_ast_data, stack_parser) () in -- ast, data
+    todo pop3
 end
 
-func stack_preprocessor.run.generate.data.setters (stack_ast, stack_ast_data) () in -- ast, data
-    todo pop2
+func stack_preprocessor.run.generate.data.setters (stack_ast, stack_ast_data, stack_parser) () in -- ast, data
+    todo pop3
 end
 
 func stack_preprocessor.run.generate.data (int, stack_preprocessor, stack_ast) () in -- i, pre, ast
@@ -1192,12 +1192,15 @@ func stack_preprocessor.run.generate.data (int, stack_preprocessor, stack_ast) (
             stack_ast_data.* -- pre, ast, i, data
             rot swp -- pre, i, ast, data
 
-            dup2 stack_preprocessor.run.generate.data.const -- ...
-            -- dup2 stack_preprocessor.run.generate.data.init -- ...
-            -- dup2 stack_preprocessor.run.generate.data.getters -- ...
-            -- dup2 stack_preprocessor.run.generate.data.setters -- ...
+            "" "stack.sl" stack_lexer.init.with_buffer -- lexer
+            stack_parser.init.with_lexer -- pre, i, ast, data, parser
 
-            pop swp
+            dup3 stack_preprocessor.run.generate.data.const -- ...
+            -- dup3 stack_preprocessor.run.generate.data.init -- ...
+            -- dup3 stack_preprocessor.run.generate.data.getters -- ...
+            -- dup3 stack_preprocessor.run.generate.data.setters -- ...
+
+            pop2 swp
         else
             pop2
         fi -- pre, ast, i
