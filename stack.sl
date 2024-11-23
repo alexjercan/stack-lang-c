@@ -1227,16 +1227,26 @@ func stack_preprocessor.run.generate.data.offset (int, stack_parser, stack_ast_d
             STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init
             rot4' rot' -- node, expr', expr'', parser, data, i
 
-            1 + rot' stack_preprocessor.run.generate.data.offset -- node, expr', expr'', array
+            dup3 pop2 -- node, expr', expr'', parser, data, i, parser
+            STACK_FUNC_PLUS -- ..., parser, +
+            0 stack_ast_node.init -- ..., parser, data, i, node
+            STACK_AST_EXPR_NAME -- ..., node, kind
+            swp stack_ast_node.& stack_ast_expr.init -- ..., parser, data, i, +
+            rot4' -- node, expr', expr'', +, parser, data, i
 
-            rot4' -- array, node, node', node''
+            1 + rot' stack_preprocessor.run.generate.data.offset -- node, expr', expr'', +, array
 
-            stack_ast_expr.sizeof array.init.with_sz -- ..., node, expr', expr'', array<expr>
+            rot4' rot' -- node, array, +, expr', expr''
+
+            stack_ast_expr.sizeof array.init.with_sz -- ..., node, +, expr', expr'', array<expr>
             dup rot -- ..., expr', array, array, expr''
-            stack_ast_expr.& array.append unwrap -- array, node, expr' array
-            dup rot -- ..., node, array, array, expr'
-            stack_ast_expr.& array.append unwrap -- array, node, array<expr>
+            stack_ast_expr.& array.append unwrap -- array, node, +, expr' array
+            dup rot -- ..., node, +, array, array, expr'
+            stack_ast_expr.& array.append unwrap -- array, node, +, array<expr>
+            dup rot -- ..., node, array, array, +
+            stack_ast_expr.& array.append unwrap -- node, array, array<expr>
 
+            swp rot' -- array, node, array<expr>
             stack_ast_const.init -- array, const
             swp dup rot -- array, array, const
             stack_ast_const.& -- array, array, ptr
