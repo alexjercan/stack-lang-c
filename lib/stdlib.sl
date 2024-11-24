@@ -336,6 +336,18 @@ func array.get (array, int) (ptr, bool) in -- a, i
     fi -- ptr, ok
 end
 
+func array.= (array, array) (bool) in -- xs, ys
+    dup2 array.count swp array.count -- xs, ys, L, L'
+    = if -- xs, ys
+        dup array.count -- xs, ys, L
+        rot array.items rot' -- xs.items, ys, L
+        swp array.items swp  -- xs.items, ys.items, L
+        ptr.memcmp 0 = -- ok
+    else
+        pop2 false
+    fi -- bool
+end
+
 func array.insert (array, int, ptr) (bool) in -- dst, i, item
     rot dup array.sz -- i, item, dst, sz
     array.init.with_sz -- i, item, dst, array
