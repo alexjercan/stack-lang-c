@@ -4380,8 +4380,8 @@ static void stack_assembler_emit_expr(stack_assembler *assembler, stack_ast_expr
 
 static void stack_assembler_emit_func(stack_assembler *assembler, stack_ast_func *func) {
     EMIT("func.%lu: ; %.*s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(func->name.value), NULL), func->name.value.len, func->name.value.str);
-    EMIT("    push    rbp                        ; save return address");
-    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    push    rbp");
+    EMIT("    mov     rbp, rsp");
 
     for (unsigned int i = 0; i < func->body.count; i++) {
         stack_ast_expr expr = {0};
@@ -4389,7 +4389,7 @@ static void stack_assembler_emit_func(stack_assembler *assembler, stack_ast_func
         stack_assembler_emit_expr(assembler, &expr);
     }
 
-    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    pop     rbp");
     EMIT("    ret");
     EMIT("");
 }

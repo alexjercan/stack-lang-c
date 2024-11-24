@@ -1850,14 +1850,21 @@ func stack_assembler.emit.expr.string (stack_assembler, stack_ast_node) () in --
     pop
 end
 
+func stack_assembler.emit.pretty_call (stack_assembler, string) (string) in -- asm, name
+    -- string string asm
+    dup rot swp -- string, asm, string
+    stack_assembler.func.name -- name, string
+    "    call    " swp string.concat -- name, "   call string"
+    " ; " string.concat -- name, call
+    swp string.concat
+end
+
 func stack_assembler.emit.expr.name (stack_assembler, stack_ast_node) () in -- asm, name
-    dup stack_ast_node.value rot dup rot stack_assembler.func.name "    call    " swp string.concat -- name, asm, str
-    " ; " string.concat  -- name, asm, str
-    rot dup stack_ast_node.value rot swp string.concat swp rot' -- name, asm, str
+    dup2 stack_ast_node.value stack_assembler.emit.pretty_call swp pop -- asm, string
 
-    swp dup rot emit
+    swp dup rot emit -- asm
 
-    pop2
+    pop
 end
 
 func stack_assembler.emit.expr.cond (stack_assembler, stack_ast_cond) () in -- asm, cond
@@ -1919,10 +1926,22 @@ end
 
 func stack_assembler.emit.exprs (stack_assembler, array) () in 0 rot' stack_assembler.emit.exprs' end
 
+func stack_assembler.emit.pretty_func (stack_assembler, string) (string) in -- asm, name
+    -- string string asm
+    dup rot swp -- string, asm, string
+    stack_assembler.func.name -- name, string
+    ":" string.concat -- name, string
+    " ; " string.concat -- name, string
+    swp string.concat
+end
+
 func stack_assembler.emit.func (stack_assembler, stack_ast_func) () in -- asm, func
     dup stack_ast_func.name -- asm, func, node
     stack_ast_node.value -- asm, func, string
-    rot dup rot4' swp stack_assembler.func.name ":" string.concat rot' -- label, asm, func
+
+    swp rot' -- func, asm, string
+    dup2 stack_assembler.emit.pretty_func swp pop -- func, asm, label
+    swp rot -- label, asm, func
 
     swp
     dup rot4                    emit
@@ -2314,7 +2333,7 @@ func stack_assembler.emit.entry (stack_assembler) () in
     dup "    call    stack_push" emit
     dup "" emit
     dup "    ; Call the main method" emit
-    dup dup STACK_FUNC_MAIN stack_assembler.func.name "    call   " swp string.concat emit
+    dup STACK_FUNC_MAIN stack_assembler.emit.pretty_call swp dup rot emit -- asm
     dup "" emit
     dup "    ; Exit the program" emit
     dup "    call    stack_pop" emit
