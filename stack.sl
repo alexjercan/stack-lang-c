@@ -1941,7 +1941,47 @@ func stack_assembler.emit.func (stack_assembler, stack_ast_func) () in -- asm, f
 end
 
 func stack_assembler.emit.data (stack_assembler, stack_ast_data) () in -- asm, data
-        pop2 -- TODO: data.* and data.&
+    dup stack_ast_data.name -- asm, data, node
+    stack_ast_node.value ".*" string.concat -- asm, data, string
+    rot dup rot4' swp stack_assembler.func.name ":" string.concat rot' -- label, asm, data
+
+    swp
+    dup rot4                            emit
+    dup "    push    rbp"               emit
+    dup "    mov     rbp, rsp"          emit
+    dup ""                              emit
+    dup "    ; ref data"                emit
+    dup "    call    stack_pop"         emit
+    dup "    mov     rdi, rax"          emit
+    dup "    call    stack_push_addr"   emit
+    dup ""                              emit
+    dup "    pop     rbp"               emit
+    dup "    ret"                       emit
+    dup ""                              emit
+
+    swp -- asm, data
+
+    dup stack_ast_data.name -- asm, data, node
+    stack_ast_node.value ".&" string.concat -- asm, data, string
+    rot dup rot4' swp stack_assembler.func.name ":" string.concat rot' -- label, asm, data
+
+    swp
+    dup rot4                            emit
+    dup "    push    rbp"               emit
+    dup "    mov     rbp, rsp"          emit
+    dup ""                              emit
+    dup "    ; ref data"                emit
+    dup "    call    stack_pop_addr"    emit
+    dup "    mov     rdi, rax"          emit
+    dup "    call    stack_push"        emit
+    dup ""                              emit
+    dup "    pop     rbp"               emit
+    dup "    ret"                       emit
+    dup ""                              emit
+
+    swp -- asm, data
+
+    pop2
 end
 
 func stack_assembler.emit.feature (stack_assembler, stack_ast_feature) () in -- asm, feature
@@ -2264,8 +2304,16 @@ func stack_assembler.emit.entry (stack_assembler) () in
     dup "    ; Initialize the memory" emit
     dup "    call allocator_init" emit
     dup "" emit
+    dup "    ; store argc on the stack" emit
+    dup "    mov     rdi, qword [rsp]" emit
+    dup "    call    stack_push" emit
+    dup "" emit
+    dup "    ; store argv on the stack" emit
+    dup "    mov     rdi, rsp" emit
+    dup "    add     rdi, 8" emit
+    dup "    call    stack_push" emit
+    dup "" emit
     dup "    ; Call the main method" emit
-
     dup dup STACK_FUNC_MAIN stack_assembler.func.name "    call   " swp string.concat emit
     dup "" emit
     dup "    ; Exit the program" emit
@@ -2523,6 +2571,13 @@ const STACK_FUNC_EQ "="
 const STACK_FUNC_PTR_ALLOC "ptr.alloc"
 const STACK_FUNC_PTR_OFFSET "ptr.+"
 const STACK_FUNC_PTR_COPY "ptr.@"
+
+const STACK_FUNC_INT_REF "int.&"
+const STACK_FUNC_INT_DEREF "int.*"
+const STACK_FUNC_PTR_REF "ptr.&"
+const STACK_FUNC_PTR_DEREF "ptr.*"
+const STACK_FUNC_BOOL_REF "bool.&"
+const STACK_FUNC_BOOL_DEREF "bool.*"
 
 const STACK_FUNC_SYSCALL1 "syscall1"
 const STACK_FUNC_SYSCALL3 "syscall3"
@@ -3141,6 +3196,80 @@ func stack_assembler.emit.keywords (stack_assembler) () in
     dup "    call    stack_push" emit
     dup "" emit
     dup "    add     rsp, 24                    ; deallocate local variables" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+
+    -- REF/DEREF
+    dup dup STACK_FUNC_INT_REF dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "" emit
+    dup "    ; deref data" emit
+    dup "    call    stack_pop_addr" emit
+    dup "    mov     rdi, rax" emit
+    dup "    call    stack_push" emit
+    dup "" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup dup STACK_FUNC_INT_DEREF dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "" emit
+    dup "    ; deref data" emit
+    dup "    call    stack_pop" emit
+    dup "    mov     rdi, rax" emit
+    dup "    call    stack_push_addr" emit
+    dup "" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup dup STACK_FUNC_PTR_REF dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "" emit
+    dup "    ; deref data" emit
+    dup "    call    stack_pop_addr" emit
+    dup "    mov     rdi, rax" emit
+    dup "    call    stack_push" emit
+    dup "" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup dup STACK_FUNC_PTR_DEREF dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "" emit
+    dup "    ; deref data" emit
+    dup "    call    stack_pop" emit
+    dup "    mov     rdi, rax" emit
+    dup "    call    stack_push_addr" emit
+    dup "" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup dup STACK_FUNC_BOOL_REF dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "" emit
+    dup "    ; deref data" emit
+    dup "    call    stack_pop_addr" emit
+    dup "    mov     rdi, rax" emit
+    dup "    call    stack_push" emit
+    dup "" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup dup STACK_FUNC_BOOL_DEREF dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "" emit
+    dup "    ; deref data" emit
+    dup "    call    stack_pop" emit
+    dup "    mov     rdi, rax" emit
+    dup "    call    stack_push_addr" emit
+    dup "" emit
     dup "    pop     rbp                        ; restore return address" emit
     dup "    ret" emit
     dup "" emit
