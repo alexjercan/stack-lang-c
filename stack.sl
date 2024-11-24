@@ -731,6 +731,7 @@ end
 const STACK_DATA_INT "int"
 const STACK_DATA_PTR "ptr"
 const STACK_DATA_BOOL "bool"
+const STACK_DATA_STRING "STRING"
 
 const STACK_INIT "init"
 const STACK_SIZEOF "sizeof"
@@ -1738,6 +1739,447 @@ func stack_preprocessor.run (stack_preprocessor, stack_ast) () in -- pre, ast
     pop2
 end
 
+-- STACK TYPECHECK
+
+data stack_context_data (string name)
+data stack_context_func (string name, array args, array rets) -- array<string>
+
+const STACK_CONTEXT_SYMBOL_DATA 0
+const STACK_CONTEXT_SYMBOL_FUNC 1
+
+data stack_context_symbol (int kind, ptr symbol)
+
+data stack_context (array symbols, bool ok)
+
+func stack_context.init.base () (stack_context) in
+    stack_context_symbol.sizeof array.init.with_sz true stack_context.init
+end
+
+func stack_context.append.data (stack_context, stack_context_data) () in
+    stack_context_data.& -- ctx, ptr
+    STACK_CONTEXT_SYMBOL_DATA swp -- ctx, kind, ptr
+    stack_context_symbol.init -- ctx, sym
+    swp stack_context.symbols swp -- arr, sym
+    stack_context_symbol.& array.append unwrap -- ()
+end
+
+func stack_context.append.func (stack_context, stack_context_func) () in
+    stack_context_func.& -- ctx, ptr
+    STACK_CONTEXT_SYMBOL_FUNC swp -- ctx, kind, ptr
+    stack_context_symbol.init -- ctx, sym
+    swp stack_context.symbols swp -- arr, sym
+    stack_context_symbol.& array.append unwrap -- ()
+end
+
+func stack_context.get_symbol' (int, stack_context, string) (bool, ptr) in
+    swp dup stack_context.symbols array.count -- i, string, ctx, L
+    rot4 dup rot -- string, ctx, i, i, L
+    < if -- string, ctx, i
+        dup2 -- ..., ctx, i
+        swp stack_context.symbols swp array.get unwrap -- ..., ptr
+        stack_context_symbol.* -- ..., symbol
+        dup stack_context_symbol.kind  -- ..., symbol, kind
+        dup STACK_CONTEXT_SYMBOL_DATA = if -- ... symbol, kind
+            pop stack_context_symbol.symbol stack_context_data.* -- ..., data
+            stack_context_data.name -- ..., name
+        else dup STACK_CONTEXT_SYMBOL_FUNC = if -- ..., symbol, kind
+            pop stack_context_symbol.symbol stack_context_func.* -- ..., data
+            stack_context_func.name -- ..., name
+        else
+            todo pop2 ""
+        fi fi -- string, ctx, i, name
+
+        rot4 dup rot -- ctx, i, string, string, name
+        string.= if -- ctx, i, string
+            pop swp -- i, ctx
+            stack_context.symbols -- i, array
+            swp array.get unwrap -- ptr
+            true swp -- ok, ptr
+        else
+            swp -- ctx, string, i
+            1 + -- ctx, string, i+1
+            rot' -- i+1, ctx, string
+            stack_context.get_symbol' -- ok, ptr
+        fi -- bool, ptr
+    else
+        pop3 false 0 int.&
+    fi -- bool, ptr
+end
+
+func stack_context.get_symbol (stack_context, string) (bool, ptr) in
+    0 rot' stack_context.get_symbol'
+end
+
+func stack_context.showf (stack_context, stack_ast_node, string) () in -- ctx, node, msg
+    swp dup -- ctx, str, node, node
+    stack_ast_node.parser -- ctx, str, node, parser
+    stack_parser.lexer -- ctx, str, node, lexer
+    dup stack_lexer.filename -- ctx, str, node, lexer, filename
+    string.stderr -- ctx, str, node, lexer
+    swp -- ctx, str, lexer, node
+    stack_ast_node.pos -- ctx, str, lexer, pos
+    stack_lexer.pos.to_lc -- ctx, str, line, col
+    ":" string.stderr -- ctx, str, line, col
+    swp int.show string.stderr  -- ctx, str, col
+    ":" string.stderr -- ctx, str, col
+    int.show string.stderr  -- ctx, str
+    ", Semantic error: " string.stderr -- ctx, str
+    string.stderr -- ctx
+
+    false stack_context.ok.set -- ()
+end
+
+func stack_context.typecheck.data_def_ref (stack_context, stack_ast_data) () in -- ctx, data
+    dup -- ctx, data, data
+    stack_ast_data.name -- ctx, data, name
+    stack_ast_node.value -- ctx, data, "name
+    ".&" string.concat swp -- ctx, "name.&, data
+
+    string.sizeof array.init.with_sz -- ctx, "name.&, data, array<string>
+    swp dup stack_ast_data.name stack_ast_node.value -- ctx, "name.&, array, data, "name
+    rot dup rot -- ctx, "name.& data, array, array, "name
+    string.& array.append unwrap swp -- ctx, "name.&, args, data
+
+    string.sizeof array.init.with_sz -- ctx, "name.&, args, data, array<string>
+    STACK_DATA_PTR -- ctx, "name.&, args, data, array, "ptr
+    swp dup rot -- ctx, "name.&, args, data, array
+    string.& array.append unwrap swp -- ctx, "name.&, args, rets, data
+
+    rot4' -- ctx, data, "name.& args rets
+    stack_context_func.init -- ctx, data, c
+
+    rot swp -- data, ctx, c
+    stack_context.append.func pop -- ()
+end
+
+func stack_context.typecheck.data_def_deref (stack_context, stack_ast_data) () in -- ctx, data
+    dup -- ctx, data, data
+    stack_ast_data.name -- ctx, data, name
+    stack_ast_node.value -- ctx, data, "name
+    ".*" string.concat swp -- ctx, "name.&, data
+
+    string.sizeof array.init.with_sz -- ctx, "name.&, data, array<string>
+    STACK_DATA_PTR -- ctx, "name.&, data, array, "ptr
+    swp dup rot -- ctx, "name.&, data, array
+    string.& array.append unwrap swp -- ctx, "name.&, rets, data
+
+    string.sizeof array.init.with_sz -- ctx, "name.&, data, array<string>
+    swp dup stack_ast_data.name stack_ast_node.value -- ctx, "name.&, array, data, "name
+    rot dup rot -- ctx, "name.& data, array, array, "name
+    string.& array.append unwrap swp -- ctx, "name.&, args, data
+
+    rot4' -- ctx, data, "name.& args rets
+    stack_context_func.init -- ctx, data, c
+
+    rot swp -- data, ctx, c
+    stack_context.append.func pop -- ()
+end
+
+func stack_context.typecheck.data_def'' (stack_context, stack_ast_data) () in -- ctx, data
+    dup2 stack_ast_data.name -- ctx, data, ctx, name
+    stack_ast_node.value -- ctx, data, ctx, "name
+    stack_context.get_symbol pop if -- ctx, data
+        dup2 stack_ast_data.name -- ..., ctx, name
+        dup stack_ast_node.value "data " swp string.concat " is redefined\n" string.concat -- ..., ctx, name, s
+        stack_context.showf
+    else
+        dup stack_ast_data.name -- ctx, data, name
+        stack_ast_node.value -- ctx, data, "name
+        stack_context_data.init -- ctx, data, c
+        rot dup rot -- data, ctx, ctx, c
+        stack_context.append.data swp -- ctx, data
+
+        dup2 stack_context.typecheck.data_def_ref -- ctx, data
+        dup2 stack_context.typecheck.data_def_deref -- ctx, data
+    fi -- ctx, data
+
+    pop2
+end
+
+func stack_context.typecheck.data_def' (int, stack_context, stack_ast) () in
+    dup stack_ast.features -- i, ctx, ast, arr
+    array.count rot4 dup rot -- ctx, ast, i, i, L
+    < if -- ctx, ast, i
+        swp dup2 -- ctx, i, ast, i, ast
+        stack_ast.features -- ctx, i, ast, i, array
+        swp array.get unwrap -- ctx, i, ast, ptr
+        stack_ast_feature.* -- ctx, i, ast, feat
+        dup stack_ast_feature.kind -- ctx, i, ast, feat, kind
+        STACK_AST_FEATURE_DATA = if -- ctx, i, ast, feat
+            stack_ast_feature.feature -- ctx, i, ast, ptr
+            stack_ast_data.* -- ctx, i, ast, data
+            rot rot4' -- i, ctx, ast, data
+            dup3 -- i, ctx, ast, data, ctx, ast, data
+            swp pop -- i, ctx, ast, data, ctx, data
+            stack_context.typecheck.data_def'' pop -- i, ctx, ast
+        else
+            pop swp rot'
+        fi -- i, ctx, ast
+
+        rot 1 + rot' -- i+1, ctx, ast
+        stack_context.typecheck.data_def'
+    else
+        pop3
+    fi -- ()
+end
+
+func stack_context.typecheck.data_def (stack_context, stack_ast) () in
+    0 rot' stack_context.typecheck.data_def'
+end
+
+func stack_params.node_to_string' (int, array, array) (array) in -- i, array<stack_ast_node>, result
+    rot' -- result, i, array
+    dup2 -- result i, array, i, array
+    array.count < if -- result, i, array
+        dup2 swp -- result, i, array, array, i
+        array.get unwrap -- result, i, array, ptr
+        stack_ast_node.* -- result, i, array, node
+        stack_ast_node.value -- result, i, array, string
+        rot4 dup rot -- i, array, result, result, string
+        string.& array.append unwrap -- i, array, result
+        rot 1 + rot' stack_params.node_to_string' -- array
+    else
+        pop2
+    fi -- result
+end
+
+func stack_params.node_to_string (array) (array) in -- array<stack_ast_node>
+    string.sizeof array.init.with_sz -- array, result
+    0 rot' stack_params.node_to_string' -- result
+end
+
+func stack_context.typecheck.func_def'' (stack_context, stack_ast_func) () in -- ctx, func
+    dup2 stack_ast_func.name -- ctx, func, ctx, name
+    stack_ast_node.value -- ctx, func, ctx, "name
+    stack_context.get_symbol pop if -- ctx, func
+        dup2 stack_ast_func.name -- ..., ctx, name
+        dup stack_ast_node.value "func " swp string.concat " is redefined\n" string.concat -- ..., ctx, name, s
+        stack_context.showf
+    else
+        dup stack_ast_func.name -- ctx, func, name
+        stack_ast_node.value -- ctx, func, "name
+
+        swp dup stack_ast_func.args stack_params.node_to_string -- ctx, "name, func, args
+        swp dup stack_ast_func.rets stack_params.node_to_string -- ctx, "name, args, func, rets
+
+        swp rot4' -- ctx, func, "name, args, rets
+
+        stack_context_func.init -- ctx, func, c
+
+        rot dup rot -- func, ctx, ctx, c
+        stack_context.append.func swp -- ctx, func
+    fi -- ctx, func
+
+    pop2
+end
+
+func stack_context.typecheck.func_def' (int, stack_context, stack_ast) () in
+    dup stack_ast.features -- i, ctx, ast, arr
+    array.count rot4 dup rot -- ctx, ast, i, i, L
+    < if -- ctx, ast, i
+        swp dup2 -- ctx, i, ast, i, ast
+        stack_ast.features -- ctx, i, ast, i, array
+        swp array.get unwrap -- ctx, i, ast, ptr
+        stack_ast_feature.* -- ctx, i, ast, feat
+        dup stack_ast_feature.kind -- ctx, i, ast, feat, kind
+        STACK_AST_FEATURE_FUNC = if -- ctx, i, ast, feat
+            stack_ast_feature.feature -- ctx, i, ast, ptr
+            stack_ast_func.* -- ctx, i, ast, func
+            rot rot4' -- i, ctx, ast, func
+            dup3 -- i, ctx, ast, func, ctx, ast, func
+            swp pop -- i, ctx, ast, func, ctx, func
+            stack_context.typecheck.func_def'' pop -- i, ctx, ast
+        else
+            pop swp rot'
+        fi -- i, ctx, ast
+
+        rot 1 + rot' -- i+1, ctx, ast
+        stack_context.typecheck.func_def'
+    else
+        pop3
+    fi -- ()
+end
+
+func stack_context.typecheck.func_def (stack_context, stack_ast) () in
+    0 rot' stack_context.typecheck.func_def'
+end
+
+data iter (int i, array array)
+
+func iter.next (iter) (ptr, bool) in
+    dup iter.array -- iter, array
+    array.count -- iter, L
+    swp dup iter.i -- L, iter, i
+    rot -- iter, i, L
+    < if -- iter
+        dup iter.array -- iter, array
+        swp dup iter.i -- array, iter, i
+        rot swp array.get -- iter, ptr, ok
+        rot -- ptr, ok, iter
+        dup iter.i -- ptr, ok, iter, i
+        1 + -- ptr, ok, iter, i+1
+        iter.i.set -- ptr, ok
+    else
+        pop 0 int.& false
+    fi -- ptr, bool
+end
+
+func stack_context.typecheck.expr.name (stack_context, array, stack_ast_node) () in -- ctx, stack, node
+    todo pop3
+end
+
+func stack_context.typecheck.expr.cond (stack_context, array, stack_ast_cond) () in -- ctx, stack, cond
+    todo pop3
+end
+
+func stack_context.typecheck.expr (stack_context, array, stack_ast_expr) () in -- ctx, stack, expr
+    dup stack_ast_expr.kind -- ctx, stack, expr, kind
+    dup STACK_AST_EXPR_NUMBER = if -- ctx, stack, expr, kind
+        pop pop -- ctx, stack, expr
+        STACK_DATA_INT -- ctx, stack, int
+        string.& array.append unwrap pop -- ()
+    else dup STACK_AST_EXPR_STRING = if
+        pop pop -- ctx, stack, expr
+        STACK_DATA_STRING -- ctx, stack, string
+        string.& array.append unwrap pop -- ()
+    else dup STACK_AST_EXPR_BOOLEAN = if
+        pop pop -- ctx, stack, expr
+        STACK_DATA_BOOL -- ctx, stack, bool
+        string.& array.append unwrap pop -- ()
+    else dup STACK_AST_EXPR_NAME = if
+        pop -- ctx, stack, expr
+        stack_ast_expr.expr -- ctx, stack, ptr
+        stack_ast_node.* -- ctx, stack, node
+        stack_context.typecheck.expr.name -- ()
+    else dup STACK_AST_EXPR_COND = if
+        pop -- ctx, stack, expr
+        stack_ast_expr.expr -- ctx, stack, ptr
+        stack_ast_cond.* -- ctx, stack, cond
+        stack_context.typecheck.expr.cond -- ()
+    else
+        todo pop pop pop pop
+    fi fi fi fi fi -- ()
+end
+
+func stack_context.typecheck.exprs' (stack_context, array, iter) () in -- ctx, stack, iter<expr>
+    dup iter.next if -- ctx, stack, iter, ptr
+        stack_ast_expr.* -- ctx, stack, iter, expr
+        swp rot4' -- iter, ctx, stack, expr
+
+        dup3 stack_context.typecheck.expr pop -- iter, ctx, stack
+        rot -- ctx, stack, iter
+
+        stack_context.typecheck.exprs' -- ()
+    else
+        pop pop pop pop
+    fi -- ()
+end
+
+func stack_context.typecheck.exprs (stack_context, array, array) () in -- ctx, stack, exprs
+    0 swp iter.init -- ctx, stack, iter<exprs>
+    stack_context.typecheck.exprs'
+end
+
+func array.string.showf (int, array) () in -- i, array<string>
+    dup2 array.count -- i, array, i L
+    1 - dup2 < if -- i, array, i, L-1
+        pop2 -- i, array
+        dup2 swp -- i, array, array, i
+        array.get unwrap -- i, array, ptr
+        string.* -- i, array, string
+        string.stderr ", " string.stderr -- i, array
+        swp 1 + swp array.string.showf -- ()
+    else dup2 = if
+        pop2 -- i, array
+        dup2 swp -- i, array, array, i
+        array.get unwrap -- i, array, ptr
+        string.* -- i, array, string
+        string.stderr -- i, array
+        swp 1 + swp array.string.showf -- ()
+    else
+        pop2 pop2
+    fi fi -- ()
+end
+
+func stack_context.typecheck.rets.showf (stack_context, stack_ast_func, array, array) () in -- ctx, func, stack, stack'
+    rot4 rot4 -- stack, stack', ctx, func
+
+    dup2 stack_ast_func.name -- ..., ctx, name
+    dup stack_ast_node.value "func " swp string.concat " has non matching return, expected (" string.concat -- ..., ctx, name, s
+    stack_context.showf -- stack, stack', ctx, func
+
+    pop swp -- stack, ctx, stack'
+    0 swp array.string.showf -- stack, ctx
+
+    ") but got (" string.stderr
+
+    swp -- ctx, stack
+    0 swp array.string.showf -- ctx
+
+    ")\n" string.stderr -- ctx
+
+    pop
+end
+
+func stack_context.typecheck.func'' (stack_context, stack_ast_func) () in -- ctx, func
+    dup -- ctx, func, func
+    stack_ast_func.args -- ctx, func, array<node>
+    stack_params.node_to_string -- ctx, func, stack
+
+    swp dup stack_ast_func.exprs -- ctx, stack, func, exprs
+    swp rot4' -- func, ctx, stack, exprs
+    dup3 stack_context.typecheck.exprs pop -- func, ctx, stack
+
+    rot dup stack_ast_func.rets -- ctx, stack, func, rets
+    stack_params.node_to_string -- ctx, stack, func, stack'
+    swp rot' -- ctx, func, stack, stack'
+
+    dup2 array.= not if -- ctx, func, stack, stack'
+        stack_context.typecheck.rets.showf
+    else
+        pop pop pop pop
+    fi -- ()
+end
+
+func stack_context.typecheck.func' (int, stack_context, stack_ast) () in
+    dup stack_ast.features -- i, ctx, ast, arr
+    array.count rot4 dup rot -- ctx, ast, i, i, L
+    < if -- ctx, ast, i
+        swp dup2 -- ctx, i, ast, i, ast
+        stack_ast.features -- ctx, i, ast, i, array
+        swp array.get unwrap -- ctx, i, ast, ptr
+        stack_ast_feature.* -- ctx, i, ast, feat
+        dup stack_ast_feature.kind -- ctx, i, ast, feat, kind
+        STACK_AST_FEATURE_FUNC = if -- ctx, i, ast, feat
+            stack_ast_feature.feature -- ctx, i, ast, ptr
+            stack_ast_func.* -- ctx, i, ast, func
+            rot rot4' -- i, ctx, ast, func
+            dup3 -- i, ctx, ast, func, ctx, ast, func
+            swp pop -- i, ctx, ast, func, ctx, func
+            stack_context.typecheck.func'' pop -- i, ctx, ast
+        else
+            pop swp rot'
+        fi -- i, ctx, ast
+
+        rot 1 + rot' -- i+1, ctx, ast
+        stack_context.typecheck.func'
+    else
+        pop3
+    fi -- ()
+end
+
+func stack_context.typecheck.func (stack_context, stack_ast) () in
+    0 rot' stack_context.typecheck.func'
+end
+
+func stack_context.typecheck (stack_context, stack_ast) () in
+    dup2 stack_context.typecheck.data_def
+    dup2 stack_context.typecheck.func_def
+    dup2 stack_context.typecheck.func
+
+    pop2
+end
+
 -- STACK ASSEMBLER
 
 const STACK_LITERAL_NUMBER 0
@@ -2171,11 +2613,12 @@ data stack_args
     , bool lexer
     , bool parser
     , bool preprocessor
+    , bool typecheck
     , bool assembler
     )
 
 func stack_args.init.empty () (stack_args) in
-    "" false false false false stack_args.init
+    "" false false false false false stack_args.init
 end
 
 func stack_args.usage () () in
@@ -2194,6 +2637,9 @@ func stack_args.usage () () in
     "\n" string.stdout
     "  -P, --preprocessor\n" string.stdout
     "      flag to stop on the preprocessor phase\n" string.stdout
+    "\n" string.stdout
+    "  -t, --typecheck\n" string.stdout
+    "      flag to stop on the typecheck phase\n" string.stdout
     "\n" string.stdout
     "  -a, --assembler\n" string.stdout
     "      flag to stop on the assembler phase\n" string.stdout
@@ -2218,6 +2664,8 @@ func stack_args.parse' (array, int, stack_args) (stack_args) in -- array, i, arg
             rot4 dup true stack_args.parser.set rot4' pop
         else dup "--preprocessor" string.= swp dup "-P" string.= rot or if
             rot4 dup true stack_args.preprocessor.set rot4' pop
+        else dup "--typecheck" string.= swp dup "-t" string.= rot or if
+            rot4 dup true stack_args.typecheck.set rot4' pop
         else dup "--assembler" string.= swp dup "-a" string.= rot or if
             rot4 dup true stack_args.assembler.set rot4' pop
         else
@@ -2228,7 +2676,7 @@ func stack_args.parse' (array, int, stack_args) (stack_args) in -- array, i, arg
             else
                 dup rot stack_args.filename.set rot'
             fi -- args, array, i
-        fi fi fi fi fi -- args, array, i
+        fi fi fi fi fi fi -- args, array, i
 
         1 + rot -- array, i+1, args
         stack_args.parse' -- args
@@ -2277,7 +2725,17 @@ func main (int, ptr) (int) in -- argc, argv
         0 sys.exit swp
     fi swp -- args, stack_ast
 
-    -- TODO: typecheck stage
+    -- TODO: add typecheck
+
+    -- stack_context.init.base -- args, ast, ctx
+    -- dup2 swp stack_context.typecheck -- args, ast, ctx
+    -- stack_context.ok not if
+    --     1 sys.exit
+    -- fi -- args, ast
+
+    -- swp dup stack_args.typecheck if -- ast, args
+    --     0 sys.exit
+    -- fi swp -- args, ast
 
     STDOUT stack_assembler.init.with_fd -- args, stack_ast, asm
     swp stack_assembler.emit -- args
