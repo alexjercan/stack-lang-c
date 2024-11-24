@@ -732,6 +732,7 @@ const STACK_DATA_INT "int"
 const STACK_DATA_PTR "ptr"
 const STACK_DATA_BOOL "bool"
 
+const STACK_INIT "init"
 const STACK_SIZEOF "sizeof"
 const STACK_OFFSET "offset"
 
@@ -1558,9 +1559,111 @@ func stack_preprocessor.run.generate.data.setters' (int, stack_parser, stack_ast
     fi -- array
 end
 
-func stack_preprocessor.run.generate.data.init (stack_ast, stack_ast_data, stack_parser) () in -- ast, data
-    todo pop3
+func stack_preprocessor.run.generate.data.init' (int, stack_parser, stack_ast_data) (array) in -- i, ast, data -> array<expr>
+    dup stack_ast_data.fields -- i, parser, data array<field>
+    rot4 swp dup2 array.count < if -- parser, data, i, array
+        -- data.field.set
+        swp dup rot' -- parser, data, i, array, i
+        array.get unwrap -- parser, data, i, ptr
+        stack_ast_data_field.* stack_ast_data_field.name -- parser, data, i, node
+        rot dup stack_ast_data.name -- parser, i, node, data, name
+        stack_ast_node.value -- parser, i, node, data, name
+        swp rot4' -- parser, data, i, node, name
+        "." string.concat -- parser, data, i, node, name.
+        swp -- parser, data, i, name, node
+        stack_ast_node.value -- parser, data, i, name. name
+        string.concat -- parser, data, i, name.name
+        ".set" string.concat -- parser, data, i, name.name.set
+
+        rot4 dup rot -- data, i, parser, name.name, parser
+        0 stack_ast_node.init -- data, i, parser, node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- data, i, parser, expr
+        swp rot4' -- parser, data, i, expr
+
+        rot4' swp -- expr, parser, i, data
+
+        -- rot
+        STACK_FUNC_ROT -- expr, parser, i, data, rot
+
+        rot4 dup rot -- expr, i, data, parser, parser, rot
+        0 stack_ast_node.init -- expr, i, parser, node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- expr, i, parser, expr
+        rot4' rot' -- expr, ..., parser, i, data
+
+        -- dup
+        STACK_FUNC_DUP -- expr, parser, i, data, rot
+
+        rot4 dup rot -- expr, i, data, parser, parser, rot
+        0 stack_ast_node.init -- expr, i, parser, node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- expr, i, parser, expr
+        rot4' rot' -- expr, ..., parser, i, data
+
+        swp 1 + rot' stack_preprocessor.run.generate.data.init' -- expr, expr', expr'', array<expr>
+
+        -- dup
+        dup rot -- ..., array, array, expr
+        stack_ast_expr.& array.append unwrap -- ..., array
+
+        -- rot
+        dup rot -- ..., array, array, expr
+        stack_ast_expr.& array.append unwrap -- ..., array
+
+        -- data.field.set
+        dup rot -- ..., array, array, expr
+        stack_ast_expr.& array.append unwrap -- array
+    else
+        pop pop -- parser data
+        stack_ast_expr.sizeof array.init.with_sz -- parser, data, array<expr>
+
+        rot' -- array, parser, data
+
+        -- data.sizeof
+        dup -- array, parser, data, data
+        stack_ast_data.name -- array, parser, data, node
+        stack_ast_node.value -- array, parser, data, name
+        "." string.concat STACK_SIZEOF string.concat -- array, parser, data, data.sizeof
+
+        rot dup rot -- array, data, parser, parser, data.sizeof
+        0 stack_ast_node.init -- array, data, parser, data.sizeof
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- array, data, parser, expr
+        rot4 -- data, parser, expr, array
+        dup rot -- data, parser, array, array, expr
+        stack_ast_expr.& array.append unwrap -- data, parser, array
+        rot' swp -- array, parser, data
+
+        -- ptr.alloc
+        STACK_FUNC_PTR_ALLOC -- array, parser, data, name
+
+        rot dup rot -- array, data, parser, parser, ptr.alloc
+        0 stack_ast_node.init -- array, data, parser, data.sizeof
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- array, data, parser, expr
+        rot4 -- data, parser, expr, array
+        dup rot -- data, parser, array, array, expr
+        stack_ast_expr.& array.append unwrap -- data, parser, array
+        rot' swp -- array, parser, data
+
+        pop2 -- array
+    fi -- array
 end
+
+func stack_preprocessor.run.generate.data.init (stack_ast, stack_ast_data, stack_parser) () in -- ast, data
+    swp -- ast, parser, data
+
+    dup2 -- ..., parser, data
+    dup stack_ast_data.name stack_ast_node.value "." string.concat STACK_INIT string.concat -- ..., parser, data, s
+    rot dup rot4' -- ..., parser, data, s, parser
+    swp 0 -- ..., parser, data, parser, s, 0
+    stack_ast_node.init -- ..., parser, data, node
+    dup3 pop -- ..., parser, data, node parser, data
+    0 rot' stack_preprocessor.run.generate.data.init' -- ..., parser, data, node, exprs
+    stack_ast_const.init -- ... parser, data, const
+    rot' pop2 -- ast, parser, data, const
+    rot4 swp -- parser, data, ast, const
+    dup2 stack_ast.features.append.const pop rot' -- ast, parser, data
+
+    pop3
+end
+
 
 func stack_preprocessor.run.generate.data.getters (stack_ast, stack_ast_data, stack_parser) () in -- ast, data
     swp -- ast, parser, data
@@ -1599,7 +1702,7 @@ func stack_preprocessor.run.generate.data (int, stack_preprocessor, stack_ast) (
             stack_parser.init.with_lexer -- pre, i, ast, data, parser
 
             dup3 stack_preprocessor.run.generate.data.const -- ...
-            -- dup3 stack_preprocessor.run.generate.data.init -- ...
+            dup3 stack_preprocessor.run.generate.data.init -- ...
             dup3 stack_preprocessor.run.generate.data.getters -- ...
             dup3 stack_preprocessor.run.generate.data.setters -- ...
 
@@ -1837,10 +1940,14 @@ func stack_assembler.emit.func (stack_assembler, stack_ast_func) () in -- asm, f
     pop2
 end
 
+func stack_assembler.emit.data (stack_assembler, stack_ast_data) () in -- asm, data
+        pop2 -- TODO: data.* and data.&
+end
+
 func stack_assembler.emit.feature (stack_assembler, stack_ast_feature) () in -- asm, feature
     dup stack_ast_feature.kind
     dup STACK_AST_FEATURE_DATA = if -- asm, feat, kind
-        pop3 -- TODO: data.* and data.&
+        pop stack_ast_feature.feature stack_ast_data.* stack_assembler.emit.data
     else dup STACK_AST_FEATURE_FUNC = if
         pop stack_ast_feature.feature stack_ast_func.* stack_assembler.emit.func
     else dup STACK_AST_FEATURE_CONST = if
