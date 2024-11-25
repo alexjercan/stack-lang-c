@@ -731,7 +731,7 @@ end
 const STACK_DATA_INT "int"
 const STACK_DATA_PTR "ptr"
 const STACK_DATA_BOOL "bool"
-const STACK_DATA_STRING "STRING"
+const STACK_DATA_STRING "string"
 
 const STACK_INIT "init"
 const STACK_SIZEOF "sizeof"
@@ -2028,8 +2028,80 @@ func stack_context.typecheck.expr.name (stack_context, array, stack_ast_node) ()
     todo pop3
 end
 
+func stack_context.typecheck.expr.cond.has_boolean (array) (bool) in -- stack
+    array.last -- ptr, ok
+    not if -- ptr
+        pop false
+    else
+        string.* STACK_DATA_BOOL string.=
+    fi -- bool
+end
+
+func stack_context.typecheck.branch.showf (stack_context, stack_ast_cond, array, array) () in -- ctx, cond, stack, stack'
+    swp -- lhs, rhs
+    rot4 rot4 -- stack, stack', ctx, cond
+
+    dup2 stack_ast_cond.cond -- ..., ctx, name
+    "stack mismatch lhs execution (...," -- ..., ctx, name, s
+    stack_context.showf -- stack, stack', ctx, cond
+
+    pop swp -- stack, ctx, stack'
+    0 swp array.string.showf -- stack, ctx
+
+    ") rhs execution (..., " string.stderr
+
+    swp -- ctx, stack
+    0 swp array.string.showf -- ctx
+
+    ")\n" string.stderr -- ctx
+
+    pop
+end
+
+func stack_context.typecheck.expr.cond.has_boolean.showf (stack_context, stack_ast_cond, array) () in -- ctx, cond, stack
+    array.last -- ctx, cond, ptr, ok
+    not if -- ptr
+        pop ""
+    else
+        string.*
+    fi -- ctx, cond, str
+    "expected type (" STACK_DATA_BOOL string.concat
+    ") but got (" string.concat swp string.concat ")\n" string.concat -- ctx, cond, str
+
+    swp -- ctx, str, cond
+    stack_ast_cond.cond swp -- ctx, node, str
+    stack_context.showf -- ()
+end
+
 func stack_context.typecheck.expr.cond (stack_context, array, stack_ast_cond) () in -- ctx, stack, cond
-    todo pop3
+    swp dup stack_context.typecheck.expr.cond.has_boolean not if -- ctx, cond, stack
+        stack_context.typecheck.expr.cond.has_boolean.showf
+    else
+        dup array.pop unwrap -- ctx, cond, stack
+        dup array.copy -- ctx, cond, stack, stack'
+
+        rot4' -- stack', ctx, cond, stack
+        swp -- stack', ctx, stack, cond
+        dup stack_ast_cond.if_ -- s' ,ctx, s, cond if_
+        swp rot4' -- stack', cond, ctx, stack, if_
+        dup3 stack_context.typecheck.exprs pop -- stack', cond, ctx, stack
+
+        rot4' -- stack, stack', cond, ctx
+        swp -- stack, stack' ctx, cond
+        dup stack_ast_cond.else_ -- stack, stack', ctx, cond, else_
+        swp rot4' -- stack, cond, stack', ctx, else_
+        rot swp -- stack, cond, ctx, stack', else_
+        dup3 stack_context.typecheck.exprs pop -- stack, cond, ctx, stack'
+
+        swp rot4' -- ctx, stack, cond, stack'
+        rot swp -- ctx, cond, stack, stack'
+
+        dup2 array.= not if -- ctx, cond, stack, stack'
+            stack_context.typecheck.branch.showf
+        else
+            pop pop pop pop
+        fi -- ()
+    fi -- ()
 end
 
 func stack_context.typecheck.expr (stack_context, array, stack_ast_expr) () in -- ctx, stack, expr
@@ -2727,15 +2799,15 @@ func main (int, ptr) (int) in -- argc, argv
 
     -- TODO: add typecheck
 
-    -- stack_context.init.base -- args, ast, ctx
-    -- dup2 swp stack_context.typecheck -- args, ast, ctx
-    -- stack_context.ok not if
-    --     1 sys.exit
-    -- fi -- args, ast
+    stack_context.init.base -- args, ast, ctx
+    dup2 swp stack_context.typecheck -- args, ast, ctx
+    stack_context.ok not if
+        1 sys.exit
+    fi -- args, ast
 
-    -- swp dup stack_args.typecheck if -- ast, args
-    --     0 sys.exit
-    -- fi swp -- args, ast
+    swp dup stack_args.typecheck if -- ast, args
+        0 sys.exit
+    fi swp -- args, ast
 
     STDOUT stack_assembler.init.with_fd -- args, stack_ast, asm
     swp stack_assembler.emit -- args

@@ -336,6 +336,34 @@ func array.get (array, int) (ptr, bool) in -- a, i
     fi -- ptr, ok
 end
 
+func array.copy (array) (array) in -- a
+    dup array.sz -- a, sz
+    array.init.with_sz -- a, dst
+    dup rot -- dst, dst, a
+    dup array.count swp -- dst, dst, L, a
+    array.insert_many unwrap -- dst
+end
+
+func array.last (array) (ptr, bool) in -- a
+    dup array.count -- a, L
+    dup 0 <= if -- a, L
+        pop2 0 int.& false
+    else
+        1 - -- a, L-1
+        array.get
+    fi -- ptr, bool
+end
+
+func array.pop (array) (bool) in -- a
+    dup array.count -- a, L
+    dup 0 <= if -- a, L
+        pop2 false
+    else
+        1 - -- a, L-1
+        array.delete
+    fi -- bool
+end
+
 func array.= (array, array) (bool) in -- xs, ys
     dup2 array.count swp array.count -- xs, ys, L, L'
     = if -- xs, ys
