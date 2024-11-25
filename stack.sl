@@ -1563,43 +1563,115 @@ end
 func stack_preprocessor.run.generate.data.init' (int, stack_parser, stack_ast_data) (array) in -- i, ast, data -> array<expr>
     dup stack_ast_data.fields -- i, parser, data array<field>
     rot4 swp dup2 array.count < if -- parser, data, i, array
-        -- data.field.set
-        swp dup rot' -- parser, data, i, array, i
-        array.get unwrap -- parser, data, i, ptr
-        stack_ast_data_field.* stack_ast_data_field.name -- parser, data, i, node
-        rot dup stack_ast_data.name -- parser, i, node, data, name
+        pop swp -- parser, i, data
+
+        -- pop
+        STACK_FUNC_POP -- ..., parser, i, data, pop
+
+        rot4 dup rot -- ..., i, data, parser, parser, rot
+        0 stack_ast_node.init -- ..., i, parser, node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- ..., i, parser, expr
+        rot4' rot' -- ..., parser, i, data
+
+        -- ptr.@
+        STACK_FUNC_PTR_COPY -- ..., parser, i, data, rot
+
+        rot4 dup rot -- ..., i, data, parser, parser, rot
+        0 stack_ast_node.init -- ..., i, parser, node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- ..., i, parser, expr
+        rot4' rot' -- ..., parser, i, data
+
+        -- field_type.sizeof
+        swp dup rot -- ... parser, i, i, data
+        dup stack_ast_data.fields -- ... parser, i, i, data, array
+        rot -- ... parser, i, data, array, i
+        array.get unwrap -- parser, i, data, ptr
+        stack_ast_data_field.* stack_ast_data_field.type -- parser, i, data, node
+        stack_ast_node.value -- parser, i, data, name
+        "." string.concat -- parser, i, data, type.
+        STACK_SIZEOF string.concat -- parser, i, data, type.offset
+
+        rot4 dup rot -- i, data, parser, name.name, parser
+        0 stack_ast_node.init -- i, data, parser, node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- i, data, parser, expr
+        rot4' rot' -- ..., parser, i, data
+
+        -- field_type.&
+        swp dup rot -- ... parser, i, i, data
+        dup stack_ast_data.fields -- ... parser, i, i, data, array
+        rot -- ... parser, i, data, array, i
+        array.get unwrap -- parser, i, data, ptr
+        stack_ast_data_field.* stack_ast_data_field.type -- parser, i, data, node
+        stack_ast_node.value -- parser, i, data, name
+        ".&" string.concat -- parser, i, data, type.&
+
+        rot4 dup rot -- i, data, parser, name.name, parser
+        0 stack_ast_node.init -- i, data, parser, node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- i, data, parser, expr
+        rot4' rot' -- ..., parser, i, data
+
+        -- swp
+        STACK_FUNC_SWP -- ..., parser, i, data, rot
+
+        rot4 dup rot -- ..., i, data, parser, parser, rot
+        0 stack_ast_node.init -- ..., i, parser, node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- ..., i, parser, expr
+        rot4' rot' -- ..., parser, i, data
+
+        -- ptr.+
+        STACK_FUNC_PTR_OFFSET -- ..., parser, i, data, rot
+
+        rot4 dup rot -- ..., i, data, parser, parser, rot
+        0 stack_ast_node.init -- ..., i, data, parser, node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- ..., i, data, parser, expr
+        rot4' rot' -- ..., parser, i, data
+
+        -- data.field.offset
+        swp dup rot -- ... parser, i, i, data
+        dup stack_ast_data.fields -- ... parser, i, i, data, array
+        rot -- ... parser, i, data, array, i
+        array.get unwrap -- parser, i, data, ptr
+        stack_ast_data_field.* stack_ast_data_field.name -- parser, i, data, node
+        swp dup stack_ast_data.name -- parser, i, node, data, name
         stack_ast_node.value -- parser, i, node, data, name
-        swp rot4' -- parser, data, i, node, name
-        "." string.concat -- parser, data, i, node, name.
-        swp -- parser, data, i, name, node
-        stack_ast_node.value -- parser, data, i, name. name
-        string.concat -- parser, data, i, name.name
-        ".set" string.concat -- parser, data, i, name.name.set
+        swp rot' -- parser, i, data, node, name
+        "." string.concat -- parser, i, data, node, name.
+        swp -- parser, i, data, name, node
+        stack_ast_node.value -- parser, i, data, name. name
+        string.concat -- parser, i, data, name.name
+        "." string.concat -- parser, i, data, name.name.
+        STACK_OFFSET string.concat -- parser, i, data, name.name.offset
 
-        rot4 dup rot -- data, i, parser, name.name, parser
-        0 stack_ast_node.init -- data, i, parser, node
-        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- data, i, parser, expr
-        swp rot4' -- parser, data, i, expr
-
-        rot4' swp -- expr, parser, i, data
+        rot4 dup rot -- i, data, parser, name.name, parser
+        0 stack_ast_node.init -- i, data, parser, node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- i, data, parser, expr
+        rot4' rot' -- ..., parser, i, data
 
         -- rot
-        STACK_FUNC_ROT -- expr, parser, i, data, rot
+        STACK_FUNC_ROT -- ..., parser, i, data, rot
 
-        rot4 dup rot -- expr, i, data, parser, parser, rot
-        0 stack_ast_node.init -- expr, i, parser, node
-        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- expr, i, parser, expr
-        rot4' rot' -- expr, ..., parser, i, data
+        rot4 dup rot -- ..., i, data, parser, parser, rot
+        0 stack_ast_node.init -- ..., i, parser, node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- ..., i, parser, expr
+        rot4' rot' -- ..., parser, i, data
+
+        -- rot
+        STACK_FUNC_ROT -- ..., parser, i, data, rot
+
+        rot4 dup rot -- ..., i, data, parser, parser, rot
+        0 stack_ast_node.init -- ..., i, parser, node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- ..., i, parser, expr
+        rot4' rot' -- ..., parser, i, data
 
         -- dup
-        STACK_FUNC_DUP -- expr, parser, i, data, rot
+        STACK_FUNC_DUP -- ..., parser, i, data, rot
 
-        rot4 dup rot -- expr, i, data, parser, parser, rot
-        0 stack_ast_node.init -- expr, i, parser, node
-        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- expr, i, parser, expr
-        rot4' rot' -- expr, ..., parser, i, data
+        rot4 dup rot -- ..., i, data, parser, parser, rot
+        0 stack_ast_node.init -- ..., i, parser, node
+        STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- ..., i, parser, expr
+        rot4' rot' -- ..., parser, i, data
 
-        swp 1 + rot' stack_preprocessor.run.generate.data.init' -- expr, expr', expr'', array<expr>
+        swp 1 + rot' stack_preprocessor.run.generate.data.init' -- ..., array<expr>
 
         -- dup
         dup rot -- ..., array, array, expr
@@ -1609,9 +1681,37 @@ func stack_preprocessor.run.generate.data.init' (int, stack_parser, stack_ast_da
         dup rot -- ..., array, array, expr
         stack_ast_expr.& array.append unwrap -- ..., array
 
-        -- data.field.set
+        -- rot
         dup rot -- ..., array, array, expr
-        stack_ast_expr.& array.append unwrap -- array
+        stack_ast_expr.& array.append unwrap -- ..., array
+
+        -- data.field.offset
+        dup rot -- ..., array, array, expr
+        stack_ast_expr.& array.append unwrap -- ..., array
+
+        -- ptr.+
+        dup rot -- ..., array, array, expr
+        stack_ast_expr.& array.append unwrap -- ..., array
+
+        -- swp
+        dup rot -- ..., array, array, expr
+        stack_ast_expr.& array.append unwrap -- ..., array
+
+        -- field_type.sizeof
+        dup rot -- ..., array, array, expr
+        stack_ast_expr.& array.append unwrap -- ..., array
+
+        -- field_type.&
+        dup rot -- ..., array, array, expr
+        stack_ast_expr.& array.append unwrap -- ..., array
+
+        -- ptr.@
+        dup rot -- ..., array, array, expr
+        stack_ast_expr.& array.append unwrap -- ..., array
+
+        -- pop
+        dup rot -- ..., array, array, expr
+        stack_ast_expr.& array.append unwrap -- ..., array
     else
         pop pop -- parser data
         stack_ast_expr.sizeof array.init.with_sz -- parser, data, array<expr>
@@ -1657,6 +1757,24 @@ func stack_preprocessor.run.generate.data.init (stack_ast, stack_ast_data, stack
     stack_ast_node.init -- ..., parser, data, node
     dup3 pop -- ..., parser, data, node parser, data
     0 rot' stack_preprocessor.run.generate.data.init' -- ..., parser, data, node, exprs
+
+    -- data.*
+    rot -- ... parser, node, exprs, data
+    rot4 rot' -- ... node, parser, exprs, data
+    dup stack_ast_data.name -- node, parser, exprs, data, name
+    stack_ast_node.value -- node, parser, exprs, data, name
+    ".*" string.concat -- node, parser, exprs, data, name.*
+    swp -- node, parser, exprs, name.* data
+    rot4' -- node, data, parser, exprs, name.*
+
+    rot dup rot -- node, data, exprs, parser, parser, name.*
+    0 stack_ast_node.init -- node, data, exprs, parser, node'
+    STACK_AST_EXPR_NAME swp stack_ast_node.& stack_ast_expr.init -- node, data, exprs, parser, expr
+    rot dup rot -- node, data, parser, exprs, exprs expr
+    stack_ast_expr.& array.append unwrap -- node, data, parser, exprs
+    rot4' swp -- exprs, node, parser, data
+    rot -- exprs, parser, data, node
+    rot4 -- parser, data, node, exprs
     stack_ast_const.init -- ... parser, data, const
     rot' pop2 -- ast, parser, data, const
     rot4 swp -- parser, data, ast, const
