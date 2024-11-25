@@ -886,15 +886,16 @@ func stack_preprocessor.run.expand.exprs (int, array, stack_ast_const) () in -- 
                 rot' -- ..., exprs array i
                 dup2 -- ..., exprs, array, i, array i
                 array.get unwrap stack_ast_expr.* -- ..., exprs, array, i, name
-                rot' dup2 -- ..., exprs, name, array, i, array i
-                array.delete unwrap -- ... exprs, name, array, i
-                rot4 rot4 -- ..., array, i, exprs, name
+                rot4 swp -- ..., array, i, exprs, name
 
                 dup2 0 rot' -- ..., array, i, exprs, name, 0, exprs, name
                 stack_ast_expr.expr stack_ast_node.*
                 stack_preprocessor.run.expand.update -- ..., array, i, exprs, name
-
                 pop -- ..., array, i, exprs
+
+                rot' dup2 -- ..., exprs, array, i, array i
+                array.delete unwrap -- ... exprs, array, i
+                rot -- ..., array, i, exprs
 
                 array.insert_many unwrap -- ...
             fi -- array i const
