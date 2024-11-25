@@ -819,7 +819,7 @@ func stack_preprocessor.run.expand.update (int, array, stack_ast_node) () in
     dup array.count -- node, i, array, L
     rot swp -- node, array i L
     dup2 < if -- node array i L
-        pop
+        pop -- node, array, i
         dup2 array.get unwrap -- node array i ptr
         stack_ast_expr.* dup stack_ast_expr.kind -- node array i expr kind
         dup STACK_AST_EXPR_NAME = -- node array i expr kind bool
