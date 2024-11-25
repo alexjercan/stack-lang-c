@@ -311,7 +311,7 @@ end
 -- DATA ARRAY
 data array (int capacity, int count, int sz, ptr items)
 
-const array.SIZE 1024
+const array.SIZE 32
 
 func array.init.with_sz (int) (array) in -- sz
     0 0 0 int.& -- sz, C, L, xs
