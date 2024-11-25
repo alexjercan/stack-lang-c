@@ -21,6 +21,7 @@
 #define STACK_FUNC_ROT "rot"
 #define STACK_FUNC_ROT4 "rot4"
 #define STACK_FUNC_POP "pop"
+#define STACK_FUNC_PICK "pick"
 
 #define STACK_FUNC_PLUS "+"
 #define STACK_FUNC_MINUS "-"
@@ -1965,6 +1966,18 @@ void stack_context_init(stack_context *context) {
     };
     ds_dynamic_array_append(&context->symbols, &func_pop);
 
+    ds_dynamic_array func_pick_args = {0};
+    ds_dynamic_array_init(&func_pick_args, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_pick_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
+    ds_dynamic_array func_pick_rets = {0};
+    ds_dynamic_array_init(&func_pick_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_pick_rets, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    stack_context_symbol func_pick = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_PICK), .args = func_pick_args, .rets = func_pick_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_pick);
+
     ds_dynamic_array func_ptr_alloc_args = {0};
     ds_dynamic_array_init(&func_ptr_alloc_args, sizeof(ds_string_slice));
     DS_EXPECT(ds_dynamic_array_append(&func_ptr_alloc_args, &DS_STRING_SLICE(STACK_DATA_INT)), DS_ERROR_OOM);
@@ -2849,7 +2862,6 @@ static int stack_context_typecheck_expr_name(stack_context *context,
     int result = 0;
 
     if (stack_context_symbol_get(context, name->value, &symbol) != 0) {
-        printf("%.*s\n", name->value.len, name->value.str);
         stack_context_is_func_defined_errorf(*name);
         return_defer(1);
     }
@@ -3346,6 +3358,26 @@ static void stack_assembler_emit_allocator(stack_assembler *assembler) {
 
     EMIT(";");
     EMIT(";");
+    EMIT("; stack pick");
+    EMIT(";");
+    EMIT(";   INPUT: rdi contains the index");
+    EMIT(";   OUTPUT: rax contains the int64 (pointer) that we pick from the stack");
+    EMIT(";");
+    EMIT("stack_pick_addr:");
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    mov     rax, qword [stack_pos]");
+    EMIT("    shl     rdi, 3 ; multiply index with 8");
+    EMIT("    sub     rax, rdi ; offset stack_pos with index*8");
+    EMIT("    mov     rax, qword [rax - %d]", STACK_WORD_SZ);
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+
+    EMIT(";");
+    EMIT(";");
     EMIT("; allocate");
     EMIT(";");
     EMIT(";   INPUT: rdi contains the size in bytes");
@@ -3554,6 +3586,28 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
     EMIT("");
     EMIT("    call    stack_pop_addr");
+    EMIT("");
+    EMIT("    add     rsp, 16                    ; deallocate local variables");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+    // PICK
+    EMIT(";");
+    EMIT(";");
+    EMIT("; pick");
+    EMIT(";");
+    EMIT(";   INPUT: (int)");
+    EMIT(";   OUTPUT: (ptr)");
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_PICK)), NULL), STACK_FUNC_PICK);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("    sub     rsp, 16                    ; allocate 2 local variables");
+    EMIT("");
+    EMIT("    call    stack_pop");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_pick_addr");
+    EMIT("    mov     rdi, rax");
+    EMIT("    call    stack_push");
     EMIT("");
     EMIT("    add     rsp, 16                    ; deallocate local variables");
     EMIT("    pop     rbp                        ; restore return address");

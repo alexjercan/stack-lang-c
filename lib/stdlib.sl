@@ -340,8 +340,7 @@ func array.copy (array) (array) in -- a
     dup array.sz -- a, sz
     array.init.with_sz -- a, dst
     dup rot -- dst, dst, a
-    dup array.count swp -- dst, dst, L, a
-    array.insert_many unwrap -- dst
+    array.extend unwrap -- dst
 end
 
 func array.last (array) (ptr, bool) in -- a

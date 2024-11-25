@@ -1,3 +1,3 @@
-data int extern
+data int ()
 
-data int extern
+data int ()
