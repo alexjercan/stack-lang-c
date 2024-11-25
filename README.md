@@ -2,55 +2,189 @@
 
 Stack Lang is the new hot thing (makes C obsolete!!!)
 
-### 1. Abstract
+## 1. Introduction
 
-This project is a compiler for a toy language. The main feature of this
-language is the stack based style of programming. It will include functions
-that work with a stack only. For example all variables will be located on the
-stack, and the functions (or operators) will use elements from the stack and
-then write them back on the stack.
+This manual describes the programming language `Stack`. Stack is a stack based
+programming language. The language uses data structures and functions to define
+programs. It includes static typing with inference and automatic memory
+management.
 
-### 1. Language Spec
+`Stack` programs are sets of functions with a main entrypoint. `Stack` programs
+can also define custom data types, which can be used to describe how memory
+should be interpreted. A function in `Stack` is a set of expressions that
+operate on a stack.
 
-This is still in progress. Just trying to come up with something that is both
-fun and easy to code in.
+`Stack` is type safe: the stack is guaranteed to have the expected types in the
+body of a function. `Stack` is currently weakly typed. It allows you to convert
+any type to any other type by using pointers directly, which can lead to
+runtime errors if not used carefully.
 
-#### 1.1. Comments
+## 2. Quickstart
 
-Line comments are prefixed by `--` symbol.
+This repository includes a `Stack` compiler that can be used for each step of
+converting a `.sl` file into an executable.
 
-#### 1.2. Program
+To build the `Stack` compiler you can easily use `nix` with the default build
+target, or just run make.
 
-A `stack` program is defined as a list of `Data Types` and `Functions`. The
-entry point of a `stack` program is the `main` function.
+```console
+nix build
+```
 
-#### 1.3. Stack Data Types
+or
 
-##### 1.3.1. int
+```console
+make
+```
+
+To compile a `Stack` program using the `slc` compiler:
+
+```console
+slc [ -o main ] main.sl
+```
+
+## 3. Stack
+
+The stack in a `Stack` program is an array with a fixed size. The stack is used
+to store pointers to data that lives on the heap. The `Stack` heap can grow
+indefinetly.
+
+Type checking will make sure that the stack is valid for a program before
+allowing it to be compiled.
+
+## 3. Features
+
+`Stack` programs are set of features. Features can be functions, data types and
+macros.
+
+## 3.1. Functions
+
+`Stack` functions are sets of expressions that operate on the stack. Functions
+can add and remove items from the stack.
+
+Functions will define the expected state of the stack before and after the
+execution.
+
+```stack
+func <name> (<type_i1>, <type_i2>, ...) (<type_o1>, <type_o2>, ...) in
+    <body>
+end
+```
+
+The function names can contain any name character (alpha numeric and symbols
+with the exception of `(),`). Functions may not be redefined.
+
+The input of the function is given as the list `(<type_i1>, <type_i2>, ...)`
+and the output of the function as `(<type_o1>, <type_o2>, ...)`. The body of a
+function will be just a list of expressions. After applying all the
+expressions, the stack must go from the input to the output state.
+
+## 3.2. Data Types
+
+`Stack` data types are similar to C structures. They are used to store data, and
+will give an overview on how the memory will be used.
+
+```stack
+data <type>
+    ( <type1> <field1>
+    , <type2> <field2>
+    )
+```
+
+The data type names can contain any name character (alpha numeric and symbols
+with the exception of `(),`). Data types may not be redefined.
+
+The data types contain a set of `Data Fields`. Each field has a type and a
+name. The types are used to compute the size of each field. The names are used
+to be able to offset into memory.
+
+`Stack` data types will have convenience functions generated for initializing
+them from a stack that contains all the fields in order. Data types will also
+have field getters and setters.
+
+```stack
+-- constructor for the data type
+func <type>.init (<type1>, <type2>) (<type>) in ... end
+
+-- field getters for the data type
+func <type>.<field1> (<type>) (<type1>) in ... end
+func <type>.<field2> (<type>) (<type2>) in ... end
+
+-- field setters for the data type
+func <type>.<field1>.set (<type>, <type1>) () in ... end
+func <type>.<field2>.set (<type>, <type2>) () in ... end
+```
+
+## 3.3. Consts
+
+Constants in `Stack` are macros that are expanded in the AST of the program
+during preprocessor stage. Constants are not directly type checked. They need
+to make sense in the place where they are used.
+
+For example
+
+```stack
+const <name> <body>
+```
+
+will be expanded as as `<body>` in the place where it is used.
+
+## 3.4. Imports
+
+Import macros were added to keep the code organized into modules.
+
+To import another file in a stack program you can use the `@import` macro and
+then specify the name of the module.
+
+```stack
+@import stdlib
+```
+
+Stack will look for the module file in the current folders in order:
+- `.` in the current directory
+- `lib` in the lib folder of the current project
+- `/usr/lib` in the lib folder of the os or where stack is installed (this is WIP)
+
+Supports setting the path by using the `STACK_HOME` environment variable.
+
+```console
+export STACK_HOME=.
+```
+
+## 4. Stack Data Types
+
+### 4.1. int
 
 The `int` data type is implemented by default by the language. This is a 8 byte
 signed int. You can think of it as a `int64` type in C.
 
-##### 1.3.2. bool
+### 4.2. bool
 
 The `bool` data type is also provided by the stack compiler. It can have the
 values of `true` and `false`. These can be thought as the constructors of the
 boolean type.
 
-##### 1.3.3. string
+### 4.3. ptr
+
+The `ptr` data type is used to represent a pointer. It's value is an int64. All
+data types will be able to be converted between and into `ptr` for easy memory
+management (by referencing and dereferencing).
+
+### 4.4. string
 
 The `string` data type is part of the stack compiler. String in stack are
 defined using the `"` (quotes). Strings can be escaped using the `\`
 (backslash) character. For example `"Hello, World\n"` is a valid string in
 stack.
 
-##### 1.3.4. ptr
+The `string` data type is part of the standard library. This data type is a
+good example on why `data` is useful. By default a string will be allocated on
+the heap as a 16 bytes sized block. The first 8 are used by the string length
+and should be interpreted as an int. The next 8 are a pointer to a list of
+bytes with the specified length. The `string` data type makes working with this
+much easier.
 
-The `ptr` data type is used to represent a pointer. It's value is an int64. All
-data types will be able to be converted between and into `ptr` for easy memory
-management (by referencing and dereferencing).
-
-#### 1.4. Functions
+## 5. Stack Functions
 
 Functions are defined using the `func` keyword. After the `func` keyword comes
 the name of the function and then the list of arguments and return values
@@ -71,7 +205,7 @@ stack as input and produces an int on the stack.
 Functions in stack are called by just using their name in the body of another
 function.
 
-##### 1.4.1. `dup`
+### 4.1. `dup`
 
 ```stack
 func dup (a) (a, a) in
@@ -88,7 +222,7 @@ of `a`.
 > to the first item will reflect in the second one as well. To create an actual
 > copy you will need to allocate and memcpy the item.
 
-##### 1.4.2. `swp`
+### 4.2. `swp`
 
 ```stack
 func swp (a, b) (b, a) in
@@ -100,7 +234,7 @@ The swap function can be used to swap the first two items on the stack. The
 types are also generic `a` and `b` and are infered from the context in the
 compile phase.
 
-##### 1.4.3. `rot`
+### 4.3. `rot`
 
 ```stack
 func rot (a, b, c) (b, c, a) in
@@ -111,7 +245,7 @@ end
 The rotate (clockwise) function can be used to rotate  the first three items on
 the stack. Rotate will take the last item and put it in the front.
 
-##### 1.4.3. `rot4`
+### 4.4. `rot4`
 
 ```stack
 func rot' (a, b, c) (c, a, b) in
@@ -122,7 +256,7 @@ end
 The rotate4 (clockwise) function can be used to rotate the first four items on
 the stack.
 
-##### 1.4.4. `pop`
+### 4.5. `pop`
 
 ```stack
 func pop (a) () in
@@ -132,7 +266,21 @@ end
 
 The pop function can be used to remove items from the stack.
 
-##### 1.4.5. `ptr.alloc`
+### 4.6. `pick`
+
+```stack
+func pick (int) (ptr) in
+    ...
+end
+```
+
+The pick function is used to copy one item from the stack given the index (from
+end). This function is a good example on why the language is currently weakly
+typed. It does not care about the type of the item from the stack, it will box
+it into a ptr. The decision to which type to convert it after is left to the
+developer.
+
+### 4.7. `ptr.alloc`
 
 ```stack
 func ptr.alloc (int) (ptr) in
@@ -143,7 +291,7 @@ end
 The allocate function will initialize a ptr buffer with size given as argument.
 The size is given in bytes.
 
-##### 1.4.6. `ptr.+`
+### 4.8. `ptr.+`
 
 ```stack
 func ptr.+ (ptr, int) (ptr) in  -- offset address
@@ -153,7 +301,22 @@ end
 
 The offset function will add an offset to an address.
 
-##### 1.4.7. `data.&`
+### 4.9. `ptr.@`
+
+```stack
+func ptr.@ (ptr, ptr, int) () in
+    ...
+end
+```
+
+The copy function will copy `n` bytes from the `src` to the `dest` pointers.
+Function should be called like
+
+```stack
+dest src n ptr.@
+```
+
+### 4.10. `data.&`
 
 ```stack
 func data.& (a) (ptr) in
@@ -166,7 +329,7 @@ currently implemented by the compiler for each data type and it will be for
 example `ptr.&` or `int.&`. (in other terms it will box the data into a
 container and give us the new address of that).
 
-##### 1.4.8. `data.*`
+### 4.11. `data.*`
 
 ```stack
 func data.* (ptr) (a) in
@@ -178,22 +341,17 @@ The deref function will dereference a ptr value (in other words it will unbox a
 ptr and give us the value which should the data contained by the box). This
 function is also implemented by the compiler for each data type.
 
-##### 1.4.9. `ptr.@`
+### 4.12. `syscall1`
+
+There are syscall function implemented for all number of argument in a syscall.
 
 ```stack
-func ptr.@ (ptr, ptr) () in
+func syscall1 (a, int) (int) in
     ...
 end
 ```
 
-The copy function will copy one byte from the `src` to the `dest` pointers.
-Function should be called like
-
-```stack
-dest src ptr.@
-```
-
-##### 1.4.10. `syscall3`
+### 4.13. `syscall3`
 
 There are syscall function implemented for all number of argument in a syscall.
 
@@ -205,22 +363,35 @@ end
 
 The last argument of a syscall function is the syscall number.
 
-#### 1.5. Expressions
+### 4.14. math
+
+There are also the well known functions for math operations `+`, `-`, `*`, `/`,
+`%`, `|`, `&`, `^`, `>>`, `<<`. These functions are used on the `int` data type.
+
+### 4.15. compare
+
+There are also functions for comparing numbers `>`, `<`, `=`. These functions
+will return `bool`.
+
+Other functions that can be derived from the basic math or compare functions
+are available in the `stdlib` module.
+
+## 5. Expressions
 
 Expressions in stack are used in the body of the functions as a sequence of
 operations that work on the stack.
 
-##### 1.5.1. Literals
+### 5.1. Literals
 
 The most basic expression in stack is the literal. These can be `int`, `bool`
-or `string` (maybe others soon) and are added on the stack by just using them.
+or `string` and are added on the stack by just using them.
 
-##### 1.5.2. Function calls
+### 5.2. Function calls
 
 To call functions in stack you need to just use the name of the function as an
 expression.
 
-##### 1.5.2. Conditionals
+### 5.3. Conditionals
 
 The `if` statement can be thought as a function that takes in a `bool` and
 produces some changes on the stack. The syntax is like following
@@ -240,100 +411,33 @@ if ... fi
 ```
 
 This construction can be thought of doing some extra operations on the stack,
-if the condition is met. Some examples
+if the condition is met. Some examples in the `./examples/`
 
-```stack
--- the abs function returns the absolute value
-func abs (int) (int) in
-    dup 0 < if 0 swp - fi
-end
-```
+Another important aspect of `if` expressions is type checking. The stack will
+need to have the same layout regardless of the path taken. That means that each
+branch must generate the same types on the stack.
 
-#### 1.5. Custom data types
-
-In `stack` you can define data types (or structures) using the `data` keyword.
-
-We can look at an example of implementing the `ivec2` data structure.
-
-```stack
-data ivec2 (int x, int y)
-```
-
-The stack compiler will create functions that convert the data type from and to
-a `ptr`. This way you can easily implement the `init` and `getters` of the data
-type.
-
-```stack
-func ptr.ivec2 (ptr) (ivec2) in
-    ...
-end
-
-func ivec2.ptr (ivec2) (ptr) in
-    ...
-end
-```
-
-Some examples of using these `ptr` conversions are offseting the data pointer
-to access fields (or initialize them). The pattern is usually
-
-```stack
-ivec2.ptr ptr.int 0 + int.ptr
-```
-
-which gives you the pointer to the first field. Then you can use store and
-deref to modify or read the value.
-
-#### 1.6. Entrypoint
+## 6. Entrypoint
 
 The entrypoint of a stack lang program is the main function which should be
 define as
 
 ```stack
-func main () (int) in
+func main (int, ptr) (int) in
     ...
 end
 ```
 
-The main function is expected to have one `int` on the stack that represents
-the exit code.
+The main function is expected to generate one `int` on the stack that
+represents the exit code.
 
-#### 1.7. Preprocessor
+The stack starts with the `argc` and `argv` arguments on the stack. These can be
+ignored if the main input is set to `()`.
 
-##### 1.7.1 Imports
+> **_NOTE:_**  The `argc` and `argv` will still be pushed on the stack if the
+> main input type is `()`. But since type checking assumes that the input to
+> main is correctly defined, then it will be ignored. However, defining main as
+> show is recommended to avoid any bugs.
 
-WIP: Currently the imports are work in progress and should not be used. I need
-them only to keep common code in stdlib.
-
-To import another file in a stack program you can use the `@import` macro and
-then specify the name of the module.
-
-```stack
-@import stdlib
-```
-
-Stack will look for the module file in the current folders in order:
-- `.` in the current directory
-- `lib` in the lib folder of the current project
-- `/usr/lib` in the lib folder of the os or where stack is installed (this is WIP)
-
-Supports adding multiple paths by using the `STACK_PATH` environment variable.
-
-```console
-export STACK_PATH=mymodule:lib2:$STACK_PATH
-```
-
-### 2. Quickstart
-
-You can use `nix` to easily build the stack compiler.
-
-```console
-nix build
-./result/bin/slc --help
-```
-
-Or you can just use `make`.
-
-```console
-make build
-./main --help
-```
+The stack starts with `argc` and `argv` and must end with the `int` return
+code.
