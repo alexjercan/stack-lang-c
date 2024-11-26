@@ -2,6 +2,7 @@ result
 example
 main
 *.asm
+!bootstrap/*.asm
 *.o
 compile_flags.txt
 slc
