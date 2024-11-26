@@ -1,8 +1,7 @@
-result
-example
-main
-*.asm
 !bootstrap/*.asm
+*.asm
 *.o
+
 compile_flags.txt
+result
 slc
