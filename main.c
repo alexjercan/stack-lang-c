@@ -54,6 +54,8 @@
 #define STACK_FUNC_BOOL_REF "bool.&"
 #define STACK_FUNC_BOOL_DEREF "bool.*"
 
+#define STACK_FUNC_ENV "os.env"
+
 #define STACK_CONST_LINE "__line__"
 #define STACK_CONST_COL "__col__"
 #define STACK_CONST_FILE "__file__"
@@ -2186,6 +2188,17 @@ void stack_context_init(stack_context *context) {
     };
     ds_dynamic_array_append(&context->symbols, &func_eq);
 
+    ds_dynamic_array func_env_args = {0};
+    ds_dynamic_array_init(&func_env_args, sizeof(ds_string_slice));
+    ds_dynamic_array func_env_rets = {0};
+    ds_dynamic_array_init(&func_env_rets, sizeof(ds_string_slice));
+    DS_EXPECT(ds_dynamic_array_append(&func_env_rets, &DS_STRING_SLICE(STACK_DATA_PTR)), DS_ERROR_OOM);
+    stack_context_symbol func_env = (stack_context_symbol){
+        .kind = STACK_CONTEXT_SYMBOL_FUNC,
+        .func = (stack_context_func){ .name = DS_STRING_SLICE(STACK_FUNC_ENV), .args = func_env_args, .rets = func_env_rets}
+    };
+    ds_dynamic_array_append(&context->symbols, &func_env);
+
 #ifdef __linux__
     ds_dynamic_array func_syscall1_args = {0};
     ds_dynamic_array_init(&func_syscall1_args, sizeof(ds_string_slice));
@@ -3143,6 +3156,8 @@ static unsigned int stack_assembler_constants_map(stack_assembler *assembler, st
 static void stack_assembler_emit_entry(stack_assembler *assembler) {
     EMIT("section '.data' writeable");
     EMIT("");
+    EMIT("stack_env dq 0");
+    EMIT("");
     EMIT("; Define some constants");
     EMIT("loc_0 = 8");
     EMIT("loc_1 = 16");
@@ -3177,6 +3192,15 @@ static void stack_assembler_emit_entry(stack_assembler *assembler) {
     EMIT("    mov     rdi, rsp");
     EMIT("    add     rdi, 8");
     EMIT("    call    stack_push");
+    EMIT("");
+    EMIT("    ; store env in stack_env");
+    EMIT("    mov     rax, qword [rsp]");
+    EMIT("    shl     rax, 3");
+    EMIT("    mov     rdi, rsp");
+    EMIT("    add     rdi, 8");
+    EMIT("    add     rdi, rax");
+    EMIT("    add     rdi, 8");
+    EMIT("    mov     qword [stack_env], rdi");
     EMIT("");
     EMIT("    ; Call the main method");
     EMIT("    call    func.%lu ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_MAIN)), NULL), STACK_FUNC_MAIN);
@@ -4134,6 +4158,19 @@ static void stack_assembler_emit_keywords(stack_assembler *assembler) {
     EMIT("    call    stack_pop");
     EMIT("    mov     rdi, rax");
     EMIT("    call    stack_push_addr");
+    EMIT("");
+    EMIT("    pop     rbp                        ; restore return address");
+    EMIT("    ret");
+    EMIT("");
+
+    // ENV VARS
+    EMIT("func.%lu: ; %s", stack_assembler_func_map(assembler, &STACK_CONST_FUNC(DS_STRING_SLICE(STACK_FUNC_ENV)), NULL), STACK_FUNC_ENV);
+    EMIT("    push    rbp                        ; save return address");
+    EMIT("    mov     rbp, rsp                   ; set up stack frame");
+    EMIT("");
+    EMIT("    ; get env vars ptr");
+    EMIT("    mov     rdi, qword [stack_env]");
+    EMIT("    call    stack_push");
     EMIT("");
     EMIT("    pop     rbp                        ; restore return address");
     EMIT("    ret");
