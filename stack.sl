@@ -724,8 +724,7 @@ func stack_ast.dump (stack_ast) () in stack_ast.features 0 swp stack_ast.dump' e
 data stack_preprocessor ()
 
 func stack_home () (string) in
-    -- TODO: get env for "STACK_HOME"
-    "."
+    "STACK_HOME" os.env.get not if pop "." fi
 end
 
 const STACK_DATA_INT "int"
@@ -2126,6 +2125,15 @@ func stack_context.init.base () (stack_context) in
     dup STACK_DATA_INT string.& array.append unwrap
     string.sizeof array.init.with_sz -- rets
     dup STACK_DATA_BOOL string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_ENV -- name
+    string.sizeof array.init.with_sz -- args
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_PTR string.& array.append unwrap
     stack_context_func.init stack_context_func.& -- ptr
     stack_context_symbol.init -- symbol
     stack_context_symbol.& array.append unwrap -- symbols
@@ -3540,6 +3548,8 @@ end
 func stack_assembler.emit.entry (stack_assembler) () in
     dup "section '.data' writeable" emit
     dup "" emit
+    dup "stack_env dq 0" emit
+    dup "" emit
     dup "; Define some constants" emit
     dup "loc_0 = 8" emit
     dup "loc_1 = 16" emit
@@ -3574,6 +3584,15 @@ func stack_assembler.emit.entry (stack_assembler) () in
     dup "    mov     rdi, rsp" emit
     dup "    add     rdi, 8" emit
     dup "    call    stack_push" emit
+    dup "" emit
+    dup "    ; store env in stack_env" emit
+    dup "    mov     rax, qword [rsp]" emit
+    dup "    shl     rax, 3" emit
+    dup "    mov     rdi, rsp" emit
+    dup "    add     rdi, 8" emit
+    dup "    add     rdi, rax" emit
+    dup "    add     rdi, 8" emit
+    dup "    mov     qword [stack_env], rdi" emit
     dup "" emit
     dup "    ; Call the main method" emit
     dup STACK_FUNC_MAIN stack_assembler.emit.pretty_call swp dup rot emit -- asm
@@ -3861,6 +3880,8 @@ const STACK_FUNC_PTR_REF "ptr.&"
 const STACK_FUNC_PTR_DEREF "ptr.*"
 const STACK_FUNC_BOOL_REF "bool.&"
 const STACK_FUNC_BOOL_DEREF "bool.*"
+
+const STACK_FUNC_ENV "os.env"
 
 const STACK_FUNC_SYSCALL1 "syscall1"
 const STACK_FUNC_SYSCALL3 "syscall3"
@@ -4574,6 +4595,19 @@ func stack_assembler.emit.keywords (stack_assembler) () in
     dup "    call    stack_pop" emit
     dup "    mov     rdi, rax" emit
     dup "    call    stack_push_addr" emit
+    dup "" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+
+    -- ENV VARS
+    dup dup STACK_FUNC_ENV dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "" emit
+    dup "    ; get env vars ptr" emit
+    dup "    mov     rdi, qword [stack_env]" emit
+    dup "    call    stack_push" emit
     dup "" emit
     dup "    pop     rbp                        ; restore return address" emit
     dup "    ret" emit

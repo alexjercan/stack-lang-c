@@ -117,6 +117,31 @@ func int.show (int) (string) in
     else int.show' fi
 end
 
+func int.read' (int, string, int) (int, bool) in -- i, string, result
+    rot' -- result, i, string
+    dup2 -- result, i, string, i, string
+    string.len < if -- result, i, string
+        dup2 swp string.!! -- result, i, string, byte
+        dup byte.isdigit if -- result, i, string, byte
+            BYTE_0 - -- result, i, string, digit
+            rot4 10 * + -- i, string, result'
+            rot 1 + rot' int.read' -- result, ok
+        else
+            pop3 false
+        fi
+    else
+        pop2 true
+    fi -- result
+end
+
+func int.read (string) (int, bool) in
+    dup "" string.= if -- string
+        pop 0 true
+    else
+        0 swp 0 int.read'
+    fi
+end
+
 -- DATA BOOL
 
 func <= (int, int) (bool) in
@@ -146,6 +171,11 @@ data string (int len, ptr str)
 -- taking into account memory alignment by 8
 func string.memory-needed (int) (int) in -- sz
     7 + 8 / 8 *
+end
+
+func string.init.cstr (ptr) (string) in
+    dup ptr.strlen -- ptr, int
+    swp string.init
 end
 
 func string.concat (string, string) (string) in -- s1, s2
@@ -201,6 +231,52 @@ func string.= (string, string) (bool) in -- s1, s2
     else
         pop3 false
     fi -- bool
+end
+
+func string.starts_with (string, string) (bool) in -- string, pre
+    dup2 -- string, pre, string, pre
+    string.len -- string, pre, string, L
+    0 swp -- string, pre, string, 0, L
+    string.substr -- string, pre, pre'
+    string.= -- string, ok
+    swp pop -- ok
+end
+
+func string.split_at (string, int) (string, string) in -- string, i
+    dup2 -- string, i, string, i
+    0 swp string.substr -- string, i, prefix
+    rot' dup2 -- prefix, string, i, string, i
+    swp string.len -- prefix, string, i, i, L
+    swp - -- prefix, string, i, L-i
+    string.substr -- prefix, suffix
+end
+
+func string.split' (int, string, string) (string, string) in -- i, string, sep
+    dup -- i, string, sep, sep
+    string.len -- i, string, sep, L
+    rot4 -- string, sep, L, i
+    rot4 rot' -- sep, string, L, i
+
+    dup3 -- sep, string, L, i, string, L, i
+    swp string.substr -- sep, string, L, i, substr
+    rot pop -- sep, string, i, substr
+    rot4 -- string, i, substr, sep
+    dup rot -- string, i, sep, sep substr
+    string.= if -- string, i, sep
+        rot' -- sep, string, i
+        string.split_at -- sep, prefix, suffix
+        rot -- prefix, suffix, sep
+        string.len string.split_at -- prefix, sep, suffix'
+        swp pop -- prefix, suffix
+    else
+        swp 1 + -- string, sep, i+1
+        rot' string.split'
+    fi -- string, string
+end
+
+func string.split (string, string) (string, string) in -- string, sep
+    -- TODO: check if i is less than string.len
+    0 rot' string.split'
 end
 
 func string.stdin () (string) in -- ()
@@ -662,4 +738,36 @@ func byte.chr (int) (string) in -- chr
     1 string.memory-needed ptr.alloc -- &int, ptr
     swp 1 ptr.@ -- ptr
     1 swp string.init -- ptr
+end
+
+-- OS
+
+func os.env.get' (int, string) (string, bool) in -- i, string
+    swp dup 8 * -- string, i, i*8
+    os.env swp ptr.+ -- string, i, ptr+i*8
+
+    dup -- string, i, ptr+i*8, ptr+i*8
+    int.* -- string, i, ptr+i*8, int
+
+    0 = if -- string, i, ptr+i*8
+        pop3 "" false
+    else
+        ptr.* -- string, i, ptr[i*8]
+
+        string.init.cstr -- string, i, env
+        "=" string.split -- string, i, name, value
+
+        swp -- string, i, value, name
+        rot4 dup rot -- i, value, string, string, name
+        string.= if -- i, value, string
+            pop swp pop true
+        else
+            swp pop -- i, string
+            swp 1 + swp os.env.get'
+        fi
+    fi
+end
+
+func os.env.get (string) (string, bool) in
+    0 swp os.env.get'
 end

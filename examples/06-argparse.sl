@@ -37,7 +37,8 @@ func cli_args.parse (int, ptr) (cli_args) in -- argc, argv
     swp dup ptr.sizeof rot4 array.init 1 cli_args.init.empty cli_args.parse'
 end
 
-func main () (int) in
-    "STACK_HOME" os.env.get unwrap "Stack home is: `" swp string.concat "`\n" string.concat string.stdout
-    0
+func main (int, ptr) (int) in
+    cli_args.parse -- args
+    cli_args.offset
 end
+
