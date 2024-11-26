@@ -235,47 +235,52 @@ end
 
 func string.starts_with (string, string) (bool) in -- string, pre
     dup2 -- string, pre, string, pre
-    string.len -- string, pre, string, L
-    0 swp -- string, pre, string, 0, L
-    string.substr -- string, pre, pre'
-    string.= -- string, ok
-    swp pop -- ok
+    string.len swp string.len -- string, pre, pre.L, string.L
+    > if --string, pre
+        pop2 false
+    else
+        dup2 -- string, pre, string, pre
+        string.len -- string, pre, string, L
+        0 swp -- string, pre, string, 0, L
+        string.substr -- string, pre, pre'
+        string.= -- string, ok
+        swp pop -- ok
+    fi
 end
 
 func string.split_at (string, int) (string, string) in -- string, i
     dup2 -- string, i, string, i
-    0 swp string.substr -- string, i, prefix
-    rot' dup2 -- prefix, string, i, string, i
-    swp string.len -- prefix, string, i, i, L
-    swp - -- prefix, string, i, L-i
-    string.substr -- prefix, suffix
+    swp string.len -- string, i, i, L
+    > if -- string, i
+        pop ""
+    else
+        dup2 -- string, i, string, i
+        0 swp string.substr -- string, i, prefix
+        rot' dup2 -- prefix, string, i, string, i
+        swp string.len -- prefix, string, i, i, L
+        swp - -- prefix, string, i, L-i
+        string.substr -- prefix, suffix
+    fi
 end
 
 func string.split' (int, string, string) (string, string) in -- i, string, sep
-    dup -- i, string, sep, sep
-    string.len -- i, string, sep, L
-    rot4 -- string, sep, L, i
-    rot4 rot' -- sep, string, L, i
+    dup3 -- i, string, sep, i, string, sep
+    pop swp -- i, string, sep, string, i
+    string.split_at -- i, string, sep, prefix, suffix
 
-    dup3 -- sep, string, L, i, string, L, i
-    swp string.substr -- sep, string, L, i, substr
-    rot pop -- sep, string, i, substr
-    rot4 -- string, i, substr, sep
-    dup rot -- string, i, sep, sep substr
-    string.= if -- string, i, sep
-        rot' -- sep, string, i
-        string.split_at -- sep, prefix, suffix
-        rot -- prefix, suffix, sep
+    rot dup2 -- i, string, prefix, suffix, sep, suffix, sep
+    string.starts_with if -- i, string, prefix, suffix, sep
+        rot4 pop rot4 pop -- prefix, suffix, sep
         string.len string.split_at -- prefix, sep, suffix'
         swp pop -- prefix, suffix
     else
-        swp 1 + -- string, sep, i+1
-        rot' string.split'
-    fi -- string, string
+        swp pop swp pop -- i, string, sep
+        rot 1 + rot' -- i+1, string, sep
+        string.split' -- prefix, suffix
+    fi
 end
 
 func string.split (string, string) (string, string) in -- string, sep
-    -- TODO: check if i is less than string.len
     0 rot' string.split'
 end
 

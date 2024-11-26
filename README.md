@@ -304,7 +304,7 @@ The offset function will add an offset to an address.
 ### 4.9. `ptr.@`
 
 ```stack
-func ptr.@ (ptr, ptr, int) () in
+func ptr.@ (ptr, ptr, int) (ptr) in
     ...
 end
 ```

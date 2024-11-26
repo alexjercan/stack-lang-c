@@ -2,5 +2,9 @@
 
 func main () (int) in
     panic
+    todo
+    true unwrap
+    panic
+    todo
     0
 end
