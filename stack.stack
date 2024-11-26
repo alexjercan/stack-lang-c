@@ -1,6 +1,6 @@
 @import stdlib
 
-const STACK_EXT "sl"
+const STACK_EXT "stack"
 
 -- STACK TOKENIZER
 

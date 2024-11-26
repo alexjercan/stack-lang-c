@@ -2,7 +2,7 @@ PREFIX=/usr/local
 BINDIR=$(PREFIX)/bin
 LIBDIR=$(PREFIX)
 OUTDIR=out
-EXT=sl
+EXT=stack
 EXAMPLES_DIR=examples
 CC=$(OUTDIR)/slc
 

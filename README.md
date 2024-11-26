@@ -22,7 +22,7 @@ runtime errors if not used carefully.
 ## 2. Quickstart
 
 This repository includes a `Stack` compiler that can be used for each step of
-converting a `.sl` file into an executable.
+converting a `.stack` file into an executable.
 
 To build the `Stack` compiler you can easily use `nix` with the default build
 target, or just run make.
@@ -40,7 +40,7 @@ make
 To compile a `Stack` program using the `slc` compiler:
 
 ```console
-slc [ -o main ] main.sl
+slc [ -o main ] main.stack
 ```
 
 ## 3. Stack

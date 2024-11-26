@@ -1198,7 +1198,7 @@ func.32: ; stack_token_kind.map
     test    rax, rax
     jnz     .if17
 .else17:
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -3885,7 +3885,7 @@ func.82: ; stack_parser.parse.exprs.until
 .else54:
     jmp    .fi54
 .if54:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -3928,7 +3928,7 @@ func.82: ; stack_parser.parse.exprs.until
 .else55:
     jmp    .fi55
 .if55:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -3999,7 +3999,7 @@ func.86: ; stack_parser.parse.exprs.while
 .else57:
     jmp    .fi57
 .if57:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -4080,7 +4080,7 @@ func.87: ; stack_parser.parse.exprs.until2
 .else59:
     jmp    .fi59
 .if59:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -4123,7 +4123,7 @@ func.87: ; stack_parser.parse.exprs.until2
 .else60:
     jmp    .fi60
 .if60:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -4190,7 +4190,7 @@ func.88: ; stack_parser.parse.names.until'
 .else61:
     jmp    .fi61
 .if61:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -4624,7 +4624,7 @@ func.88: ; stack_parser.parse.names.until'
 .else62:
     jmp    .fi62
 .if62:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -4684,7 +4684,7 @@ func.88: ; stack_parser.parse.names.until'
     test    rax, rax
     jnz     .if64
 .else64:
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -5852,7 +5852,7 @@ func.96: ; stack_parser.illegal.showf
     test    rax, rax
     jnz     .if70
 .else70:
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -7930,7 +7930,7 @@ func.99: ; stack_parser.parse.func
 .else77:
     jmp    .fi77
 .if77:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -7979,7 +7979,7 @@ func.99: ; stack_parser.parse.func
 .else78:
     jmp    .fi78
 .if78:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -8419,7 +8419,7 @@ func.99: ; stack_parser.parse.func
 .else79:
     jmp    .fi79
 .if79:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -8560,7 +8560,7 @@ func.99: ; stack_parser.parse.func
 .else80:
     jmp    .fi80
 .if80:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -8701,7 +8701,7 @@ func.99: ; stack_parser.parse.func
 .else81:
     jmp    .fi81
 .if81:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -9399,7 +9399,7 @@ func.101: ; stack_parser.parse.data_field.until'
 .else82:
     jmp    .fi82
 .if82:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -9840,7 +9840,7 @@ func.101: ; stack_parser.parse.data_field.until'
 .else83:
     jmp    .fi83
 .if83:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -10749,7 +10749,7 @@ func.101: ; stack_parser.parse.data_field.until'
 .else84:
     jmp    .fi84
 .if84:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -10809,7 +10809,7 @@ func.101: ; stack_parser.parse.data_field.until'
     test    rax, rax
     jnz     .if86
 .else86:
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -10905,7 +10905,7 @@ func.105: ; stack_parser.parse.data
 .else88:
     jmp    .fi88
 .if88:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -10954,7 +10954,7 @@ func.105: ; stack_parser.parse.data
 .else89:
     jmp    .fi89
 .if89:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -11394,7 +11394,7 @@ func.105: ; stack_parser.parse.data
 .else90:
     jmp    .fi90
 .if90:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -11959,7 +11959,7 @@ func.107: ; stack_parser.parse.const
 .else91:
     jmp    .fi91
 .if91:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -12008,7 +12008,7 @@ func.107: ; stack_parser.parse.const
 .else92:
     jmp    .fi92
 .if92:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -12791,7 +12791,7 @@ func.109: ; stack_parser.parse.import
 .else93:
     jmp    .fi93
 .if93:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -12840,7 +12840,7 @@ func.109: ; stack_parser.parse.import
 .else94:
     jmp    .fi94
 .if94:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -13533,7 +13533,7 @@ func.111: ; stack_parser.parse'
     test    rax, rax
     jnz     .if99
 .else99:
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -13950,7 +13950,7 @@ func.126: ; stack_ast.append
 .else100:
     jmp    .fi100
 .if100:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -14005,7 +14005,7 @@ func.129: ; stack_ast.features.append
 .else101:
     jmp    .fi101
 .if101:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -14533,7 +14533,7 @@ func.133: ; stack_ast.dump.exprs'
 .else103:
     jmp    .fi103
 .if103:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -14613,7 +14613,7 @@ func.133: ; stack_ast.dump.exprs'
     test    rax, rax
     jnz     .if108
 .else108:
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -15135,7 +15135,7 @@ func.135: ; stack_ast.dump.args'
 .else110:
     jmp    .fi110
 .if110:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -15323,7 +15323,7 @@ func.137: ; stack_ast.dump.rets'
 .else112:
     jmp    .fi112
 .if112:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -15511,7 +15511,7 @@ func.139: ; stack_ast.dump.fields'
 .else114:
     jmp    .fi114
 .if114:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -15876,7 +15876,7 @@ func.141: ; stack_ast.dump'
 .else116:
     jmp    .fi116
 .if116:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -15971,7 +15971,7 @@ func.141: ; stack_ast.dump'
     mov     rdi, literal.63 ; "\n"
     call    stack_push_addr
     call    func.76 ; string.stdout
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -17072,7 +17072,7 @@ func.147: ; stack_preprocessor.run.base.consts
 
     mov     rdi, literal.23 ; ""
     call    stack_push_addr
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     call    func.44 ; stack_lexer.init.with_buffer
     call    func.79 ; stack_parser.init.with_lexer
@@ -17883,7 +17883,7 @@ func.147: ; stack_preprocessor.run.base.consts
 .else122:
     jmp    .fi122
 .if122:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -19049,7 +19049,7 @@ func.147: ; stack_preprocessor.run.base.consts
 .else123:
     jmp    .fi123
 .if123:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -20215,7 +20215,7 @@ func.147: ; stack_preprocessor.run.base.consts
 .else124:
     jmp    .fi124
 .if124:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -20623,7 +20623,7 @@ func.148: ; stack_preprocessor.run.import
 .else126:
     jmp    .fi126
 .if126:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -20783,7 +20783,7 @@ func.148: ; stack_preprocessor.run.import
     mov     rdi, literal.89 ; "."
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.96 ; "sl"
+    mov     rdi, literal.96 ; "stack"
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.1 ; dup
@@ -20797,7 +20797,7 @@ func.148: ; stack_preprocessor.run.import
 .else128:
     jmp    .fi128
 .if128:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -20837,7 +20837,7 @@ func.148: ; stack_preprocessor.run.import
 .else129:
     jmp    .fi129
 .if129:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -20877,7 +20877,7 @@ func.148: ; stack_preprocessor.run.import
 .else130:
     jmp    .fi130
 .if130:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -20919,7 +20919,7 @@ func.148: ; stack_preprocessor.run.import
 .else131:
     jmp    .fi131
 .if131:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -21014,7 +21014,7 @@ func.153: ; stack_preprocessor.run.expand.update
 .else133:
     jmp    .fi133
 .if133:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -21089,7 +21089,7 @@ func.153: ; stack_preprocessor.run.expand.update
     test    rax, rax
     jnz     .if135
 .else135:
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -21694,7 +21694,7 @@ func.154: ; stack_preprocessor.run.expand.exprs
 .else137:
     jmp    .fi137
 .if137:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -22279,7 +22279,7 @@ func.154: ; stack_preprocessor.run.expand.exprs
 .else141:
     jmp    .fi141
 .if141:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -22338,7 +22338,7 @@ func.154: ; stack_preprocessor.run.expand.exprs
 .else142:
     jmp    .fi142
 .if142:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -22378,7 +22378,7 @@ func.154: ; stack_preprocessor.run.expand.exprs
 .else143:
     jmp    .fi143
 .if143:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -22469,7 +22469,7 @@ func.157: ; stack_preprocessor.run.expand.consts'
 .else145:
     jmp    .fi145
 .if145:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -22693,7 +22693,7 @@ func.158: ; stack_preprocessor.run.expand.consts
 .else148:
     jmp    .fi148
 .if148:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -22822,7 +22822,7 @@ func.159: ; stack_preprocessor.run.expand.funcs'
 .else151:
     jmp    .fi151
 .if151:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -23076,7 +23076,7 @@ func.160: ; stack_preprocessor.run.expand.funcs
 .else154:
     jmp    .fi154
 .if154:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -23193,7 +23193,7 @@ func.161: ; stack_preprocessor.run.expand.special.exprs
 .else157:
     jmp    .fi157
 .if157:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -24123,7 +24123,7 @@ func.161: ; stack_preprocessor.run.expand.special.exprs
 .else163:
     jmp    .fi163
 .if163:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -24165,7 +24165,7 @@ func.161: ; stack_preprocessor.run.expand.special.exprs
 .else164:
     jmp    .fi164
 .if164:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -24725,7 +24725,7 @@ func.161: ; stack_preprocessor.run.expand.special.exprs
 .else165:
     jmp    .fi165
 .if165:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -24767,7 +24767,7 @@ func.161: ; stack_preprocessor.run.expand.special.exprs
 .else166:
     jmp    .fi166
 .if166:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -25352,7 +25352,7 @@ func.161: ; stack_preprocessor.run.expand.special.exprs
 .else167:
     jmp    .fi167
 .if167:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -25394,7 +25394,7 @@ func.161: ; stack_preprocessor.run.expand.special.exprs
 .else168:
     jmp    .fi168
 .if168:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -25482,7 +25482,7 @@ func.163: ; stack_preprocessor.run.expand.special
 .else170:
     jmp    .fi170
 .if170:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -26233,7 +26233,7 @@ func.164: ; stack_preprocessor.run.generate.data.sizeof
 .else173:
     jmp    .fi173
 .if173:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -26277,7 +26277,7 @@ func.164: ; stack_preprocessor.run.generate.data.sizeof
 .else174:
     jmp    .fi174
 .if174:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -26834,7 +26834,7 @@ func.164: ; stack_preprocessor.run.generate.data.sizeof
 .else175:
     jmp    .fi175
 .if175:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -27288,7 +27288,7 @@ func.164: ; stack_preprocessor.run.generate.data.sizeof
 .else176:
     jmp    .fi176
 .if176:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -27466,7 +27466,7 @@ func.165: ; stack_preprocessor.run.generate.data.offset
 .else178:
     jmp    .fi178
 .if178:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -28262,7 +28262,7 @@ func.165: ; stack_preprocessor.run.generate.data.offset
 .else180:
     jmp    .fi180
 .if180:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -29090,7 +29090,7 @@ func.165: ; stack_preprocessor.run.generate.data.offset
 .else181:
     jmp    .fi181
 .if181:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -30064,7 +30064,7 @@ func.165: ; stack_preprocessor.run.generate.data.offset
 .else182:
     jmp    .fi182
 .if182:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -30106,7 +30106,7 @@ func.165: ; stack_preprocessor.run.generate.data.offset
 .else183:
     jmp    .fi183
 .if183:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -30148,7 +30148,7 @@ func.165: ; stack_preprocessor.run.generate.data.offset
 .else184:
     jmp    .fi184
 .if184:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -30556,7 +30556,7 @@ func.165: ; stack_preprocessor.run.generate.data.offset
 .else185:
     jmp    .fi185
 .if185:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -31025,7 +31025,7 @@ func.165: ; stack_preprocessor.run.generate.data.offset
 .else186:
     jmp    .fi186
 .if186:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -31438,7 +31438,7 @@ func.165: ; stack_preprocessor.run.generate.data.offset
 .else187:
     jmp    .fi187
 .if187:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -32478,7 +32478,7 @@ func.167: ; stack_preprocessor.run.generate.data.getters'
 .else189:
     jmp    .fi189
 .if189:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -33257,7 +33257,7 @@ func.167: ; stack_preprocessor.run.generate.data.getters'
 .else190:
     jmp    .fi190
 .if190:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -34308,7 +34308,7 @@ func.167: ; stack_preprocessor.run.generate.data.getters'
 .else191:
     jmp    .fi191
 .if191:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -35556,7 +35556,7 @@ func.167: ; stack_preprocessor.run.generate.data.getters'
 .else192:
     jmp    .fi192
 .if192:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -35600,7 +35600,7 @@ func.167: ; stack_preprocessor.run.generate.data.getters'
 .else193:
     jmp    .fi193
 .if193:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -35644,7 +35644,7 @@ func.167: ; stack_preprocessor.run.generate.data.getters'
 .else194:
     jmp    .fi194
 .if194:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -35688,7 +35688,7 @@ func.167: ; stack_preprocessor.run.generate.data.getters'
 .else195:
     jmp    .fi195
 .if195:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -36096,7 +36096,7 @@ func.167: ; stack_preprocessor.run.generate.data.getters'
 .else196:
     jmp    .fi196
 .if196:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -36274,7 +36274,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else198:
     jmp    .fi198
 .if198:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -37884,7 +37884,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else199:
     jmp    .fi199
 .if199:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -38524,7 +38524,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else200:
     jmp    .fi200
 .if200:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -39989,7 +39989,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else201:
     jmp    .fi201
 .if201:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -41651,7 +41651,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else202:
     jmp    .fi202
 .if202:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -41695,7 +41695,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else203:
     jmp    .fi203
 .if203:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -41739,7 +41739,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else204:
     jmp    .fi204
 .if204:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -41783,7 +41783,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else205:
     jmp    .fi205
 .if205:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -41827,7 +41827,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else206:
     jmp    .fi206
 .if206:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -41871,7 +41871,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else207:
     jmp    .fi207
 .if207:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -41915,7 +41915,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else208:
     jmp    .fi208
 .if208:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -41959,7 +41959,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else209:
     jmp    .fi209
 .if209:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -42003,7 +42003,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else210:
     jmp    .fi210
 .if210:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -42411,7 +42411,7 @@ func.168: ; stack_preprocessor.run.generate.data.setters'
 .else211:
     jmp    .fi211
 .if211:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -43089,7 +43089,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else213:
     jmp    .fi213
 .if213:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -43546,7 +43546,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else214:
     jmp    .fi214
 .if214:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -44520,7 +44520,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else215:
     jmp    .fi215
 .if215:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -45163,7 +45163,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else216:
     jmp    .fi216
 .if216:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -46631,7 +46631,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else217:
     jmp    .fi217
 .if217:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -48609,7 +48609,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else218:
     jmp    .fi218
 .if218:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -48651,7 +48651,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else219:
     jmp    .fi219
 .if219:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -48693,7 +48693,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else220:
     jmp    .fi220
 .if220:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -48735,7 +48735,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else221:
     jmp    .fi221
 .if221:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -48777,7 +48777,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else222:
     jmp    .fi222
 .if222:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -48819,7 +48819,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else223:
     jmp    .fi223
 .if223:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -48861,7 +48861,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else224:
     jmp    .fi224
 .if224:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -48903,7 +48903,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else225:
     jmp    .fi225
 .if225:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -48945,7 +48945,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else226:
     jmp    .fi226
 .if226:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -48987,7 +48987,7 @@ func.169: ; stack_preprocessor.run.generate.data.init'
 .else227:
     jmp    .fi227
 .if227:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -50013,7 +50013,7 @@ func.170: ; stack_preprocessor.run.generate.data.init
 .else228:
     jmp    .fi228
 .if228:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -50549,7 +50549,7 @@ func.173: ; stack_preprocessor.run.generate.data
 .else230:
     jmp    .fi230
 .if230:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -50614,7 +50614,7 @@ func.173: ; stack_preprocessor.run.generate.data
     call    func.2 ; swp
     mov     rdi, literal.23 ; ""
     call    stack_push_addr
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     call    func.44 ; stack_lexer.init.with_buffer
     call    func.79 ; stack_parser.init.with_lexer
@@ -50878,7 +50878,7 @@ func.183: ; stack_context.init.base
 .else232:
     jmp    .fi232
 .if232:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -50992,7 +50992,7 @@ func.183: ; stack_context.init.base
 .else233:
     jmp    .fi233
 .if233:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -51106,7 +51106,7 @@ func.183: ; stack_context.init.base
 .else234:
     jmp    .fi234
 .if234:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -51163,7 +51163,7 @@ func.183: ; stack_context.init.base
 .else235:
     jmp    .fi235
 .if235:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -51215,7 +51215,7 @@ func.183: ; stack_context.init.base
 .else236:
     jmp    .fi236
 .if236:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -51258,7 +51258,7 @@ func.183: ; stack_context.init.base
 .else237:
     jmp    .fi237
 .if237:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -51478,7 +51478,7 @@ func.183: ; stack_context.init.base
 .else238:
     jmp    .fi238
 .if238:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -51535,7 +51535,7 @@ func.183: ; stack_context.init.base
 .else239:
     jmp    .fi239
 .if239:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -51578,7 +51578,7 @@ func.183: ; stack_context.init.base
 .else240:
     jmp    .fi240
 .if240:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -51630,7 +51630,7 @@ func.183: ; stack_context.init.base
 .else241:
     jmp    .fi241
 .if241:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -51673,7 +51673,7 @@ func.183: ; stack_context.init.base
 .else242:
     jmp    .fi242
 .if242:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -51893,7 +51893,7 @@ func.183: ; stack_context.init.base
 .else243:
     jmp    .fi243
 .if243:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -51950,7 +51950,7 @@ func.183: ; stack_context.init.base
 .else244:
     jmp    .fi244
 .if244:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -51993,7 +51993,7 @@ func.183: ; stack_context.init.base
 .else245:
     jmp    .fi245
 .if245:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52036,7 +52036,7 @@ func.183: ; stack_context.init.base
 .else246:
     jmp    .fi246
 .if246:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52088,7 +52088,7 @@ func.183: ; stack_context.init.base
 .else247:
     jmp    .fi247
 .if247:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52131,7 +52131,7 @@ func.183: ; stack_context.init.base
 .else248:
     jmp    .fi248
 .if248:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52174,7 +52174,7 @@ func.183: ; stack_context.init.base
 .else249:
     jmp    .fi249
 .if249:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52394,7 +52394,7 @@ func.183: ; stack_context.init.base
 .else250:
     jmp    .fi250
 .if250:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52451,7 +52451,7 @@ func.183: ; stack_context.init.base
 .else251:
     jmp    .fi251
 .if251:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52494,7 +52494,7 @@ func.183: ; stack_context.init.base
 .else252:
     jmp    .fi252
 .if252:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52537,7 +52537,7 @@ func.183: ; stack_context.init.base
 .else253:
     jmp    .fi253
 .if253:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52580,7 +52580,7 @@ func.183: ; stack_context.init.base
 .else254:
     jmp    .fi254
 .if254:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52632,7 +52632,7 @@ func.183: ; stack_context.init.base
 .else255:
     jmp    .fi255
 .if255:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52675,7 +52675,7 @@ func.183: ; stack_context.init.base
 .else256:
     jmp    .fi256
 .if256:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52718,7 +52718,7 @@ func.183: ; stack_context.init.base
 .else257:
     jmp    .fi257
 .if257:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52761,7 +52761,7 @@ func.183: ; stack_context.init.base
 .else258:
     jmp    .fi258
 .if258:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -52981,7 +52981,7 @@ func.183: ; stack_context.init.base
 .else259:
     jmp    .fi259
 .if259:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -53038,7 +53038,7 @@ func.183: ; stack_context.init.base
 .else260:
     jmp    .fi260
 .if260:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -53267,7 +53267,7 @@ func.183: ; stack_context.init.base
 .else261:
     jmp    .fi261
 .if261:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -53324,7 +53324,7 @@ func.183: ; stack_context.init.base
 .else262:
     jmp    .fi262
 .if262:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -53376,7 +53376,7 @@ func.183: ; stack_context.init.base
 .else263:
     jmp    .fi263
 .if263:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -53596,7 +53596,7 @@ func.183: ; stack_context.init.base
 .else264:
     jmp    .fi264
 .if264:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -53653,7 +53653,7 @@ func.183: ; stack_context.init.base
 .else265:
     jmp    .fi265
 .if265:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -53705,7 +53705,7 @@ func.183: ; stack_context.init.base
 .else266:
     jmp    .fi266
 .if266:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -53925,7 +53925,7 @@ func.183: ; stack_context.init.base
 .else267:
     jmp    .fi267
 .if267:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -53982,7 +53982,7 @@ func.183: ; stack_context.init.base
 .else268:
     jmp    .fi268
 .if268:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -54025,7 +54025,7 @@ func.183: ; stack_context.init.base
 .else269:
     jmp    .fi269
 .if269:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -54077,7 +54077,7 @@ func.183: ; stack_context.init.base
 .else270:
     jmp    .fi270
 .if270:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -54297,7 +54297,7 @@ func.183: ; stack_context.init.base
 .else271:
     jmp    .fi271
 .if271:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -54354,7 +54354,7 @@ func.183: ; stack_context.init.base
 .else272:
     jmp    .fi272
 .if272:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -54397,7 +54397,7 @@ func.183: ; stack_context.init.base
 .else273:
     jmp    .fi273
 .if273:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -54440,7 +54440,7 @@ func.183: ; stack_context.init.base
 .else274:
     jmp    .fi274
 .if274:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -54492,7 +54492,7 @@ func.183: ; stack_context.init.base
 .else275:
     jmp    .fi275
 .if275:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -54712,7 +54712,7 @@ func.183: ; stack_context.init.base
 .else276:
     jmp    .fi276
 .if276:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -54769,7 +54769,7 @@ func.183: ; stack_context.init.base
 .else277:
     jmp    .fi277
 .if277:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -54812,7 +54812,7 @@ func.183: ; stack_context.init.base
 .else278:
     jmp    .fi278
 .if278:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -54864,7 +54864,7 @@ func.183: ; stack_context.init.base
 .else279:
     jmp    .fi279
 .if279:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -55084,7 +55084,7 @@ func.183: ; stack_context.init.base
 .else280:
     jmp    .fi280
 .if280:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -55141,7 +55141,7 @@ func.183: ; stack_context.init.base
 .else281:
     jmp    .fi281
 .if281:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -55184,7 +55184,7 @@ func.183: ; stack_context.init.base
 .else282:
     jmp    .fi282
 .if282:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -55236,7 +55236,7 @@ func.183: ; stack_context.init.base
 .else283:
     jmp    .fi283
 .if283:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -55456,7 +55456,7 @@ func.183: ; stack_context.init.base
 .else284:
     jmp    .fi284
 .if284:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -55513,7 +55513,7 @@ func.183: ; stack_context.init.base
 .else285:
     jmp    .fi285
 .if285:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -55556,7 +55556,7 @@ func.183: ; stack_context.init.base
 .else286:
     jmp    .fi286
 .if286:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -55608,7 +55608,7 @@ func.183: ; stack_context.init.base
 .else287:
     jmp    .fi287
 .if287:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -55828,7 +55828,7 @@ func.183: ; stack_context.init.base
 .else288:
     jmp    .fi288
 .if288:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -55885,7 +55885,7 @@ func.183: ; stack_context.init.base
 .else289:
     jmp    .fi289
 .if289:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -55928,7 +55928,7 @@ func.183: ; stack_context.init.base
 .else290:
     jmp    .fi290
 .if290:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -55980,7 +55980,7 @@ func.183: ; stack_context.init.base
 .else291:
     jmp    .fi291
 .if291:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -56200,7 +56200,7 @@ func.183: ; stack_context.init.base
 .else292:
     jmp    .fi292
 .if292:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -56257,7 +56257,7 @@ func.183: ; stack_context.init.base
 .else293:
     jmp    .fi293
 .if293:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -56300,7 +56300,7 @@ func.183: ; stack_context.init.base
 .else294:
     jmp    .fi294
 .if294:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -56352,7 +56352,7 @@ func.183: ; stack_context.init.base
 .else295:
     jmp    .fi295
 .if295:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -56572,7 +56572,7 @@ func.183: ; stack_context.init.base
 .else296:
     jmp    .fi296
 .if296:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -56629,7 +56629,7 @@ func.183: ; stack_context.init.base
 .else297:
     jmp    .fi297
 .if297:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -56672,7 +56672,7 @@ func.183: ; stack_context.init.base
 .else298:
     jmp    .fi298
 .if298:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -56724,7 +56724,7 @@ func.183: ; stack_context.init.base
 .else299:
     jmp    .fi299
 .if299:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -56944,7 +56944,7 @@ func.183: ; stack_context.init.base
 .else300:
     jmp    .fi300
 .if300:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -57001,7 +57001,7 @@ func.183: ; stack_context.init.base
 .else301:
     jmp    .fi301
 .if301:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -57044,7 +57044,7 @@ func.183: ; stack_context.init.base
 .else302:
     jmp    .fi302
 .if302:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -57096,7 +57096,7 @@ func.183: ; stack_context.init.base
 .else303:
     jmp    .fi303
 .if303:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -57316,7 +57316,7 @@ func.183: ; stack_context.init.base
 .else304:
     jmp    .fi304
 .if304:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -57373,7 +57373,7 @@ func.183: ; stack_context.init.base
 .else305:
     jmp    .fi305
 .if305:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -57416,7 +57416,7 @@ func.183: ; stack_context.init.base
 .else306:
     jmp    .fi306
 .if306:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -57468,7 +57468,7 @@ func.183: ; stack_context.init.base
 .else307:
     jmp    .fi307
 .if307:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -57688,7 +57688,7 @@ func.183: ; stack_context.init.base
 .else308:
     jmp    .fi308
 .if308:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -57745,7 +57745,7 @@ func.183: ; stack_context.init.base
 .else309:
     jmp    .fi309
 .if309:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -57788,7 +57788,7 @@ func.183: ; stack_context.init.base
 .else310:
     jmp    .fi310
 .if310:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -57840,7 +57840,7 @@ func.183: ; stack_context.init.base
 .else311:
     jmp    .fi311
 .if311:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -58060,7 +58060,7 @@ func.183: ; stack_context.init.base
 .else312:
     jmp    .fi312
 .if312:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -58117,7 +58117,7 @@ func.183: ; stack_context.init.base
 .else313:
     jmp    .fi313
 .if313:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -58160,7 +58160,7 @@ func.183: ; stack_context.init.base
 .else314:
     jmp    .fi314
 .if314:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -58212,7 +58212,7 @@ func.183: ; stack_context.init.base
 .else315:
     jmp    .fi315
 .if315:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -58432,7 +58432,7 @@ func.183: ; stack_context.init.base
 .else316:
     jmp    .fi316
 .if316:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -58489,7 +58489,7 @@ func.183: ; stack_context.init.base
 .else317:
     jmp    .fi317
 .if317:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -58532,7 +58532,7 @@ func.183: ; stack_context.init.base
 .else318:
     jmp    .fi318
 .if318:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -58584,7 +58584,7 @@ func.183: ; stack_context.init.base
 .else319:
     jmp    .fi319
 .if319:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -58804,7 +58804,7 @@ func.183: ; stack_context.init.base
 .else320:
     jmp    .fi320
 .if320:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -58861,7 +58861,7 @@ func.183: ; stack_context.init.base
 .else321:
     jmp    .fi321
 .if321:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -58904,7 +58904,7 @@ func.183: ; stack_context.init.base
 .else322:
     jmp    .fi322
 .if322:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -58956,7 +58956,7 @@ func.183: ; stack_context.init.base
 .else323:
     jmp    .fi323
 .if323:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -59176,7 +59176,7 @@ func.183: ; stack_context.init.base
 .else324:
     jmp    .fi324
 .if324:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -59233,7 +59233,7 @@ func.183: ; stack_context.init.base
 .else325:
     jmp    .fi325
 .if325:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -59276,7 +59276,7 @@ func.183: ; stack_context.init.base
 .else326:
     jmp    .fi326
 .if326:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -59328,7 +59328,7 @@ func.183: ; stack_context.init.base
 .else327:
     jmp    .fi327
 .if327:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -59548,7 +59548,7 @@ func.183: ; stack_context.init.base
 .else328:
     jmp    .fi328
 .if328:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -59614,7 +59614,7 @@ func.183: ; stack_context.init.base
 .else329:
     jmp    .fi329
 .if329:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -59834,7 +59834,7 @@ func.183: ; stack_context.init.base
 .else330:
     jmp    .fi330
 .if330:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -59891,7 +59891,7 @@ func.183: ; stack_context.init.base
 .else331:
     jmp    .fi331
 .if331:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -59934,7 +59934,7 @@ func.183: ; stack_context.init.base
 .else332:
     jmp    .fi332
 .if332:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -59986,7 +59986,7 @@ func.183: ; stack_context.init.base
 .else333:
     jmp    .fi333
 .if333:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -60206,7 +60206,7 @@ func.183: ; stack_context.init.base
 .else334:
     jmp    .fi334
 .if334:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -60263,7 +60263,7 @@ func.183: ; stack_context.init.base
 .else335:
     jmp    .fi335
 .if335:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -60306,7 +60306,7 @@ func.183: ; stack_context.init.base
 .else336:
     jmp    .fi336
 .if336:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -60349,7 +60349,7 @@ func.183: ; stack_context.init.base
 .else337:
     jmp    .fi337
 .if337:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -60392,7 +60392,7 @@ func.183: ; stack_context.init.base
 .else338:
     jmp    .fi338
 .if338:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -60444,7 +60444,7 @@ func.183: ; stack_context.init.base
 .else339:
     jmp    .fi339
 .if339:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -60664,7 +60664,7 @@ func.183: ; stack_context.init.base
 .else340:
     jmp    .fi340
 .if340:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -60721,7 +60721,7 @@ func.183: ; stack_context.init.base
 .else341:
     jmp    .fi341
 .if341:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -60773,7 +60773,7 @@ func.183: ; stack_context.init.base
 .else342:
     jmp    .fi342
 .if342:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -60993,7 +60993,7 @@ func.183: ; stack_context.init.base
 .else343:
     jmp    .fi343
 .if343:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -61050,7 +61050,7 @@ func.183: ; stack_context.init.base
 .else344:
     jmp    .fi344
 .if344:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -61102,7 +61102,7 @@ func.183: ; stack_context.init.base
 .else345:
     jmp    .fi345
 .if345:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -61322,7 +61322,7 @@ func.183: ; stack_context.init.base
 .else346:
     jmp    .fi346
 .if346:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -61379,7 +61379,7 @@ func.183: ; stack_context.init.base
 .else347:
     jmp    .fi347
 .if347:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -61431,7 +61431,7 @@ func.183: ; stack_context.init.base
 .else348:
     jmp    .fi348
 .if348:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -61651,7 +61651,7 @@ func.183: ; stack_context.init.base
 .else349:
     jmp    .fi349
 .if349:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -61708,7 +61708,7 @@ func.183: ; stack_context.init.base
 .else350:
     jmp    .fi350
 .if350:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -61760,7 +61760,7 @@ func.183: ; stack_context.init.base
 .else351:
     jmp    .fi351
 .if351:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -61980,7 +61980,7 @@ func.183: ; stack_context.init.base
 .else352:
     jmp    .fi352
 .if352:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -62037,7 +62037,7 @@ func.183: ; stack_context.init.base
 .else353:
     jmp    .fi353
 .if353:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -62089,7 +62089,7 @@ func.183: ; stack_context.init.base
 .else354:
     jmp    .fi354
 .if354:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -62309,7 +62309,7 @@ func.183: ; stack_context.init.base
 .else355:
     jmp    .fi355
 .if355:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -62366,7 +62366,7 @@ func.183: ; stack_context.init.base
 .else356:
     jmp    .fi356
 .if356:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -62418,7 +62418,7 @@ func.183: ; stack_context.init.base
 .else357:
     jmp    .fi357
 .if357:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -62638,7 +62638,7 @@ func.183: ; stack_context.init.base
 .else358:
     jmp    .fi358
 .if358:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -62809,7 +62809,7 @@ func.184: ; stack_context.append.data
 .else359:
     jmp    .fi359
 .if359:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -62905,7 +62905,7 @@ func.185: ; stack_context.append.func
 .else360:
     jmp    .fi360
 .if360:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -62991,7 +62991,7 @@ func.186: ; stack_context.get_symbol'
 .else362:
     jmp    .fi362
 .if362:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -63045,7 +63045,7 @@ func.186: ; stack_context.get_symbol'
     test    rax, rax
     jnz     .if364
 .else364:
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -63146,7 +63146,7 @@ func.186: ; stack_context.get_symbol'
 .else366:
     jmp    .fi366
 .if366:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -63579,7 +63579,7 @@ func.190: ; stack_context.typecheck.data_def_ref
 .else367:
     jmp    .fi367
 .if367:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -63634,7 +63634,7 @@ func.190: ; stack_context.typecheck.data_def_ref
 .else368:
     jmp    .fi368
 .if368:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -63934,7 +63934,7 @@ func.191: ; stack_context.typecheck.data_def_deref
 .else369:
     jmp    .fi369
 .if369:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -64074,7 +64074,7 @@ func.191: ; stack_context.typecheck.data_def_deref
 .else370:
     jmp    .fi370
 .if370:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -64627,7 +64627,7 @@ func.193: ; stack_context.typecheck.data_def'
 .else373:
     jmp    .fi373
 .if373:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -64749,7 +64749,7 @@ func.195: ; stack_params.node_to_string'
 .else376:
     jmp    .fi376
 .if376:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -64873,7 +64873,7 @@ func.195: ; stack_params.node_to_string'
 .else377:
     jmp    .fi377
 .if377:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -65626,7 +65626,7 @@ func.198: ; stack_context.typecheck.func_def'
 .else380:
     jmp    .fi380
 .if380:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -65892,7 +65892,7 @@ func.205: ; string_tuple.get'
 .else384:
     jmp    .fi384
 .if384:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -66066,7 +66066,7 @@ func.207: ; stack_context.typecheck.expr.name.infer'
 .else387:
     jmp    .fi387
 .if387:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -66114,7 +66114,7 @@ func.207: ; stack_context.typecheck.expr.name.infer'
 .else388:
     jmp    .fi388
 .if388:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -66496,7 +66496,7 @@ func.211: ; stack_context.typecheck.expr.name.stack_pop'
 .else395:
     jmp    .fi395
 .if395:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -66598,7 +66598,7 @@ func.214: ; stack_context.typecheck.expr.name.map
 .else397:
     jmp    .fi397
 .if397:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -66660,7 +66660,7 @@ func.214: ; stack_context.typecheck.expr.name.map
 .else399:
     jmp    .fi399
 .if399:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -66710,7 +66710,7 @@ func.214: ; stack_context.typecheck.expr.name.map
 .else400:
     jmp    .fi400
 .if400:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -66779,7 +66779,7 @@ func.215: ; stack_context.typecheck.expr.name.stack_add
 .else401:
     jmp    .fi401
 .if401:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -67434,7 +67434,7 @@ func.221: ; array.string.='
 .else408:
     jmp    .fi408
 .if408:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -67482,7 +67482,7 @@ func.221: ; array.string.='
 .else409:
     jmp    .fi409
 .if409:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -67598,7 +67598,7 @@ func.223: ; stack_context.typecheck.expr.cond
 .else413:
     jmp    .fi413
 .if413:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -67931,7 +67931,7 @@ func.226: ; stack_context.typecheck.expr
     test    rax, rax
     jnz     .if419
 .else419:
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -68008,7 +68008,7 @@ func.226: ; stack_context.typecheck.expr
 .else420:
     jmp    .fi420
 .if420:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -68056,7 +68056,7 @@ func.226: ; stack_context.typecheck.expr
 .else421:
     jmp    .fi421
 .if421:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -68104,7 +68104,7 @@ func.226: ; stack_context.typecheck.expr
 .else422:
     jmp    .fi422
 .if422:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -68286,7 +68286,7 @@ func.210: ; array.string.showf
 .else426:
     jmp    .fi426
 .if426:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -68339,7 +68339,7 @@ func.210: ; array.string.showf
 .else427:
     jmp    .fi427
 .if427:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -68921,7 +68921,7 @@ func.230: ; stack_context.typecheck.func'
 .else430:
     jmp    .fi430
 .if430:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -69337,7 +69337,7 @@ func.239: ; emit
 .else432:
     jmp    .fi432
 .if432:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -69402,7 +69402,7 @@ func.240: ; stack_assembler.func.name'
 .else434:
     jmp    .fi434
 .if434:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -69467,7 +69467,7 @@ func.240: ; stack_assembler.func.name'
 .else436:
     jmp    .fi436
 .if436:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -69559,7 +69559,7 @@ func.242: ; stack_assembler.literal.name'
 .else438:
     jmp    .fi438
 .if438:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -69624,7 +69624,7 @@ func.242: ; stack_assembler.literal.name'
 .else440:
     jmp    .fi440
 .if440:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -70723,7 +70723,7 @@ func.251: ; stack_assembler.emit.expr
     test    rax, rax
     jnz     .if445
 .else445:
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -70858,7 +70858,7 @@ func.252: ; stack_assembler.emit.exprs'
 .else447:
     jmp    .fi447
 .if447:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -71548,7 +71548,7 @@ func.256: ; stack_assembler.emit.feature
     test    rax, rax
     jnz     .if451
 .else451:
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -71649,7 +71649,7 @@ func.257: ; stack_assembler.emit.ast.features'
 .else453:
     jmp    .fi453
 .if453:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -72040,7 +72040,7 @@ func.266: ; stack_assembler.emit.literal
     test    rax, rax
     jnz     .if465
 .else465:
-    mov     rdi, literal.18 ; "stack.sl"
+    mov     rdi, literal.18 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -72203,7 +72203,7 @@ func.267: ; stack_assembler.emit.literals'
 .else468:
     jmp    .fi468
 .if468:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -72669,7 +72669,7 @@ func.277: ; stack_args.parse'
 .else470:
     jmp    .fi470
 .if470:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -73215,7 +73215,7 @@ func.0: ; main
 .else479:
     jmp    .fi479
 .if479:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -73261,7 +73261,7 @@ func.0: ; main
 .else480:
     jmp    .fi480
 .if480:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -73301,7 +73301,7 @@ func.0: ; main
 .else481:
     jmp    .fi481
 .if481:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -73401,7 +73401,7 @@ func.0: ; main
 .else484:
     jmp    .fi484
 .if484:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -79278,7 +79278,7 @@ func.297: ; string.stdin
 .else519:
     jmp    .fi519
 .if519:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -79328,7 +79328,7 @@ func.76: ; string.stdout
 .else520:
     jmp    .fi520
 .if520:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -79378,7 +79378,7 @@ func.189: ; string.stderr
 .else521:
     jmp    .fi521
 .if521:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -79939,7 +79939,7 @@ func.224: ; array.copy
 .else530:
     jmp    .fi530
 .if530:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -80157,7 +80157,7 @@ func.162: ; array.insert
 .else534:
     jmp    .fi534
 .if534:
-    mov     rdi, literal.64 ; "./lib/stdlib.sl"
+    mov     rdi, literal.64 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
@@ -81634,9 +81634,9 @@ literal.14 dq 14
 literal.15 dq 15
 literal.16 dq 16
 literal.17 dq 17
-literal.18 dq 8
+literal.18 dq 11
           dq string.18
-string.18 db 115,116,97,99,107,46,115,108,0,0,0,0,0,0,0,0
+string.18 db 115,116,97,99,107,46,115,116,97,99,107,0,0,0,0,0
 literal.19 dq 1
           dq string.19
 string.19 db 58,0,0,0,0,0,0,0
@@ -81756,9 +81756,9 @@ literal.62 dq 44
 literal.63 dq 1
           dq string.63
 string.63 db 10,0,0,0,0,0,0,0
-literal.64 dq 15
+literal.64 dq 18
           dq string.64
-string.64 db 46,47,108,105,98,47,115,116,100,108,105,98,46,115,108,0
+string.64 db 46,47,108,105,98,47,115,116,100,108,105,98,46,115,116,97,99,107,0,0,0,0,0,0
 literal.65 dq 458
 literal.66 dq 23
 literal.67 dq 2
@@ -81844,9 +81844,9 @@ string.94 db 47,108,105,98,0,0,0,0
 literal.95 dq 1
           dq string.95
 string.95 db 47,0,0,0,0,0,0,0
-literal.96 dq 2
+literal.96 dq 5
           dq string.96
-string.96 db 115,108,0,0,0,0,0,0
+string.96 db 115,116,97,99,107,0,0,0
 literal.97 dq 1
           dq string.97
 string.97 db 114,0,0,0,0,0,0,0

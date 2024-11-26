@@ -46,7 +46,7 @@
             TESTS_DIR=tests
             TOTAL_TESTS=0
             PASSED_TESTS=0
-            EXT=sl
+            EXT=stack
 
             ARG1="all"
             MEMCHECK=0
