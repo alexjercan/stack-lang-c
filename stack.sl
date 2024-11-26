@@ -1,5 +1,7 @@
 @import stdlib
 
+const STACK_EXT "sl"
+
 -- STACK TOKENIZER
 
 const STACK_TOKEN_EOF       0
@@ -741,7 +743,7 @@ const STACK_SPECIAL_LINE "__line__"
 const STACK_SPECIAL_COL "__col__"
 
 func stack_preprocessor.run.base.consts (stack_preprocessor, stack_ast) () in -- pre, ast
-    "" "stack.sl" stack_lexer.init.with_buffer -- lexer
+    "" __file__ stack_lexer.init.with_buffer -- lexer
     stack_parser.init.with_lexer -- pre, ast, parser
 
     dup dup -- pre, ast, parser, parser, parser
@@ -789,7 +791,7 @@ func stack_preprocessor.run.import (int, stack_preprocessor, stack_ast) () in --
         dup2 array.get unwrap stack_ast_feature.* dup stack_ast_feature.kind rot4 pop -- pre, ast, i, feat, kind
         dup STACK_AST_FEATURE_IMPORT = if -- pre, ast, i, feat, kind
             pop stack_ast_feature.feature stack_ast_import.* stack_ast_import.name stack_ast_node.value stack_home -- pre ast i filename home
-            "/lib" string.concat "/" string.concat swp string.concat ".sl" string.concat -- pre ast i path
+            "/lib" string.concat "/" string.concat swp string.concat "." string.concat STACK_EXT string.concat -- pre ast i path
             dup "r" stdlib.fopen unwrap -- pre ast i path fd
             dup stdlib.fread.<eof> unwrap -- pre ast i path, fd, string
             swp stdlib.fclose unwrap -- pre ast i path string
@@ -1817,7 +1819,7 @@ func stack_preprocessor.run.generate.data (int, stack_preprocessor, stack_ast) (
             stack_ast_data.* -- pre, ast, i, data
             rot swp -- pre, i, ast, data
 
-            "" "stack.sl" stack_lexer.init.with_buffer -- lexer
+            "" __file__ stack_lexer.init.with_buffer -- lexer
             stack_parser.init.with_lexer -- pre, i, ast, data, parser
 
             dup3 stack_preprocessor.run.generate.data.const -- ...

@@ -1203,7 +1203,7 @@ func.32: ; stack_token_kind.map
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.20 ; 3254
+    mov     rdi, literal.20 ; 3256
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -4689,7 +4689,7 @@ func.88: ; stack_parser.parse.names.until'
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.20 ; 3254
+    mov     rdi, literal.20 ; 3256
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -5857,7 +5857,7 @@ func.96: ; stack_parser.illegal.showf
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.20 ; 3254
+    mov     rdi, literal.20 ; 3256
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -10814,7 +10814,7 @@ func.101: ; stack_parser.parse.data_field.until'
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.20 ; 3254
+    mov     rdi, literal.20 ; 3256
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -13538,7 +13538,7 @@ func.111: ; stack_parser.parse'
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.20 ; 3254
+    mov     rdi, literal.20 ; 3256
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -14618,7 +14618,7 @@ func.133: ; stack_ast.dump.exprs'
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.20 ; 3254
+    mov     rdi, literal.20 ; 3256
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -15976,7 +15976,7 @@ func.141: ; stack_ast.dump'
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.20 ; 3254
+    mov     rdi, literal.20 ; 3256
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -20780,7 +20780,10 @@ func.148: ; stack_preprocessor.run.import
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    mov     rdi, literal.96 ; ".sl"
+    mov     rdi, literal.89 ; "."
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.96 ; "sl"
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.1 ; dup
@@ -21091,7 +21094,7 @@ func.153: ; stack_preprocessor.run.expand.update
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.20 ; 3254
+    mov     rdi, literal.20 ; 3256
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -63047,7 +63050,7 @@ func.186: ; stack_context.get_symbol'
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.20 ; 3254
+    mov     rdi, literal.20 ; 3256
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -67933,7 +67936,7 @@ func.226: ; stack_context.typecheck.expr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.20 ; 3254
+    mov     rdi, literal.20 ; 3256
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -70725,7 +70728,7 @@ func.251: ; stack_assembler.emit.expr
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.20 ; 3254
+    mov     rdi, literal.20 ; 3256
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -71550,7 +71553,7 @@ func.256: ; stack_assembler.emit.feature
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.20 ; 3254
+    mov     rdi, literal.20 ; 3256
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -72042,7 +72045,7 @@ func.266: ; stack_assembler.emit.literal
     mov     rdi, literal.19 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.20 ; 3254
+    mov     rdi, literal.20 ; 3256
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -81637,7 +81640,7 @@ string.18 db 115,116,97,99,107,46,115,108,0,0,0,0,0,0,0,0
 literal.19 dq 1
           dq string.19
 string.19 db 58,0,0,0,0,0,0,0
-literal.20 dq 3254
+literal.20 dq 3256
 literal.21 dq 2
           dq string.21
 string.21 db 58,32,0,0,0,0,0,0
@@ -81841,9 +81844,9 @@ string.94 db 47,108,105,98,0,0,0,0
 literal.95 dq 1
           dq string.95
 string.95 db 47,0,0,0,0,0,0,0
-literal.96 dq 3
+literal.96 dq 2
           dq string.96
-string.96 db 46,115,108,0,0,0,0,0
+string.96 db 115,108,0,0,0,0,0,0
 literal.97 dq 1
           dq string.97
 string.97 db 114,0,0,0,0,0,0,0

@@ -25,10 +25,10 @@ build: $(CC)
 	fasm bootstrap/stack.asm $(OUTDIR)/stack.o
 	ld $(OUTDIR)/stack.o -o $(CC)
 
-$(OUTDIR)/%: $(EXAMPLES_DIR)/%.$(EXT)
-	$(CC) $< > $(OUTDIR)/%.asm
-	fasm $(OUTDIR)/%.asm $(OUTDIR)/%.o
-	ld $(OUTDIR)/%.o -o $@
+$(OUTDIR)/%: $(EXAMPLES_DIR)/%.$(EXT) build
+	$(CC) $< > $(OUTDIR)/$*.asm
+	fasm $(OUTDIR)/$*.asm $(OUTDIR)/$*.o
+	ld $(OUTDIR)/$*.o -o $@
 
 examples: $(EXAMPLE_OUT_FILES)
 
