@@ -9,6 +9,16 @@ func cli_args.init.empty () (cli_args) in
 end
 
 func cli_args.usage () () in
+    "usage: example [offset]\n" string.stdout
+    "example of parsing cli args\n" string.stdout
+    "\n" string.stdout
+    "options:\n" string.stdout
+    "  -h, --help\n" string.stdout
+    "      print this help message\n" string.stdout
+    "\n" string.stdout
+    "  o, offset\n" string.stdout
+    "      some random number default is 0\n" string.stdout
+    "\n" string.stdout
 end
 
 func cli_args.parse' (array, int, cli_args) (cli_args) in -- array, i, args
@@ -41,4 +51,3 @@ func main (int, ptr) (int) in
     cli_args.parse -- args
     cli_args.offset
 end
-

@@ -26,7 +26,6 @@
         makeFlags = ["PREFIX=$(out)"];
 
         nativeBuildInputs = with pkgs; [
-          clang
           fasm
         ];
 
@@ -43,7 +42,7 @@
             set +o pipefail
 
             MEMCHECKER=valgrind
-            MAIN=main
+            MAIN=out/slc
             TESTS_DIR=tests
             TOTAL_TESTS=0
             PASSED_TESTS=0
@@ -194,7 +193,6 @@
           name = "env-shell";
 
           nativeBuildInputs = with pkgs; [
-            clang
             fasm
           ];
         };

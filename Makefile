@@ -2,25 +2,37 @@ PREFIX=/usr/local
 BINDIR=$(PREFIX)/bin
 LIBDIR=$(PREFIX)
 OUTDIR=out
+EXT=sl
+EXAMPLES_DIR=examples
+CC=$(OUTDIR)/slc
 
-CC=clang
-CFLAGS=-Wall -Wextra -Werror -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -g
+EXAMPLE_FILES := $(wildcard $(EXAMPLES_DIR)/*.$(EXT))
+EXAMPLE_OUT_FILES := $(patsubst $(EXAMPLES_DIR)/%.$(EXT), $(OUTDIR)/%, $(EXAMPLE_FILES))
 
 all: build
 
 $(OUTDIR):
 	mkdir -p $(OUTDIR)
 
-bootstrap: $(OUTDIR)
+$(CC): $(OUTDIR)
 	fasm bootstrap/stack.asm $(OUTDIR)/stack.o
-	ld $(OUTDIR)/stack.o -o $(OUTDIR)/slc
+	ld $(OUTDIR)/stack.o -o $(CC)
 
-build: bootstrap
-	./slc stack.sl -a > bootstrap/stack.asm
+bootstrap: $(CC)
+
+build: $(CC)
+	$(CC) stack.$(EXT) -a > bootstrap/stack.asm
 	fasm bootstrap/stack.asm $(OUTDIR)/stack.o
-	ld $(OUTDIR)/stack.o -o slc
+	ld $(OUTDIR)/stack.o -o $(CC)
 
-.PHONY: clean install bootstrap
+$(OUTDIR)/%: $(EXAMPLES_DIR)/%.$(EXT)
+	$(CC) $< > $(OUTDIR)/%.asm
+	fasm $(OUTDIR)/%.asm $(OUTDIR)/%.o
+	ld $(OUTDIR)/%.o -o $@
+
+examples: $(EXAMPLE_OUT_FILES)
+
+.PHONY: clean install bootstrap examples
 
 install:
 	mkdir -p $(BINDIR)
@@ -29,4 +41,4 @@ install:
 	cp -r lib $(LIBDIR)
 
 clean:
-	rm -rf slc ./bootstrap/stack.o
+	rm -rf $(OUTDIR)
