@@ -9,10 +9,10 @@ func function (int, string, bool, array) (string, bool) in
         string.& -- int, ptr
         xs -- int, ptr, array
         swp -- int, array, ptr
-        array.append -- int
+        array.append unwrap -- int
         xs -- int, array
         swp -- array, int
-        array.get -- ptr
+        array.get unwrap -- ptr
         string.* -- string
         ok -- string, bool
     end

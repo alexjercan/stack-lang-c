@@ -22,6 +22,7 @@ const STACK_TOKEN_FI	    14
 const STACK_TOKEN_DATA	    15
 const STACK_TOKEN_IMPORT	16
 const STACK_TOKEN_CONST	    17
+const STACK_TOKEN_MATCH     18
 
 func stack_token_kind.map (int) (string) in
     dup STACK_TOKEN_EOF = if pop "<EOF>"
@@ -42,7 +43,8 @@ func stack_token_kind.map (int) (string) in
     else dup STACK_TOKEN_DATA = if pop "DATA"
     else dup STACK_TOKEN_IMPORT = if pop "IMPORT"
     else dup STACK_TOKEN_CONST = if pop "CONST"
-    else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- (string)
+    else dup STACK_TOKEN_MATCH = if pop "MATCH"
+    else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- (string)
 end
 
 const STACK_ILLEGAL_NO_ERROR    0
@@ -196,9 +198,11 @@ func stack_lexer.next.name (int, stack_lexer, int) (stack_token) in -- pos, stac
         pop3 STACK_TOKEN_CONST "" rot stack_token.init.ok
     else dup "@import" string.= if
         pop3 STACK_TOKEN_IMPORT "" rot stack_token.init.ok
+    else dup "match" string.= if
+        pop3 STACK_TOKEN_MATCH "" rot stack_token.init.ok
     else
         rot4' pop2 STACK_TOKEN_NAME rot' stack_token.init.ok
-    fi fi fi fi fi fi fi fi fi fi fi fi -- stack_token
+    fi fi fi fi fi fi fi fi fi fi fi fi fi -- stack_token
 end
 
 func stack_lexer.next (stack_lexer) (stack_token) in
@@ -337,6 +341,37 @@ func stack_parser.parse.cond (stack_parser) (stack_ast_cond) in
     pop stack_ast_cond.init -- cond
 end
 
+func stack_parser.parse.names.until.in (stack_parser, array) (array) in
+    swp dup stack_parser.read -- arr, p, tok
+
+    dup stack_token.kind STACK_TOKEN_NAME = unwrap -- arr, p, tok
+
+    dup2 stack_token.value rot stack_token.pos stack_ast_node.init -- arr, p, node
+    rot dup rot stack_ast_node.& array.append unwrap -- parser arr
+
+    swp dup stack_parser.peek stack_token.kind -- arr, parser, kind
+    dup STACK_TOKEN_IN = if -- arr, parser, kind
+        pop2
+    else dup STACK_TOKEN_EOF = if -- arr, parser, kind
+        todo pop2
+    else
+        pop swp stack_parser.parse.names.until.in
+    fi fi -- array
+end
+
+func stack_parser.parse.match (stack_parser) (stack_ast_match) in
+    dup stack_parser.read -- parser, tok
+    dup2 stack_token.value rot stack_token.pos stack_ast_node.init -- parser, match
+    swp -- match, parser
+
+    dup stack_ast_node.sizeof array.init.with_sz -- match, parser, parser, array<node>
+    stack_parser.parse.names.until.in swp -- match, array<stack_ast_node>, parser
+
+    dup stack_parser.read stack_token.kind STACK_TOKEN_IN = unwrap -- match, array<node>, parser
+    dup STACK_TOKEN_END stack_ast_expr.sizeof array.init.with_sz stack_parser.parse.exprs.until swp pop -- match, binds, exprs
+    stack_ast_match.init -- match
+end
+
 func stack_parser.illegal.showf (stack_parser) () in
     dup stack_parser.lexer stack_lexer.filename string.stdout ":" string.stdout
 
@@ -388,12 +423,16 @@ func stack_parser.parse.expr (stack_parser) (stack_ast_expr, bool) in
         stack_parser.parse.cond -- stack_ast_cond
         STACK_AST_EXPR_COND swp stack_ast_cond.& stack_ast_expr.init -- expr
         true
+    else dup stack_parser.peek stack_token.kind STACK_TOKEN_MATCH = if
+        stack_parser.parse.match -- stack_ast_match
+        STACK_AST_EXPR_MATCH swp stack_ast_match.& stack_ast_expr.init -- expr
+        true
     else dup stack_parser.peek stack_token.kind STACK_TOKEN_ILLEGAL = if
         dup stack_parser.illegal.showf
         pop 0 0 int.& stack_ast_expr.init false
     else
         pop 0 0 int.& stack_ast_expr.init false
-    fi fi fi fi fi fi -- expr, ok
+    fi fi fi fi fi fi fi -- expr, ok
 end
 
 func stack_parser.parse.func (stack_parser) (stack_ast_func) in -- parser
@@ -505,14 +544,15 @@ func stack_parser.parse (stack_parser) (stack_ast, bool) in -- ast
 end
 
 data stack_ast_node (stack_parser parser, string value, int pos)
-
-data stack_ast_cond (stack_ast_node cond, array if_, array else_)
+data stack_ast_cond (stack_ast_node cond, array if_, array else_) -- array<stack_ast_expr>, array<stack_ast_expr>
+data stack_ast_match (stack_ast_node node, array binds, array exprs) -- array<stack_ast_node>, array<stack_ast_expr>
 
 const STACK_AST_EXPR_NUMBER 0
 const STACK_AST_EXPR_BOOLEAN 1
 const STACK_AST_EXPR_STRING 2
 const STACK_AST_EXPR_NAME 3
 const STACK_AST_EXPR_COND 4
+const STACK_AST_EXPR_MATCH 5
 
 data stack_ast_expr (int kind, ptr expr)
 
@@ -580,6 +620,36 @@ func stack_ast.dump.cond (int, stack_ast_cond) () in -- indent, cond
     pop2
 end
 
+func stack_ast.dump.binds' (int, array) () in -- i, names
+    dup2 array.count < if -- i, name
+        dup2 swp array.get unwrap stack_ast_node.* -- i, names, node
+
+        " " string.stdout stack_ast_node.value string.stdout -- i, names
+
+        swp 1 + swp stack_ast.dump.binds' -- ()
+    else
+        pop2
+    fi -- ()
+end
+
+func stack_ast.dump.binds (array) () in 0 swp stack_ast.dump.binds' end
+
+func stack_ast.dump.match (int, stack_ast_match) () in -- indent, match
+    swp -- match, indent
+
+    dup " " swp string.repeat string.stdout "MATCH" string.stdout -- match, indent
+    swp dup stack_ast_match.binds stack_ast.dump.binds swp -- match, indent
+    "\n" string.stdout -- match, indent
+
+    dup stack_ast.dump.indent + -- match, indent, indent+
+    rot dup stack_ast_match.exprs rot swp -- indent, match, indent+, exprs
+    stack_ast.dump.exprs swp -- match, indent
+
+    "\n" string.stdout -- match, indent
+
+    pop2
+end
+
 func stack_ast.dump.exprs' (int, int, array) () in -- indent, i, exprs
     dup2 array.count < if -- indent, i, exprs
         dup2 swp array.get unwrap stack_ast_expr.* -- indent, i, exprs, expr
@@ -601,9 +671,13 @@ func stack_ast.dump.exprs' (int, int, array) () in -- indent, i, exprs
             pop stack_ast_expr.expr stack_ast_cond.*  -- i, exprs, indent, cond
             swp dup rot -- i, exprs, indent, indent, cond
             stack_ast.dump.cond -- i, exprs, indent
+        else dup STACK_AST_EXPR_MATCH = if
+            pop stack_ast_expr.expr stack_ast_match.*  -- i, exprs, indent, match
+            swp dup rot -- i, exprs, indent, indent, match
+            stack_ast.dump.match -- i, exprs, indent
         else
             panic pop2
-        fi fi fi fi fi -- i, exprs, indent
+        fi fi fi fi fi fi -- i, exprs, indent
 
         rot 1 + rot stack_ast.dump.exprs' -- ()
     else
@@ -855,9 +929,21 @@ func stack_preprocessor.run.expand.update (int, array, stack_ast_node) () in
             stack_preprocessor.run.expand.update -- ...
 
             pop
+        else dup STACK_AST_EXPR_MATCH = if
+            pop -- node array i expr
+
+            rot4 swp -- array i node expr
+            stack_ast_expr.expr stack_ast_match.* -- array i node match
+
+            dup2  -- ..., node match
+            stack_ast_match.exprs -- ..., node exprs
+            0 swp rot -- ..., 0 exprs node
+            stack_preprocessor.run.expand.update -- ...
+
+            pop
         else
             todo pop pop rot
-        fi fi -- array i node
+        fi fi fi -- array i node
 
         swp 1 + -- array node i+1
         rot' stack_preprocessor.run.expand.update
@@ -919,9 +1005,21 @@ func stack_preprocessor.run.expand.exprs (int, array, stack_ast_const) () in -- 
             stack_preprocessor.run.expand.exprs -- ...
 
             pop rot'
+        else dup STACK_AST_EXPR_MATCH = if
+            pop -- const array i expr
+
+            rot4 swp -- array i const expr
+            stack_ast_expr.expr stack_ast_match.* -- array i const match
+
+            dup2  -- ..., const match
+            stack_ast_match.exprs -- ..., const exprs
+            0 swp rot -- ..., 0 exprs const
+            stack_preprocessor.run.expand.exprs -- ...
+
+            pop rot'
         else
             pop pop
-        fi fi -- const array i
+        fi fi fi -- const array i
 
         1 + rot' swp stack_preprocessor.run.expand.exprs
     else
@@ -1084,9 +1182,16 @@ func stack_preprocessor.run.expand.special.exprs (int, array) () in -- i, array<
             0 swp stack_preprocessor.run.expand.special.exprs -- ..., cond
 
             pop -- ...
+        else dup STACK_AST_EXPR_MATCH = if
+            pop stack_ast_expr.expr stack_ast_match.* -- ..., match
+
+            dup stack_ast_match.exprs -- ..., match, exprs
+            0 swp stack_preprocessor.run.expand.special.exprs -- ..., match
+
+            pop -- ...
         else
             pop2
-        fi fi -- arr, i
+        fi fi fi -- arr, i
 
         1 + swp stack_preprocessor.run.expand.special.exprs -- ()
     else
@@ -2829,6 +2934,104 @@ func stack_context.typecheck.expr.cond (stack_context, array, stack_ast_cond) ()
     fi -- ()
 end
 
+func stack_context.typecheck.match.showf (stack_context, stack_ast_match, array) () in -- ctx, match, stack
+    rot' -- stack, ctx, match
+    dup2 -- ..., ctx, match
+    stack_ast_match.node "match tried to bind to many items, expected (" -- ..., ctx, name, s
+    stack_context.showf -- stack, ctx, match
+
+    stack_ast_match.binds -- stack, ctx, binds
+    stack_params.node_to_string -- stack, ctx, array<string>
+    0 swp array.string.showf -- stack, ctx
+
+    ") but got (" string.stderr -- stack, ctx
+
+    swp 0 swp array.string.showf -- ctx
+
+    ")\n" string.stderr -- ctx
+
+    pop
+end
+
+func stack_context.typecheck.match.init (int, stack_context, array, array) () in -- i, ctx, stack, binds
+    3 pick int.* -- i, ctx, stack, binds, i
+    1 pick array.* -- i, ctx, stack, binds, i, binds
+    array.count < if -- i, ctx, stack, binds
+        0 pick array.* -- i, ctx, stack, binds, binds
+        array.count -- i, ctx, stack, binds, L
+        4 pick int.* -- i, ctx, stack, binds, L, i
+        - 1 - -- i, ctx, stack, binds, L-i-1
+        1 pick array.* -- i, ctx, stack, binds, L-i-1, binds
+        swp array.get unwrap stack_ast_node.* -- i, ctx, stack, binds, bind
+
+        3 pick stack_context.* -- i, ctx, stack, binds, bind, ctx
+        1 pick stack_ast_node.* -- i, ctx, stack, binds, bind, ctx, bind
+        stack_ast_node.value stack_context.get_symbol swp if -- i, ctx, stack, binds, bind, ptr
+            pop -- i, ctx, stack, binds, bind
+            dup stack_ast_node.value -- i, ctx, stack, binds, bind, name
+            "bind " swp string.concat " is already defined\n" string.concat -- i, ctx, stack, binds, bind, s
+            rot pop rot pop rot4 pop -- ctx, bind, s
+            stack_context.showf -- ()
+        else
+            pop stack_ast_node.value -- i, ctx, stack, binds, name
+            2 pick array.* -- i, ctx, stack, binds, name, stack
+            array.last unwrap string.* -- i, ctx, stack, binds, name, type
+            string.sizeof array.init.with_sz string.sizeof array.init.with_sz -- ..., name, type, args, rets
+            dup rot4 string.& array.append unwrap -- ... name, args, rets
+            stack_context_func.init -- i, ctx, stack, binds, func
+
+            3 pick stack_context.* -- i, ctx, stack, binds, func, ctx
+            swp stack_context.append.func -- i, ctx, stack, binds
+
+            1 pick array.* -- i, ctx, stack, binds, stack
+            array.pop unwrap -- i, ctx, stack, binds
+
+            rot4 1 + rot4' -- i+1, ctx, stack, binds
+            stack_context.typecheck.match.init -- ()
+        fi -- ()
+    else
+        pop pop pop pop
+    fi -- ()
+end
+
+func stack_context.typecheck.match.clear (int, stack_context, array) () in -- i, ctx, binds
+    2 pick int.* -- i, ctx, binds, i
+    1 pick array.* -- i, ctx, binds, i, binds
+    array.count < if -- i, ctx, binds
+        1 pick stack_context.* -- i, ctx, binds, ctx
+        stack_context.symbols -- i, ctx, binds, symbols
+        array.pop unwrap -- i, ctx, binds
+        rot 1 + rot' stack_context.typecheck.match.clear -- ()
+    else
+        pop pop pop
+    fi -- ()
+end
+
+func stack_context.typecheck.expr.match (stack_context, array, stack_ast_match) () in -- ctx, stack, match
+    -- ctx, stack, match
+    dup2 stack_ast_match.binds -- ctx, stack, match, stack, binds
+    array.count swp array.count -- ..., binds.L, stack.L
+    swp < if -- ctx, stack, match
+        swp stack_context.typecheck.match.showf
+    else
+        dup stack_ast_match.binds -- ctx, stack, match, binds
+        -- remove items from stack + and add them as symbols in ctx
+        swp rot4' -- match, ctx, stack, binds
+        dup3 0 rot4' -- ..., i, ctx, stack, binds
+        stack_context.typecheck.match.init -- match, ctx, stack, binds
+        pop -- match, ctx, stack
+        rot dup stack_ast_match.exprs -- ctx, stack, match, exprs
+        swp rot4' -- match, ctx, stack, exprs
+        dup3 -- ..., ctx, stack, exprs
+
+        stack_context.typecheck.exprs -- match, ctx, stack, exprs
+
+        rot4 stack_ast_match.binds -- ctx, stack, exprs, binds
+        rot' pop pop -- ctx, binds
+        0 rot' stack_context.typecheck.match.clear
+    fi -- ()
+end
+
 func stack_context.typecheck.expr (stack_context, array, stack_ast_expr) () in -- ctx, stack, expr
     dup stack_ast_expr.kind -- ctx, stack, expr, kind
     dup STACK_AST_EXPR_NUMBER = if -- ctx, stack, expr, kind
@@ -2853,9 +3056,14 @@ func stack_context.typecheck.expr (stack_context, array, stack_ast_expr) () in -
         stack_ast_expr.expr -- ctx, stack, ptr
         stack_ast_cond.* -- ctx, stack, cond
         stack_context.typecheck.expr.cond -- ()
+    else dup STACK_AST_EXPR_MATCH = if
+        pop -- ctx, stack, expr
+        stack_ast_expr.expr -- ctx, stack, ptr
+        stack_ast_match.* -- ctx, stack, match
+        stack_context.typecheck.expr.match -- ()
     else
         todo pop pop pop pop
-    fi fi fi fi fi -- ()
+    fi fi fi fi fi fi -- ()
 end
 
 func stack_context.typecheck.exprs' (stack_context, array, iter) () in -- ctx, stack, iter<expr>
@@ -2985,7 +3193,7 @@ const STACK_LITERAL_STRING 2
 
 data stack_literal (int kind, string value)
 
-data stack_assembler (int fd, array func_map, array literal_map, int if_counter)
+data stack_assembler (int fd, array bind_map, array func_map, array literal_map, int if_counter)
 
 func stack_literal.= (stack_literal, stack_literal) (bool) in
     dup2 stack_literal.kind swp stack_literal.kind = rot' -- bool, l1, l2
@@ -2993,6 +3201,7 @@ func stack_literal.= (stack_literal, stack_literal) (bool) in
 end
 
 func stack_assembler.init.with_fd (int) (stack_assembler) in
+    string.sizeof array.init.with_sz
     string.sizeof array.init.with_sz
     stack_literal.sizeof array.init.with_sz
     0
@@ -3005,6 +3214,39 @@ func emit (stack_assembler, string) () in -- asm, s
     "\n" string.concat -- fd, s
     stdlib.fwrite
     unwrap
+end
+
+func stack_assembler.bind.index' (int, array, string) (int) in -- i, array<string>, name
+    swp -- i, name, array
+    dup array.count -- i, name, array<string>, c
+    rot4 dup rot -- name, array<string>, i, i, c
+    >= if -- name, array<string>, i
+        pop3 -1
+    else
+        dup2 array.get unwrap -- name, array<string>, i, ptr
+        string.* -- name, array<string>, i, string
+        rot4 dup rot string.= if -- array<string>, i, name
+            swp rot' pop2
+        else
+            swp 1 + rot' -- i+1, array<string>, name
+            stack_assembler.bind.index' -- int
+        fi -- int
+    fi -- int
+end
+
+func stack_assembler.bind.index (stack_assembler, string) (int) in -- asm, name
+    swp stack_assembler.bind_map -- string, array<string>
+    swp 0 rot' stack_assembler.bind.index'
+end
+
+func stack_assembler.bind.append (stack_assembler, string) () in -- asm, name
+    swp stack_assembler.bind_map -- string, array<string>
+    swp string.& array.append unwrap
+end
+
+func stack_assembler.bind.pop (stack_assembler) () in -- asm
+    stack_assembler.bind_map -- array<string>
+    array.pop unwrap
 end
 
 func stack_assembler.func.name' (int, string, array) (int) in -- i, name, array<string>
@@ -3098,10 +3340,28 @@ func stack_assembler.emit.pretty_call (stack_assembler, string) (string) in -- a
     swp string.concat
 end
 
-func stack_assembler.emit.expr.name (stack_assembler, stack_ast_node) () in -- asm, name
-    dup2 stack_ast_node.value stack_assembler.emit.pretty_call swp pop -- asm, string
+func stack_assembler.emit.push_bind (stack_assembler, int, string) () in -- asm, i, name
+    swp 8 * -- asm, name, i*8
+    int.show "    mov     rdi, qword [rbp - " swp string.concat "]" string.concat -- asm, name, s
+    rot dup rot emit -- name, asm
+    dup "    call    stack_push" emit -- name, asm
 
-    swp dup rot emit -- asm
+    pop2
+end
+
+func stack_assembler.emit.expr.name (stack_assembler, stack_ast_node) () in -- asm, name
+    dup2 -- ..., asm, name
+    stack_ast_node.value -- ..., asm, "name
+    stack_assembler.bind.index dup -- asm, name, i, i
+    0 >= if -- asm, name, i
+        dup3 swp stack_ast_node.value -- ..., asm, i, "name
+        stack_assembler.emit.push_bind -- asm, name, i
+        pop2 -- asm
+    else
+        pop -- asm, name
+        dup2 stack_ast_node.value stack_assembler.emit.pretty_call swp pop -- asm, string
+        swp dup rot emit -- asm
+    fi -- asm
 
     pop
 end
@@ -3132,6 +3392,83 @@ func stack_assembler.emit.expr.cond (stack_assembler, stack_ast_cond) () in -- a
     pop3
 end
 
+func stack_assembler.emit.expr.match.binds (int, stack_assembler, stack_ast_match) () in -- i, asm, match
+    2 pick int.* -- i, asm, match, i
+    1 pick stack_ast_match.* -- i, asm, match, i, match
+    stack_ast_match.binds array.count -- i, asm, match, i, L
+    < if -- i, asm, match
+        swp -- i, match, asm
+
+        dup "    call    stack_pop" emit
+        dup -- i, match, asm, asm
+        stack_assembler.bind_map array.count -- i, match, asm, B
+
+        2 pick stack_ast_match.* -- i, match, asm, B, match
+        stack_ast_match.binds array.count + -- i, match, asm, B+L
+        3 pick int.* -- i, match, asm, B+L, i
+        2 * - -- i, match, asm, B-i+L-i
+        1 - -- i, match, asm, B-i+L-i-1
+        8 * -- i, match, asm, B*8
+        int.show "    mov     qword [rbp - " swp string.concat "], rax" string.concat -- i, match, asm, s
+        swp dup rot emit -- i, match, asm
+
+        1 pick stack_ast_match.* -- i, match, asm, match
+        stack_ast_match.binds -- i, match, asm, binds
+        3 pick int.* -- i, match, asm, binds, i
+        array.get unwrap stack_ast_node.* stack_ast_node.value -- i, match, asm, "bind
+
+        1 pick stack_assembler.* -- i, match, asm, "bind, asm
+        swp stack_assembler.bind.append -- i, match, asm
+
+        swp -- i, asm, match
+        rot 1 + rot' -- i+1, asm, match
+        stack_assembler.emit.expr.match.binds -- ()
+    else
+        pop3
+    fi -- ()
+end
+
+func stack_assembler.emit.expr.match.binds_pop (int, stack_assembler, stack_ast_match) () in -- i, asm, match
+    2 pick int.* -- i, asm, match, i
+    1 pick stack_ast_match.* -- i, asm, match, i, match
+    stack_ast_match.binds array.count -- i, asm, match, i, L
+    < if -- i, asm, match
+        swp dup stack_assembler.bind.pop -- i, match, asm
+
+        swp -- i, asm, match
+        rot 1 + rot' -- i+1, asm, match
+        stack_assembler.emit.expr.match.binds_pop -- ()
+    else
+        pop3
+    fi -- ()
+end
+
+func stack_assembler.emit.expr.match (stack_assembler, stack_ast_match) () in -- asm, match
+    swp -- match, asm
+
+    swp -- asm, match
+    dup stack_ast_match.binds -- asm, match, array
+    array.count 8 * -- asm, match, L*8
+    int.show "    sub     rsp, " swp string.concat -- asm, match, s
+    rot dup rot emit -- match, asm
+
+    dup2 swp 0 rot' stack_assembler.emit.expr.match.binds -- match, asm
+
+    dup2 swp -- ..., asm, match
+    stack_ast_match.exprs -- ..., asm, exprs
+    stack_assembler.emit.exprs -- match, asm
+
+    swp -- asm, match
+    dup stack_ast_match.binds -- asm, match, array
+    array.count 8 * -- asm, match, L*8
+    int.show "    add     rsp, " swp string.concat -- asm, match, s
+    rot dup rot emit -- match, asm
+
+    dup2 swp 0 rot' stack_assembler.emit.expr.match.binds_pop -- match, asm
+
+    pop2
+end
+
 func stack_assembler.emit.expr (stack_assembler, stack_ast_expr) () in -- asm, expr
     dup stack_ast_expr.kind  -- asm, expr, kind
     dup STACK_AST_EXPR_NUMBER = if -- asm, expr, kind
@@ -3144,9 +3481,11 @@ func stack_assembler.emit.expr (stack_assembler, stack_ast_expr) () in -- asm, e
         pop stack_ast_expr.expr stack_ast_node.* stack_assembler.emit.expr.name
     else dup STACK_AST_EXPR_COND = if -- asm, expr, kind
         pop stack_ast_expr.expr stack_ast_cond.* stack_assembler.emit.expr.cond
+    else dup STACK_AST_EXPR_MATCH = if -- asm, expr, kind
+        pop stack_ast_expr.expr stack_ast_match.* stack_assembler.emit.expr.match
     else
         panic pop3
-    fi fi fi fi fi -- ()
+    fi fi fi fi fi fi -- ()
 end
 
 func stack_assembler.emit.exprs' (int, stack_assembler, array) () in -- asm, array<expr>
