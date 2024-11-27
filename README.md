@@ -2,6 +2,23 @@
 
 Stack Lang is the new hot thing (makes C obsolete!!!)
 
+Backlog:
+- [ ] add a changelog
+- [ ] add docs for `match`
+- [ ] add syntax highlight for `match`
+- [ ] add tests for `match`
+- [ ] generate more tests for all cases ~20 each (lexer, parser, preprocessor, typechecker)
+- [ ] update stdlib with `match`
+- [ ] implement `while`
+- [ ] add docs for `while`
+- [ ] add syntax highlight for `while`
+- [ ] add tests for `while`
+- [ ] update stdlib to use `while`
+- [ ] refactor stack.stack to use `while` and `match`
+- [ ] optimizations for speed => we don't need everything to be a function we can inline most things
+- [ ] memory management => custom allocator that free's unused variables
+- ...
+
 ## 1. Introduction
 
 This manual describes the programming language `Stack`. Stack is a stack based
