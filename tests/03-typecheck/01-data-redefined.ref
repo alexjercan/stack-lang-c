@@ -1,1 +1,1 @@
-tests/03-typecheck/01-data-redefined.sl:1:6, Semantic error: data int is redefined
+tests/03-typecheck/01-data-redefined.stack:1:6, Semantic error: data int is redefined

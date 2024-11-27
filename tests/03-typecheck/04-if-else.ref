@@ -1,2 +1,2 @@
-tests/03-typecheck/04-if-else.sl:2:5, Semantic error: stack mismatch lhs execution (..., string, string) rhs execution (..., string, int)
-tests/03-typecheck/04-if-else.sl:1:6, Semantic error: func test has non matching return, expected (string) but got (string, string)
+tests/03-typecheck/04-if-else.stack:2:5, Semantic error: stack mismatch lhs execution (..., string, string) rhs execution (..., string, int)
+tests/03-typecheck/04-if-else.stack:1:6, Semantic error: func test has non matching return, expected (string) but got (string, string)

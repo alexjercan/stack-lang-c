@@ -1,1 +1,1 @@
-tests/03-typecheck/03-return.sl:1:6, Semantic error: func main has non matching return, expected (int) but got (int, int)
+tests/03-typecheck/03-return.stack:1:6, Semantic error: func main has non matching return, expected (int) but got (int, int)
