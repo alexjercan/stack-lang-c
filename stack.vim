@@ -5,7 +5,7 @@ elseif exists("b:current_syntax")
 endif
 
 syn keyword     Statement       data nextgroup=DataType skipwhite
-syn keyword     Statement       const func in end
+syn keyword     Statement       const func in end match
 syn keyword     Conditional     if else fi
 syn keyword     Boolean         true false
 

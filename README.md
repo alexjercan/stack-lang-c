@@ -3,8 +3,6 @@
 Stack Lang is the new hot thing (makes C obsolete!!!)
 
 Backlog:
-- [ ] add docs for `match`
-- [ ] add syntax highlight for `match`
 - [ ] add tests for `match`
 - [ ] generate more tests for all cases ~20 each (lexer, parser, preprocessor, typechecker)
 - [ ] update stdlib with `match`
@@ -432,6 +430,28 @@ if the condition is met. Some examples in the `./examples/`
 Another important aspect of `if` expressions is type checking. The stack will
 need to have the same layout regardless of the path taken. That means that each
 branch must generate the same types on the stack.
+
+### 5.4. Match
+
+The `match` statement can be though as a pattern match operation that takes in
+some items from the stack, given as arguments in the match definition and
+giving you scoped variables that can be used to push back those values in any
+order. The syntax is like the following
+
+```stack
+match a b c ... in
+    ...
+end
+```
+
+where `a`, `b`, `c` can be any names. The scoped variable names must be unique
+and cannot be the same as any function name. The variables also cannot be
+shadowed by other variables in inner matches. See some examples in the
+`./examples/`.
+
+The variables will be type checked against the stack. You also cannot define
+more variables than items on the stack. The body of a match can contain any
+expressions.
 
 ## 6. Entrypoint
 
