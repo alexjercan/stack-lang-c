@@ -3643,6 +3643,29 @@ func stack_assembler.emit.expr.match (stack_assembler, stack_ast_match) () in --
     pop2
 end
 
+func stack_assembler.emit.expr.while (stack_assembler, stack_ast_while) () in -- asm, while
+    swp dup stack_assembler.if_counter 0 + -- while asm if_count
+    match ast asm counter in
+        asm dup stack_assembler.if_counter 1 + stack_assembler.if_counter.set
+
+        asm ".while" counter int.show string.concat ":" string.concat emit
+
+        asm ast stack_ast_while.while_ stack_assembler.emit.exprs
+
+        asm "    call    stack_pop" emit
+        asm "    test    rax, rax" emit
+
+        asm "    jz     .pool" counter int.show string.concat emit
+
+        asm ".loop" counter int.show string.concat ":" string.concat emit
+
+        asm ast stack_ast_while.exprs stack_assembler.emit.exprs
+
+        asm "    jmp     .while" counter int.show string.concat emit
+        asm ".pool" counter int.show string.concat ":" string.concat emit
+    end
+end
+
 func stack_assembler.emit.expr (stack_assembler, stack_ast_expr) () in -- asm, expr
     dup stack_ast_expr.kind  -- asm, expr, kind
     dup STACK_AST_EXPR_NUMBER = if -- asm, expr, kind
@@ -3657,9 +3680,11 @@ func stack_assembler.emit.expr (stack_assembler, stack_ast_expr) () in -- asm, e
         pop stack_ast_expr.expr stack_ast_cond.* stack_assembler.emit.expr.cond
     else dup STACK_AST_EXPR_MATCH = if -- asm, expr, kind
         pop stack_ast_expr.expr stack_ast_match.* stack_assembler.emit.expr.match
+    else dup STACK_AST_EXPR_WHILE = if -- asm, expr, kind
+        pop stack_ast_expr.expr stack_ast_while.* stack_assembler.emit.expr.while
     else
         panic pop3
-    fi fi fi fi fi fi -- ()
+    fi fi fi fi fi fi fi -- ()
 end
 
 func stack_assembler.emit.exprs' (int, stack_assembler, array) () in -- asm, array<expr>

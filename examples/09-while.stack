@@ -1,21 +1,25 @@
-func iterate (int, int, string) () in
-    -- i, N, message
-    rot rot -- message, i, N
+@import stdlib
 
+func say_N (string, int) () in
     -- the while loop will expect the same input and output
     -- the `while` keyword will represent the label where the
     -- program will jump after finishing a loop
     -- then is the condition which must generate a bool
     -- between loop and pool is defined the code that runs in a loop
 
-    match message i N in
+    0 match message N i in
         i while -- i
             dup N < loop -- i
 
+            message string.stdout
             1 +
 
         pool -- i
 
         pop
     end
+end
+
+func main () (int) in
+    "HELLO\n" 10 say_N 0
 end
