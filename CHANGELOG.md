@@ -21,5 +21,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - @alexjercan The C implementation of the Compiler
 
-[unreleased]: https://github.com/olivierlacan/keep-a-changelog/compare/v1.0.0...HEAD
+[unreleased]: https://github.com/alexjercan/stack-lang-c/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/alexjercan/stack-lang-c/releases/tag/v1.0.0
