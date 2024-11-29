@@ -3133,6 +3133,74 @@ func stack_context.typecheck.expr.match (stack_context, array, stack_ast_match) 
     fi -- ()
 end
 
+func stack_context.typecheck.expr.while.has_boolean (array) (bool) in -- stack
+    array.last -- ptr, ok
+    not if -- ptr
+        pop false
+    else
+        string.* STACK_DATA_BOOL string.=
+    fi -- bool
+end
+
+func stack_context.typecheck.while.showf (stack_context, stack_ast_while, array, array) () in -- ctx, while, stack, stack'
+    swp -- lhs, rhs
+    rot4 rot4 -- stack, stack', ctx, while
+
+    dup2 stack_ast_while.node -- ..., ctx, name
+    "stack mismatch loop expects (..., " -- ..., ctx, name, s
+    stack_context.showf -- stack, stack', ctx, cond
+
+    pop swp -- stack, ctx, stack'
+    0 swp array.string.showf -- stack, ctx
+
+    ") but returns (..., " string.stderr
+
+    swp -- ctx, stack
+    0 swp array.string.showf -- ctx
+
+    ")\n" string.stderr -- ctx
+
+    pop
+end
+func stack_context.typecheck.expr.while.has_boolean.showf (stack_context, stack_ast_while, array) () in -- ctx, while, stack
+    array.last -- ctx, cond, ptr, ok
+    not if -- ptr
+        pop ""
+    else
+        string.*
+    fi -- ctx, cond, str
+    "expected type (" STACK_DATA_BOOL string.concat
+    ") but got (" string.concat swp string.concat ")\n" string.concat -- ctx, cond, str
+
+    swp -- ctx, str, cond
+    stack_ast_while.node swp -- ctx, node, str
+    stack_context.showf -- ()
+end
+
+func stack_context.typecheck.expr.while (stack_context, array, stack_ast_while) () in -- ctx, stack, while
+    swp dup array.copy -- ctx, while, stack, stack'
+
+    match ctx ast stack stack' in
+        -- evaluate the while_ condition to check if it evaluates to bool
+        ctx stack ast stack_ast_while.while_ stack_context.typecheck.exprs
+
+        stack stack_context.typecheck.expr.while.has_boolean not if
+            ctx ast stack stack_context.typecheck.expr.while.has_boolean.showf
+        else
+            -- remove the bool from the stack
+            stack array.pop unwrap
+
+            -- evaluate the body of the while ONCE
+            ctx stack ast stack_ast_while.exprs stack_context.typecheck.exprs
+
+            -- stack MUST be the same after ONE iteration
+            stack stack' array.string.= not if
+                ctx ast stack stack' stack_context.typecheck.while.showf
+            fi
+        fi
+    end
+end
+
 func stack_context.typecheck.expr (stack_context, array, stack_ast_expr) () in -- ctx, stack, expr
     dup stack_ast_expr.kind -- ctx, stack, expr, kind
     dup STACK_AST_EXPR_NUMBER = if -- ctx, stack, expr, kind
@@ -3162,9 +3230,14 @@ func stack_context.typecheck.expr (stack_context, array, stack_ast_expr) () in -
         stack_ast_expr.expr -- ctx, stack, ptr
         stack_ast_match.* -- ctx, stack, match
         stack_context.typecheck.expr.match -- ()
+    else dup STACK_AST_EXPR_WHILE = if
+        pop -- ctx, stack, expr
+        stack_ast_expr.expr -- ctx, stack, ptr
+        stack_ast_while.* -- ctx, stack, cond
+        stack_context.typecheck.expr.while -- ()
     else
         todo pop pop pop pop
-    fi fi fi fi fi fi -- ()
+    fi fi fi fi fi fi fi -- ()
 end
 
 func stack_context.typecheck.exprs' (stack_context, array, iter) () in -- ctx, stack, iter<expr>
@@ -3445,7 +3518,7 @@ func stack_assembler.emit.push_bind (stack_assembler, int, string) () in -- asm,
     swp 8 * -- asm, name, i*8
     int.show "    mov     rdi, qword [rbp - " swp string.concat "]" string.concat -- asm, name, s
     rot dup rot emit -- name, asm
-    dup "    call    stack_push" emit -- name, asm
+    dup "    call    stack_push_addr" emit -- name, asm
 
     pop2
 end
@@ -3500,7 +3573,7 @@ func stack_assembler.emit.expr.match.binds (int, stack_assembler, stack_ast_matc
     < if -- i, asm, match
         swp -- i, match, asm
 
-        dup "    call    stack_pop" emit
+        dup "    call    stack_pop_addr" emit
         dup -- i, match, asm, asm
         stack_assembler.bind_map array.count -- i, match, asm, B
 

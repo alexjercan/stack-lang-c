@@ -1,8 +1,6 @@
-@import stdlib
-
 func iterate (int, int, string) () in
     -- i, N, message
-    rot' -- message, i, N
+    rot rot -- message, i, N
 
     -- the while loop will expect the same input and output
     -- the `while` keyword will represent the label where the
@@ -10,28 +8,14 @@ func iterate (int, int, string) () in
     -- then is the condition which must generate a bool
     -- between loop and pool is defined the code that runs in a loop
 
-    while -- message, i, N
-        dup2 < loop
-
-        ... stuff ...
-
-    pool -- message, i, N
-end
-
-func iterate.better (int, int, string) () in
-    -- using while loops with match statements should make managing
-    -- conditions easier
-
-    match i N message in -- ()
+    match message i N in
         i while -- i
             dup N < loop -- i
-            message string.stdout -- i
-            1 + -- i+1
-        pool
+
+            1 +
+
+        pool -- i
+
+        pop
     end
 end
-
-func main () (int) in
-    0
-end
-
