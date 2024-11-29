@@ -3,7 +3,6 @@
 Stack Lang is the new hot thing (makes C obsolete!!!)
 
 Backlog:
-- [ ] add a changelog
 - [ ] add docs for `match`
 - [ ] add syntax highlight for `match`
 - [ ] add tests for `match`
