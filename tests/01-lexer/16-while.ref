@@ -1,0 +1,6 @@
+WHILE
+NAME(<)
+LOOP
+NAME(+)
+POOL
+<EOF>

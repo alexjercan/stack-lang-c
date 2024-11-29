@@ -23,6 +23,9 @@ const STACK_TOKEN_DATA	    15
 const STACK_TOKEN_IMPORT	16
 const STACK_TOKEN_CONST	    17
 const STACK_TOKEN_MATCH     18
+const STACK_TOKEN_WHILE     19
+const STACK_TOKEN_LOOP      20
+const STACK_TOKEN_POOL      21
 
 func stack_token_kind.map (int) (string) in
     dup STACK_TOKEN_EOF = if pop "<EOF>"
@@ -44,7 +47,10 @@ func stack_token_kind.map (int) (string) in
     else dup STACK_TOKEN_IMPORT = if pop "IMPORT"
     else dup STACK_TOKEN_CONST = if pop "CONST"
     else dup STACK_TOKEN_MATCH = if pop "MATCH"
-    else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- (string)
+    else dup STACK_TOKEN_WHILE = if pop "WHILE"
+    else dup STACK_TOKEN_LOOP = if pop "LOOP"
+    else dup STACK_TOKEN_POOL = if pop "POOL"
+    else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- (string)
 end
 
 const STACK_ILLEGAL_NO_ERROR    0
@@ -200,9 +206,15 @@ func stack_lexer.next.name (int, stack_lexer, int) (stack_token) in -- pos, stac
         pop3 STACK_TOKEN_IMPORT "" rot stack_token.init.ok
     else dup "match" string.= if
         pop3 STACK_TOKEN_MATCH "" rot stack_token.init.ok
+    else dup "while" string.= if
+        pop3 STACK_TOKEN_WHILE "" rot stack_token.init.ok
+    else dup "loop" string.= if
+        pop3 STACK_TOKEN_LOOP "" rot stack_token.init.ok
+    else dup "pool" string.= if
+        pop3 STACK_TOKEN_POOL "" rot stack_token.init.ok
     else
         rot4' pop2 STACK_TOKEN_NAME rot' stack_token.init.ok
-    fi fi fi fi fi fi fi fi fi fi fi fi fi -- stack_token
+    fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- stack_token
 end
 
 func stack_lexer.next (stack_lexer) (stack_token) in
@@ -372,6 +384,21 @@ func stack_parser.parse.match (stack_parser) (stack_ast_match) in
     stack_ast_match.init -- match
 end
 
+func stack_parser.parse.while (stack_parser) (stack_ast_while) in
+    dup stack_parser.read -- parser, tok
+    dup2 stack_token.value rot stack_token.pos stack_ast_node.init -- parser, node
+
+    swp dup STACK_TOKEN_LOOP stack_ast_expr.sizeof array.init.with_sz -- node, parser, parser, k1, array
+    stack_parser.parse.exprs.until -- node, parser, while_
+    swp -- node, while_, parser
+
+    dup STACK_TOKEN_POOL stack_ast_expr.sizeof array.init.with_sz -- node, while_, parser, parser, k, array
+    stack_parser.parse.exprs.until -- node, while_, parser, loop_
+    swp -- node, whike_, loop_, parser
+
+    pop stack_ast_while.init -- while
+end
+
 func stack_parser.illegal.showf (stack_parser) () in
     dup stack_parser.lexer stack_lexer.filename string.stdout ":" string.stdout
 
@@ -427,12 +454,16 @@ func stack_parser.parse.expr (stack_parser) (stack_ast_expr, bool) in
         stack_parser.parse.match -- stack_ast_match
         STACK_AST_EXPR_MATCH swp stack_ast_match.& stack_ast_expr.init -- expr
         true
+    else dup stack_parser.peek stack_token.kind STACK_TOKEN_WHILE = if
+        stack_parser.parse.while -- stack_ast_while
+        STACK_AST_EXPR_WHILE swp stack_ast_while.& stack_ast_expr.init -- expr
+        true
     else dup stack_parser.peek stack_token.kind STACK_TOKEN_ILLEGAL = if
         dup stack_parser.illegal.showf
         pop 0 0 int.& stack_ast_expr.init false
     else
         pop 0 0 int.& stack_ast_expr.init false
-    fi fi fi fi fi fi fi -- expr, ok
+    fi fi fi fi fi fi fi fi -- expr, ok
 end
 
 func stack_parser.parse.func (stack_parser) (stack_ast_func) in -- parser
@@ -546,6 +577,7 @@ end
 data stack_ast_node (stack_parser parser, string value, int pos)
 data stack_ast_cond (stack_ast_node cond, array if_, array else_) -- array<stack_ast_expr>, array<stack_ast_expr>
 data stack_ast_match (stack_ast_node node, array binds, array exprs) -- array<stack_ast_node>, array<stack_ast_expr>
+data stack_ast_while (stack_ast_node node, array while_, array exprs) -- array<stack_ast_expr>, array<stack_ast_expr>
 
 const STACK_AST_EXPR_NUMBER 0
 const STACK_AST_EXPR_BOOLEAN 1
@@ -553,6 +585,7 @@ const STACK_AST_EXPR_STRING 2
 const STACK_AST_EXPR_NAME 3
 const STACK_AST_EXPR_COND 4
 const STACK_AST_EXPR_MATCH 5
+const STACK_AST_EXPR_WHILE 6
 
 data stack_ast_expr (int kind, ptr expr)
 
@@ -650,6 +683,26 @@ func stack_ast.dump.match (int, stack_ast_match) () in -- indent, match
     pop2
 end
 
+func stack_ast.dump.while (int, stack_ast_while) () in -- indent, while
+    swp -- while, indent
+
+    dup " " swp string.repeat string.stdout "WHILE\n" string.stdout -- while, indent
+
+    dup stack_ast.dump.indent + -- cond, indent, indent+
+    rot dup stack_ast_while.while_ rot swp -- indent, cond, indent+, while_
+    stack_ast.dump.exprs swp -- cond, indent
+
+    dup " " swp string.repeat string.stdout "LOOP\n" string.stdout
+
+    dup stack_ast.dump.indent + -- cond, indent, indent+
+    rot dup stack_ast_while.exprs rot swp -- indent, cond, indent+, exprs
+    stack_ast.dump.exprs swp -- cond, indent
+
+    dup " " swp string.repeat string.stdout "POOL\n" string.stdout
+
+    pop2
+end
+
 func stack_ast.dump.exprs' (int, int, array) () in -- indent, i, exprs
     dup2 array.count < if -- indent, i, exprs
         dup2 swp array.get unwrap stack_ast_expr.* -- indent, i, exprs, expr
@@ -675,9 +728,13 @@ func stack_ast.dump.exprs' (int, int, array) () in -- indent, i, exprs
             pop stack_ast_expr.expr stack_ast_match.*  -- i, exprs, indent, match
             swp dup rot -- i, exprs, indent, indent, match
             stack_ast.dump.match -- i, exprs, indent
+        else dup STACK_AST_EXPR_WHILE = if
+            pop stack_ast_expr.expr stack_ast_while.* -- i, exprs, indent, while
+            swp dup rot -- i, exprs, indent, indent, while
+            stack_ast.dump.while -- i, exprs, indent
         else
             panic pop2
-        fi fi fi fi fi fi -- i, exprs, indent
+        fi fi fi fi fi fi fi -- i, exprs, indent
 
         rot 1 + rot stack_ast.dump.exprs' -- ()
     else
@@ -941,9 +998,26 @@ func stack_preprocessor.run.expand.update (int, array, stack_ast_node) () in
             stack_preprocessor.run.expand.update -- ...
 
             pop
+        else dup STACK_AST_EXPR_WHILE = if
+            pop -- node array i expr
+
+            rot4 swp -- array i node expr
+            stack_ast_expr.expr stack_ast_while.* -- array i node while
+
+            dup2  -- ..., node while
+            stack_ast_while.while_ -- ..., node while_
+            0 swp rot -- ..., 0 while_ node
+            stack_preprocessor.run.expand.update -- ...
+
+            dup2  -- ..., node while
+            stack_ast_while.exprs -- ..., node exprs
+            0 swp rot -- ..., 0 exprs node
+            stack_preprocessor.run.expand.update -- ...
+
+            pop
         else
             todo pop pop rot
-        fi fi fi -- array i node
+        fi fi fi fi -- array i node
 
         swp 1 + -- array node i+1
         rot' stack_preprocessor.run.expand.update
@@ -1017,9 +1091,26 @@ func stack_preprocessor.run.expand.exprs (int, array, stack_ast_const) () in -- 
             stack_preprocessor.run.expand.exprs -- ...
 
             pop rot'
+        else dup STACK_AST_EXPR_WHILE = if
+            pop -- const array i expr
+
+            rot4 swp -- array i const expr
+            stack_ast_expr.expr stack_ast_while.* -- array i const while
+
+            dup2  -- ..., const cond
+            stack_ast_while.while_ -- ..., const while_
+            0 swp rot -- ..., 0 if_ const
+            stack_preprocessor.run.expand.exprs -- ...
+
+            dup2 -- ..., const cond
+            stack_ast_while.exprs -- ..., const exprs
+            0 swp rot -- ..., 0 exprs const
+            stack_preprocessor.run.expand.exprs -- ...
+
+            pop rot'
         else
             pop pop
-        fi fi fi -- const array i
+        fi fi fi fi -- const array i
 
         1 + rot' swp stack_preprocessor.run.expand.exprs
     else
@@ -1189,9 +1280,19 @@ func stack_preprocessor.run.expand.special.exprs (int, array) () in -- i, array<
             0 swp stack_preprocessor.run.expand.special.exprs -- ..., match
 
             pop -- ...
+        else dup STACK_AST_EXPR_WHILE = if
+            pop stack_ast_expr.expr stack_ast_while.* -- ..., while
+
+            dup stack_ast_while.while_ -- ..., cond, while_
+            0 swp stack_preprocessor.run.expand.special.exprs -- ..., while
+
+            dup stack_ast_while.exprs -- ..., cond, exprs
+            0 swp stack_preprocessor.run.expand.special.exprs -- ..., while
+
+            pop -- ...
         else
             pop2
-        fi fi fi -- arr, i
+        fi fi fi fi -- arr, i
 
         1 + swp stack_preprocessor.run.expand.special.exprs -- ()
     else

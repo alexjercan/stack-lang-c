@@ -1,0 +1,6 @@
+MATCH
+NAME(c)
+IN
+NAME(c)
+END
+<EOF>
