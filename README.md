@@ -6,9 +6,6 @@ Backlog:
 - [ ] add tests for `match`
 - [ ] generate more tests for all cases ~20 each (lexer, parser, preprocessor, typechecker)
 - [ ] update stdlib with `match`
-- [ ] implement `while`
-- [ ] add docs for `while`
-- [ ] add syntax highlight for `while`
 - [ ] add tests for `while`
 - [ ] update stdlib to use `while`
 - [ ] refactor stack.stack to use `while` and `match`
@@ -452,6 +449,30 @@ shadowed by other variables in inner matches. See some examples in the
 The variables will be type checked against the stack. You also cannot define
 more variables than items on the stack. The body of a match can contain any
 expressions.
+
+### 5.5 While
+
+The `while` statement is a conditional block that can be used as an alternative
+to a recursive calling. It is composed of two parts, the condition evaluation
+and the loop body.
+
+```stack
+while
+    ... some condition ... loop
+    ... some stuff do do ...
+pool
+```
+
+The while loop will execute the condition at each iteration to verify the truth
+and based on that it will execute one iteration of the body. To keep things
+sane, the while loop requires that the input is the same as the output. This
+means that the stack must be in the same state before and after executing a
+while loop regardless of how many iteration it does.
+
+For instance, say the stack before hitting the `while` keyword contains `a b
+c`. This means that when the stack hits the `pool` keyword, is must contain `a
+b c` as well. This will enforce that the stack has a clean structure no matter
+how many iteration will happen.
 
 ## 6. Entrypoint
 
