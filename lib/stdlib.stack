@@ -71,16 +71,12 @@ func ptr.memcmp (ptr, ptr, int) (int) in -- s1, s2, n
     ptr.memcmp'
 end
 
-func ptr.strlen' (ptr, int) (int) in -- ptr, result
-    swp dup byte.init BYTE_NULL = if -- len, ptr
-        pop
-    else
-        1 ptr.+ swp 1 + ptr.strlen'
-    fi -- int
-end
-
-func ptr.strlen (ptr) (int) in -- ptr
-    0 ptr.strlen'
+func ptr.strlen (ptr) (int) in
+    0 swp while
+        dup byte.init BYTE_NULL = not loop
+        1 ptr.+ swp 1 + swp
+    pool
+    pop
 end
 
 -- DATA INT
@@ -117,29 +113,28 @@ func int.show (int) (string) in
     else int.show' fi
 end
 
-func int.read' (int, string, int) (int, bool) in -- i, string, result
-    rot' -- result, i, string
-    dup2 -- result, i, string, i, string
-    string.len < if -- result, i, string
-        dup2 swp string.!! -- result, i, string, byte
-        dup byte.isdigit if -- result, i, string, byte
-            BYTE_0 - -- result, i, string, digit
-            rot4 10 * + -- i, string, result'
-            rot 1 + rot' int.read' -- result, ok
-        else
-            pop3 false
-        fi
-    else
-        pop2 true
-    fi -- result
-end
-
 func int.read (string) (int, bool) in
-    dup "" string.= if -- string
-        pop 0 true
-    else
-        0 swp 0 int.read'
-    fi
+    match s in
+        s string.len 0 <= if
+            0 true
+        else
+            0 0 true while
+                match i ok in
+                    i ok i s string.len < ok and
+                end loop
+                match r i ok in
+                    s i string.!!
+                    dup byte.isdigit if
+                        BYTE_0 -  r 10 * + i 1 + ok
+                    else
+                        i 1 + false
+                    fi
+                end
+            pool
+
+            swp pop
+        fi
+    end
 end
 
 -- DATA BOOL

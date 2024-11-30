@@ -3,10 +3,8 @@
 Stack Lang is the new hot thing (makes C obsolete!!!)
 
 Backlog:
-- [ ] add tests for `match`
 - [ ] generate more tests for all cases ~20 each (lexer, parser, preprocessor, typechecker)
 - [ ] update stdlib with `match`
-- [ ] add tests for `while`
 - [ ] update stdlib to use `while`
 - [ ] refactor stack.stack to use `while` and `match`
 - [ ] optimizations for speed => we don't need everything to be a function we can inline most things
