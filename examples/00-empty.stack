@@ -1,3 +1,5 @@
+@import stdlib
+
 func main () (int) in
-    0
+    "16" "9" string.concat int.read unwrap 100 - int.show string.stdout "\n" string.stdout 0
 end

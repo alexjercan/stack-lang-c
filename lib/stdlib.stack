@@ -104,8 +104,14 @@ func digit.show (int) (string) in
 end
 
 func int.show' (int) (string) in
-    dup 0 = if pop ""
-    else dup 10 mod swp 10 / int.show' swp digit.show string.concat fi
+    "" swp while -- str, int
+        dup 0 > loop
+        match s n in
+            n 10 mod digit.show s string.concat  -- str
+            n 10 / -- str, int
+        end
+    pool
+    pop
 end
 
 func int.show (int) (string) in
