@@ -1,0 +1,10 @@
+func main
+    ret0: int
+    body:
+        WHILE
+            true
+        LOOP
+            "Hello, World!\n"
+            string.stdout
+        POOL
+

@@ -50,16 +50,18 @@
 
             ARG1="all"
             MEMCHECK=0
+            VERBOSE=0
 
             analyzer() {
-                if [ "$#" -ne 3 ]; then
-                    echo "Usage: $0 <tests_dir> <exec_arg> <memcheck>"
+                if [ "$#" -ne 4 ]; then
+                    echo "Usage: $0 <tests_dir> <exec_arg> <memcheck> <verbose>"
                     exit 1
                 fi
 
                 tests_dir=$TESTS_DIR/$1
                 exec_arg=$2
                 memcheck=$3
+                verbose=$4
 
                 echo "Running tests for $1"
 
@@ -83,11 +85,16 @@
                         fi
                     fi
 
-                    if  ./"$MAIN" "$exec_arg" "$file_path" 2>&1 | diff - "$ref_path" > /dev/null 2>&1 && [ "$memcheck_result" -eq 1 ]; then
+                    diff_output=$(./"$MAIN" "$exec_arg" "$file_path" 2>&1 | diff - "$ref_path")
+                    test_status=$?
+                    if [ "$test_status" -eq 0 ] && [ "$memcheck_result" -eq 1 ]; then
                         echo -e "\e[32mPASSED\e[0m"
                         passed=$((passed + 1))
                     else
                         echo -e "\e[31mFAILED\e[0m"
+                        if [ -n "$diff_output" ] && [ "$verbose" -eq 1 ]; then
+                            echo "$diff_output"
+                        fi
                     fi
                 done
 
@@ -104,6 +111,7 @@
                 echo "  --lexer         Enable 'lexer' mode."
                 echo "  --parser        Enable 'parser' mode."
                 echo "  --memcheck      Enable memory check."
+                echo "  -v, --verbose   Show more details in case of errors."
                 echo "  --main <main>   Switch to a different main. Default is 'main'"
                 echo "  -h, --help      Show this help message and exit."
             }
@@ -133,6 +141,10 @@
                             MEMCHECK=1
                             shift
                             ;;
+                        -v|--verbose)
+                            VERBOSE=1
+                            shift
+                            ;;
                         --main)
                             if [ -z "$2" ]; then
                                 echo "$1"
@@ -157,17 +169,17 @@
 
                 if [[ "$ARG1" == "lexer" || "$ARG1" == "all" ]]; then
                     echo -e "\e[33mTesting the lexical analyzer\e[0m"
-                    analyzer "01-lexer" "--lexer" "$MEMCHECK"
+                    analyzer "01-lexer" "--lexer" "$MEMCHECK" "$VERBOSE"
                 fi
 
                 if [[ "$ARG1" == "parser" || "$ARG1" == "all" ]]; then
                     echo -e "\e[33mTesting the parser\e[0m"
-                    analyzer "02-parser" "--parser" "$MEMCHECK"
+                    analyzer "02-parser" "--parser" "$MEMCHECK" "$VERBOSE"
                 fi
 
                 if [[ "$ARG1" == "typecheck" || "$ARG1" == "all" ]]; then
-                    echo -e "\e[33mTesting the parser\e[0m"
-                    analyzer "03-typecheck" "--typecheck" "$MEMCHECK"
+                    echo -e "\e[33mTesting the typechecker\e[0m"
+                    analyzer "03-typecheck" "--typecheck" "$MEMCHECK" "$VERBOSE"
                 fi
 
                 if [ $PASSED_TESTS -eq $TOTAL_TESTS ]; then

@@ -1,0 +1,14 @@
+func log_message
+    arg0: string
+    body:
+        dup
+        string.stdout
+        pop
+
+func main
+    ret0: int
+    body:
+        "Logging"
+        log_message
+        0
+

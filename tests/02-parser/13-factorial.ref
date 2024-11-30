@@ -1,0 +1,23 @@
+func factorial
+    arg0: int
+    ret0: int
+    body:
+        dup
+        1
+        <=
+        IF
+            1
+        ELSE
+            dup
+            1
+            -
+            factorial
+            *
+        FI
+
+func main
+    ret0: int
+    body:
+        5
+        factorial
+

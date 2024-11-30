@@ -1,0 +1,6 @@
+data custom
+    (int x, int y)
+
+func invalid_constructor (int) (custom) in
+    custom.init
+end

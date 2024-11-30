@@ -1,0 +1,2 @@
+tests/03-typecheck/08-arith.stack:2:5, Semantic error: func + has non matching args, expected (int, int) but got (int, bool)
+tests/03-typecheck/08-arith.stack:1:6, Semantic error: func arithmetic_test has non matching return, expected (int) but got (int, bool)

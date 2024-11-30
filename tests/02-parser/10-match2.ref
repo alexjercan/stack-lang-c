@@ -1,0 +1,17 @@
+func main
+    ret0: int
+    body:
+        1
+        2
+        MATCH a b
+            a
+            b
+            a
+            b
+            MATCH c d
+                c
+                d
+                *
+            +
+            +
+

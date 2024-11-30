@@ -1,0 +1,3 @@
+func call_undefined (int) (int) in
+    unknown_function
+end

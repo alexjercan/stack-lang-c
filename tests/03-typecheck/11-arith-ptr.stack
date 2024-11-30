@@ -1,0 +1,3 @@
+func invalid_ptr_arithmetic (int) (ptr) in
+    ptr.+
+end

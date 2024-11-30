@@ -1,0 +1,3 @@
+func arithmetic_test (int, bool) (int) in
+    +
+end

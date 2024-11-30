@@ -1,0 +1,35 @@
+func main
+    ret0: int
+    body:
+        0
+        WHILE
+            dup
+            3
+            <
+        LOOP
+            true
+            IF
+                0
+                WHILE
+                    dup
+                    2
+                    <
+                LOOP
+                    true
+                    IF
+                        dup
+                        2
+                        *
+                        string.stdout
+                    ELSE
+                    FI
+                    1
+                    +
+                POOL
+            ELSE
+            FI
+            1
+            +
+        POOL
+        0
+

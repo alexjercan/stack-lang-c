@@ -1,0 +1,6 @@
+data point
+    (int x, int y)
+
+func invalid_field_access (point) (int) in
+    point.z
+end

@@ -1,0 +1,2 @@
+tests/03-typecheck/13-branch.stack:2:5, Semantic error: expected type (bool) but got (int)
+tests/03-typecheck/13-branch.stack:1:6, Semantic error: func invalid_if has non matching return, expected (string) but got (int)

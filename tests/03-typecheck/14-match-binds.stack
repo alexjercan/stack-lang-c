@@ -1,0 +1,4 @@
+func invalid_match (int) (int) in
+    match a b in
+    end
+end

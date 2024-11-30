@@ -1,0 +1,6 @@
+func main () (int) in
+    while
+        true loop
+        "Hello, World!\n" string.stdout
+    pool
+end

@@ -1,0 +1,14 @@
+func main () (int) in
+    42 match value in
+        value 0 = if
+            "zero"
+        else
+            value 42 = if
+                "the answer"
+            else
+                "unknown"
+            fi
+        fi string.stdout
+    end
+    0
+end

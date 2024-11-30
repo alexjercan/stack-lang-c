@@ -1,0 +1,7 @@
+func example (int) (int) in
+    +
+end
+
+func main () (int) in
+    "string" example
+end

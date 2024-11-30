@@ -1,0 +1,9 @@
+data point (int x, int y)
+
+func make_point (int, int) (point) in
+    point.init
+end
+
+func main () (int) in
+    3 4 make_point
+end

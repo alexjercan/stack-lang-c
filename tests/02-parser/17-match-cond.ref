@@ -1,0 +1,23 @@
+func main
+    ret0: int
+    body:
+        42
+        MATCH value
+            value
+            0
+            =
+            IF
+                "zero"
+            ELSE
+                value
+                42
+                =
+                IF
+                    "the answer"
+                ELSE
+                    "unknown"
+                FI
+            FI
+            string.stdout
+        0
+

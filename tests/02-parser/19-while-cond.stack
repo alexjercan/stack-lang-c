@@ -1,0 +1,16 @@
+func main () (int) in
+    0 while
+        dup 3 < loop
+        true if
+            0 while
+                dup 2 < loop
+                true if
+                    dup 2 * string.stdout
+                fi
+                1 +
+            pool
+        fi
+        1 +
+    pool
+    0
+end

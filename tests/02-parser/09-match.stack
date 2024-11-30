@@ -1,0 +1,5 @@
+func main () (int) in
+    1 2 match a b in
+        a b +
+    end
+end

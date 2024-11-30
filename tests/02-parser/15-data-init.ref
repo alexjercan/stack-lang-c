@@ -1,0 +1,18 @@
+data point
+    x: int
+    y: int
+
+func make_point
+    arg0: int
+    arg1: int
+    ret0: point
+    body:
+        point.init
+
+func main
+    ret0: int
+    body:
+        3
+        4
+        make_point
+

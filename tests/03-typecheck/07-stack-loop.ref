@@ -1,0 +1,2 @@
+tests/03-typecheck/07-stack-loop.stack:2:5, Semantic error: stack mismatch loop expects (..., int) but returns (..., int, string)
+tests/03-typecheck/07-stack-loop.stack:1:6, Semantic error: func loop_test has non matching return, expected (int) but got (int, string)

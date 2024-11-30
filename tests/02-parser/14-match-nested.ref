@@ -1,0 +1,23 @@
+func main
+    ret0: int
+    body:
+        1
+        2
+        MATCH x y
+            x
+            0
+            =
+            IF
+                "zero"
+                string.stdout
+            ELSE
+                x
+                y
+                MATCH a b
+                    a
+                    b
+                    +
+                int.show
+                string.stdout
+            FI
+

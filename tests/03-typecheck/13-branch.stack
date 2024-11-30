@@ -1,0 +1,7 @@
+func invalid_if (int) (string) in
+    if
+        "yes"
+    else
+        0
+    fi
+end

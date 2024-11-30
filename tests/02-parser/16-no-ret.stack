@@ -1,0 +1,8 @@
+func log_message (string) () in
+    dup string.stdout pop
+end
+
+func main () (int) in
+    "Logging" log_message
+    0
+end

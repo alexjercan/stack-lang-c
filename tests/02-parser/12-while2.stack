@@ -1,0 +1,10 @@
+func main () (int) in
+    0 while
+        dup 10 < loop
+        1 +
+        while
+            true loop
+            "hello" print
+        pool
+    pool
+end

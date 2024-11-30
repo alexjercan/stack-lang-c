@@ -1,0 +1,11 @@
+data shape (int type)
+data circle (shape base, int radius)
+data rectangle (shape base, int width, int height)
+
+func main () (int) in
+    1 shape.init 5 circle.init match base in
+        circle.radius string.stdout
+    end
+    0
+end
+

@@ -1,0 +1,19 @@
+func main
+    ret0: int
+    body:
+        0
+        WHILE
+            dup
+            10
+            <
+        LOOP
+            1
+            +
+            WHILE
+                true
+            LOOP
+                "hello"
+                print
+            POOL
+        POOL
+

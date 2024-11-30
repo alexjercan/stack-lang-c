@@ -1,0 +1,3 @@
+func deref_test (int) (int) in
+    int.*
+end

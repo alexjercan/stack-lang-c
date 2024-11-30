@@ -1,0 +1,11 @@
+func main () (int) in
+    1 2 match x y in
+        x 0 = if
+            "zero" string.stdout
+        else
+            x y match a b in
+                a b +
+            end int.show string.stdout
+        fi
+    end
+end

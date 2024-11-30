@@ -1,0 +1,24 @@
+data shape
+    type: int
+
+data circle
+    base: shape
+    radius: int
+
+data rectangle
+    base: shape
+    width: int
+    height: int
+
+func main
+    ret0: int
+    body:
+        1
+        shape.init
+        5
+        circle.init
+        MATCH base
+            circle.radius
+            string.stdout
+        0
+

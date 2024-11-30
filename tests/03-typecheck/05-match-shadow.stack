@@ -1,0 +1,6 @@
+func shadow_test (int, int) (int) in
+    match a b in
+        a b match a c in
+        end
+    end
+end

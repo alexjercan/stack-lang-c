@@ -1,0 +1,2 @@
+tests/03-typecheck/10-data-field.stack:5:5, Semantic error: func point.z is not defined
+tests/03-typecheck/10-data-field.stack:4:6, Semantic error: func invalid_field_access has non matching return, expected (int) but got (point)
