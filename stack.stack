@@ -678,8 +678,6 @@ func stack_ast.dump.match (int, stack_ast_match) () in -- indent, match
     rot dup stack_ast_match.exprs rot swp -- indent, match, indent+, exprs
     stack_ast.dump.exprs swp -- match, indent
 
-    "\n" string.stdout -- match, indent
-
     pop2
 end
 
@@ -3143,7 +3141,6 @@ func stack_context.typecheck.expr.while.has_boolean (array) (bool) in -- stack
 end
 
 func stack_context.typecheck.while.showf (stack_context, stack_ast_while, array, array) () in -- ctx, while, stack, stack'
-    swp -- lhs, rhs
     rot4 rot4 -- stack, stack', ctx, while
 
     dup2 stack_ast_while.node -- ..., ctx, name
