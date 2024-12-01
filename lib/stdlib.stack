@@ -170,14 +170,15 @@ func string.init.cstr (ptr) (string) in
 end
 
 func string.concat (string, string) (string) in -- s1, s2
-    dup2 string.len swp string.len + -- s1, s2, L
-    dup rot4' string.memory-needed ptr.alloc -- L, s1, s2, ptr
-    dup rot4' -- L, ptr, s1, s2, ptr
-    rot dup string.str swp string.len dup rot4' ptr.@ -- L, ptr, s2, L1, ptr
-    swp ptr.+ -- L, ptr, s2, ptr+L1
-    swp dup string.str swp string.len ptr.@ -- L, ptr, ptr+L1
-    pop -- L, ptr
-    string.init
+    match s1 s2 in
+        s1 string.len s2 string.len + -- L
+        dup string.memory-needed ptr.alloc -- L, ptr
+        s1 string.str s1 string.len ptr.@ -- L, ptr
+        dup s1 string.len ptr.+ -- L, ptr, ptr+L1
+        s2 string.str s2 string.len ptr.@ -- L, ptr, ptr+L1
+        pop -- L, ptr
+        string.init
+    end
 end
 
 func string.substr (string, int, int) (string) in -- s, i, n
