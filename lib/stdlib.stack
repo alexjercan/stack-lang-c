@@ -620,6 +620,40 @@ func array.append (array, ptr) (bool) in -- a, ptr
     array.count.set true -- bool
 end
 
+func array.swap (array, int, int) () in
+    match xs i j in
+        xs array.sz ptr.alloc -- tmp
+        xs i array.get unwrap -- tmp, fst
+        dup2 xs array.sz ptr.@ pop -- tmp, fst
+        xs j array.get unwrap -- tmp, fst, snd
+        dup2 xs array.sz ptr.@ pop -- tmp, fst, snd
+        swp pop swp -- snd, tmp
+        xs array.sz ptr.@ pop -- ()
+    end
+end
+
+func array.sort<int> (array) () in
+    match xs in
+        0 while -- i
+            dup xs array.count < loop -- i
+
+            dup 1 + while -- i, j
+            dup xs array.count < loop -- i, j
+                match i j in
+                    xs i array.get unwrap int.* -- x
+                    xs j array.get unwrap int.* -- y
+                    - 0 > if xs i j array.swap fi
+                    i j 1 +
+                end
+            pool -- i, j
+
+            pop 1 +
+        pool -- i
+
+        pop
+    end
+end
+
 -- DATA BYTE is a subdata of int
 
 const BYTE_NULL 0

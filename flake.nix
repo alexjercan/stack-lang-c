@@ -21,7 +21,7 @@
     in {
       packages.default = pkgs.stdenv.mkDerivation {
         pname = "slc";
-        version = "0.0.1";
+        version = "1.0.0";
 
         makeFlags = ["PREFIX=$(out)"];
 
