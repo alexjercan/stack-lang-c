@@ -191,18 +191,17 @@ func string.substr (string, int, int) (string) in -- s, i, n
     end
 end
 
-func string.repeat' (int, string, int, string) (string) in -- i, s, n, result
-    rot4' rot swp dup2 < if -- result, s, i, n
-        swp 1 + swp -- result, s, i+1, n
-        rot rot4 swp dup rot4' string.concat -- i+1, s, n, result
-        string.repeat' -- string
-    else
-        pop3
-    fi -- string
-end
-
 func string.repeat (string, int) (string) in -- s, n
-    0 rot' "" string.repeat' -- string
+    match s n in
+        "" 0 while -- result, i
+            dup n < loop -- result, i
+            match r i in
+                r s string.concat
+                i 1 +
+            end
+        pool -- result, i
+        pop
+    end
 end
 
 func string.!! (string, int) (int) in -- s, i
@@ -252,25 +251,35 @@ func string.split_at (string, int) (string, string) in -- string, i
     fi
 end
 
-func string.split' (int, string, string) (string, string) in -- i, string, sep
-    dup3 -- i, string, sep, i, string, sep
-    pop swp -- i, string, sep, string, i
-    string.split_at -- i, string, sep, prefix, suffix
-
-    rot dup2 -- i, string, prefix, suffix, sep, suffix, sep
-    string.starts_with if -- i, string, prefix, suffix, sep
-        rot4 pop rot4 pop -- prefix, suffix, sep
-        string.len string.split_at -- prefix, sep, suffix'
-        swp pop -- prefix, suffix
-    else
-        swp pop swp pop -- i, string, sep
-        rot 1 + rot' -- i+1, string, sep
-        string.split' -- prefix, suffix
-    fi
+func string.index (string, string) (int, bool) in -- haystack, needle
+    match s sep in
+        0 true while -- i, run
+            match i ok in i ok i s string.len < ok and end loop -- i, run
+            match i ok in
+                s i string.split_at -- prefix, suffix
+                swp pop -- suffix
+                sep string.starts_with if
+                    i false
+                else
+                    i 1 + true
+                fi
+            end
+        pool -- i, run
+        not -- i, found
+    end
 end
 
 func string.split (string, string) (string, string) in -- string, sep
-    0 rot' string.split'
+    match s sep in
+        s sep string.index not if
+            pop s ""
+        else
+            s swp string.split_at -- prefix, suffix
+            sep string.len -- prefix, suffix, L'
+            string.split_at -- prefix, sep, suffix'
+            swp pop -- prefix, rest
+        fi
+    end
 end
 
 func string.stdin () (string) in -- ()
