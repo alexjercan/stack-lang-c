@@ -182,16 +182,13 @@ func string.concat (string, string) (string) in -- s1, s2
 end
 
 func string.substr (string, int, int) (string) in -- s, i, n
-    rot -- i, n, s
-    string.str -- i, n, str
-    rot ptr.+ swp -- str+i, n
-    dup string.memory-needed ptr.alloc -- str+i, n, ptr
-    dup rot4' -- ptr, str+i, n, ptr
-    rot' -- ptr, ptr, str+i, n
-    dup rot4' -- ptr, n, ptr, str+i, n
-    ptr.@ pop -- ptr, n
-    swp -- n, ptr
-    string.init
+    match s1 i n in
+        n string.memory-needed ptr.alloc -- ptr
+        s1 string.str i ptr.+ -- ptr, str+i
+        n -- ptr, str+i, n
+        ptr.@ -- ptr
+        n swp string.init
+    end
 end
 
 func string.repeat' (int, string, int, string) (string) in -- i, s, n, result
