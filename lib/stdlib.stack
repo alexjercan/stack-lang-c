@@ -46,29 +46,21 @@ func ptr.realloc (ptr, int, int) (ptr) in -- src, osz, sz
     fi -- ptr
 end
 
-func ptr.memcmp' (ptr, ptr, int) (int) in -- s1, s2, n
-    dup 0 <= if -- s1, s2, n
-        pop pop pop 0
-    else
-        rot' -- n, s1, s2
-
-        dup2 -- n, s1, s2, s1, s2
-        byte.init swp byte.init swp -- n, s1, s2, b1, b2
-        - -- n, s1, s2, b1-b2
-        dup 0 = if -- n, s1, s2, b1-b2
-            pop -- n, s1, s2
-            1 ptr.+ -- n, s1, s2+1
-            swp 1 ptr.+ swp -- n, s1+1, s2+1
-            rot 1 - -- s1+1, s2+1, n-1
-            ptr.memcmp' -- int
-        else
-            rot4' pop3 -- b1-b2
-        fi
-    fi
-end
-
 func ptr.memcmp (ptr, ptr, int) (int) in -- s1, s2, n
-    ptr.memcmp'
+    0 rot4' while -- acc, s1, s2, n
+        dup 0 > loop -- acc, s1, s2, n
+        match _acc s1 s2 n in
+            s1 byte.init s2 byte.init - -- b1-b2
+            dup 0 = if
+                s1 1 ptr.+
+                s2 1 ptr.+
+                n 1 -
+            else
+                s1 s2 0
+            fi -- acc, s1, s2, n
+        end
+    pool -- acc, s1, s2, n
+    pop3
 end
 
 func ptr.strlen (ptr) (int) in
