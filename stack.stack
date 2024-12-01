@@ -3512,7 +3512,7 @@ func stack_assembler.emit.pretty_call (stack_assembler, string) (string) in -- a
 end
 
 func stack_assembler.emit.push_bind (stack_assembler, int, string) () in -- asm, i, name
-    swp 8 * -- asm, name, i*8
+    swp 8 * 8 + -- asm, name, i*8+8
     int.show "    mov     rdi, qword [rbp - " swp string.concat "]" string.concat -- asm, name, s
     rot dup rot emit -- name, asm
     dup "    call    stack_push_addr" emit -- name, asm
@@ -3580,6 +3580,7 @@ func stack_assembler.emit.expr.match.binds (int, stack_assembler, stack_ast_matc
         2 * - -- i, match, asm, B-i+L-i
         1 - -- i, match, asm, B-i+L-i-1
         8 * -- i, match, asm, B*8
+        8 + -- i, match, asm, B*8+8
         int.show "    mov     qword [rbp - " swp string.concat "], rax" string.concat -- i, match, asm, s
         swp dup rot emit -- i, match, asm
 
