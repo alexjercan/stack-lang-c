@@ -36,6 +36,8 @@ func rot4' (a, b, c, d) (d, a, b, c) in rot4 rot4 rot4 end
 
 -- DATA PTR
 
+const ptr.null 0 int.& ptr.*
+
 func ptr.realloc (ptr, int, int) (ptr) in -- src, osz, sz
     dup2 > if -- src, osz, sz
         pop2
@@ -402,26 +404,24 @@ func array.init.with_sz (int) (array) in -- sz
 end
 
 func array.get (array, int) (ptr, bool) in -- a, i
-    dup -- a, i, i
-    rot -- i, i, a
-    dup array.count -- i, i, a, L
-    rot <= if -- i, a
-        pop2 0 int.& false
-    else
-        dup array.sz -- i, a, sz
-        rot * -- a, i*sz
-        swp -- i*sz, a
-        array.items -- i*sz, ptr
-        swp ptr.+ -- ptr+i*sz
-        true
-    fi -- ptr, ok
+    match xs i in
+        xs array.count i <= if
+            ptr.null false
+        else
+            xs array.items -- ptr
+            xs array.sz -- ptr, sz
+            i * -- ptr, i*sz
+            ptr.+ -- ptr+i*sz
+            true
+        fi -- ptr, ok
+    end
 end
 
-func array.copy (array) (array) in -- a
+func array.copy (array) (array, bool) in -- a
     dup array.sz -- a, sz
     array.init.with_sz -- a, dst
     dup rot -- dst, dst, a
-    array.extend unwrap -- dst
+    array.extend -- dst
 end
 
 func array.last (array) (ptr, bool) in -- a
@@ -445,15 +445,16 @@ func array.pop (array) (bool) in -- a
 end
 
 func array.= (array, array) (bool) in -- xs, ys
-    dup2 array.count swp array.count -- xs, ys, L, L'
-    = if -- xs, ys
-        dup array.count -- xs, ys, L
-        rot array.items rot' -- xs.items, ys, L
-        swp array.items swp  -- xs.items, ys.items, L
-        ptr.memcmp 0 = -- ok
-    else
-        pop2 false
-    fi -- bool
+    match xs ys in
+        xs array.count ys array.count = if
+            xs array.items -- xs.items
+            ys array.items -- xs.items, ys.items
+            xs array.count -- xs.items, ys.items, L
+            ptr.memcmp 0 = -- ok
+        else
+            false
+        fi
+    end
 end
 
 func array.insert (array, int, ptr) (bool) in -- dst, i, item

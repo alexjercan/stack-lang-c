@@ -3007,7 +3007,7 @@ func stack_context.typecheck.expr.cond (stack_context, array, stack_ast_cond) ()
         stack_context.typecheck.expr.cond.has_boolean.showf
     else
         dup array.pop unwrap -- ctx, cond, stack
-        dup array.copy -- ctx, cond, stack, stack'
+        dup array.copy unwrap -- ctx, cond, stack, stack'
 
         rot4' -- stack', ctx, cond, stack
         swp -- stack', ctx, stack, cond
@@ -3175,7 +3175,7 @@ func stack_context.typecheck.expr.while.has_boolean.showf (stack_context, stack_
 end
 
 func stack_context.typecheck.expr.while (stack_context, array, stack_ast_while) () in -- ctx, stack, while
-    swp dup array.copy -- ctx, while, stack, stack'
+    swp dup array.copy unwrap -- ctx, while, stack, stack'
 
     match ctx ast stack stack' in
         -- evaluate the while_ condition to check if it evaluates to bool
