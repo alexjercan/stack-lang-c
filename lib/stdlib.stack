@@ -346,38 +346,40 @@ func stdlib.fclose (int) (bool) in -- fd
 end
 
 func stdlib.fread (int, int) (string, bool) in -- fd, L
-    dup string.memory-needed ptr.alloc -- fd, L, ptr
-    dup rot4' -- ptr, fd, L, ptr
-    swp -- ptr, fd, ptr, L
-    sys.read -- ptr, L
-    dup -- ptr, L, L
-    0 < if -- ptr, L
-        pop2 "" false
-    else
-        swp string.init true
-    fi -- s, ok
+    match fd L in
+        L string.memory-needed ptr.alloc -- ptr
+        dup fd swp L  -- ptr, fd, ptr, L
+        sys.read -- ptr, L
+        dup -- ptr, L, L
+        0 < if -- ptr, L
+            pop2 "" false
+        else
+            swp string.init true
+        fi -- s, ok
+    end
 end
 
-
 func stdlib.fread.<eof> (int) (string, bool) in -- fd
-    dup stdlib.MAX_LINE stdlib.fread -- fd, s, ok
-    not if -- fd, s
-        pop2 "" false
-    else
-        dup string.len -- fd, s, L
-        dup 0 <= if -- fd, s, L
-            pop3 "" false
-        else stdlib.MAX_LINE >= if -- fd, s
-            swp stdlib.fread.<eof> -- s1, s2, ok
-            not if -- s1, s2
+    match fd in
+        fd stdlib.MAX_LINE stdlib.fread -- s, ok
+        not if -- s
+            pop "" false
+        else
+            dup string.len -- s, L
+            dup 0 <= if -- s, L
                 pop2 "" false
-            else
-                string.concat true
-            fi -- s, ok
-        else -- fd, s
-            swp pop true
-        fi fi -- s, ok
-    fi -- s, ok
+            else stdlib.MAX_LINE >= if -- s
+                fd stdlib.fread.<eof> -- s1, s2, ok
+                not if -- s1, s2
+                    pop2 "" false
+                else
+                    string.concat true
+                fi -- s, ok
+            else -- s
+                true
+            fi fi -- s, ok
+        fi -- s, ok
+    end
 end
 
 func stdlib.fwrite (int, string) (bool) in -- fd, s
