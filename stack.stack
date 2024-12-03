@@ -3140,17 +3140,17 @@ func stack_context.typecheck.expr.while.has_boolean (array) (bool) in -- stack
     fi -- bool
 end
 
-func stack_context.typecheck.while.showf (stack_context, stack_ast_while, array, array) () in -- ctx, while, stack, stack'
+func stack_context.typecheck.while.showf (stack_context, stack_ast_while, array, array) () in -- ctx, while, body, input
     rot4 rot4 -- stack, stack', ctx, while
 
     dup2 stack_ast_while.node -- ..., ctx, name
-    "stack mismatch loop expects (..., " -- ..., ctx, name, s
+    "stack mismatch while expects (..., " -- ..., ctx, name, s
     stack_context.showf -- stack, stack', ctx, cond
 
     pop swp -- stack, ctx, stack'
     0 swp array.string.showf -- stack, ctx
 
-    ") but returns (..., " string.stderr
+    ") but pool gives (..., " string.stderr
 
     swp -- ctx, stack
     0 swp array.string.showf -- ctx
@@ -3177,6 +3177,12 @@ end
 func stack_context.typecheck.expr.while (stack_context, array, stack_ast_while) () in -- ctx, stack, while
     swp dup array.copy unwrap -- ctx, while, stack, stack'
 
+    -- while:     -- we make a checkpoint for the stack: stack'
+    --     exprs  -- evaluate on the main stack
+    --     loop   -- pop bool from stack if false jmp pool; while expr will return here
+    --     body   -- evaluate the body of the while ONCE: stack''
+    -- pool:      -- jmp while; we MUST have stack'' == stack'
+
     match ctx ast stack stack' in
         -- evaluate the while_ condition to check if it evaluates to bool
         ctx stack ast stack_ast_while.while_ stack_context.typecheck.exprs
@@ -3187,13 +3193,18 @@ func stack_context.typecheck.expr.while (stack_context, array, stack_ast_while) 
             -- remove the bool from the stack
             stack array.pop unwrap
 
-            -- evaluate the body of the while ONCE
-            ctx stack ast stack_ast_while.exprs stack_context.typecheck.exprs
+            -- we need to copy the stack because the while expression will return here when it stops
+            stack array.copy unwrap -- stack''
 
-            -- stack MUST be the same after ONE iteration
-            stack stack' array.string.= not if
-                ctx ast stack stack' stack_context.typecheck.while.showf
-            fi
+            match stack'' in
+                -- evaluate the body of the while ONCE
+                ctx stack'' ast stack_ast_while.exprs stack_context.typecheck.exprs
+
+                -- stack MUST be the same after ONE iteration
+                stack'' stack' array.string.= not if
+                    ctx ast stack'' stack' stack_context.typecheck.while.showf
+                fi
+            end
         fi
     end
 end

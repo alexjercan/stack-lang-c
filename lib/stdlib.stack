@@ -70,10 +70,10 @@ func ptr.memcmp (ptr, ptr, int) (int) in -- s1, s2, n
 end
 
 func ptr.strlen (ptr) (int) in
-    0 swp while
-        dup byte.init BYTE_NULL = not loop
+    0 swp while -- n, ptr
+        dup byte.init BYTE_NULL = not loop -- n, ptr
         1 ptr.+ swp 1 + swp
-    pool
+    pool -- n, ptr
     pop
 end
 
@@ -105,12 +105,12 @@ func int.show (int) (string) in
     dup 0 = if pop "0"
     else
         "" swp while -- str, int
-            dup 0 > loop
+            dup 0 > loop -- str, int
             match s n in
                 n 10 mod digit.show s string.concat  -- str
                 n 10 / -- str, int
             end
-        pool
+        pool -- str, int
         pop
     fi
 end
@@ -120,10 +120,10 @@ func int.read (string) (int, bool) in
         s string.len 0 <= if
             0 true
         else
-            0 0 true while
+            0 0 true while -- i, ok
                 match i ok in
                     i ok i s string.len < ok and
-                end loop
+                end loop -- i, ok
                 match r i ok in
                     s i string.!!
                     dup byte.isdigit if
@@ -132,7 +132,7 @@ func int.read (string) (int, bool) in
                         i 1 + false
                     fi
                 end
-            pool
+            pool -- i, ok
 
             swp pop
         fi
@@ -732,32 +732,21 @@ end
 
 -- OS
 
-func os.env.get' (int, string) (string, bool) in -- i, string
-    swp dup 8 * -- string, i, i*8
-    os.env swp ptr.+ -- string, i, ptr+i*8
+func os.env.get (string) (string, bool) in -- name
+    match name in
+        "" false os.env while -- result, found, ptr<c-str>
+            match result found env in
+                result found env -- result, found, ptr<c-str>
+                found not env int.* 0 = not and
+            end loop -- result, found, ptr<c-str>
+            rot' pop2
+            dup ptr.* -- ptr<c-str>, c-str
+            string.init.cstr -- ptr<c-str>, str
+            "=" string.split -- ptr<c-str>, name, value
+            swp name string.= -- ptr<c-str>, value, found
+            rot 8 ptr.+ -- value, found, ptr+8<c-str>
+        pool -- result, found, ptr<c-str>
 
-    dup -- string, i, ptr+i*8, ptr+i*8
-    int.* -- string, i, ptr+i*8, int
-
-    0 = if -- string, i, ptr+i*8
-        pop3 "" false
-    else
-        ptr.* -- string, i, ptr[i*8]
-
-        string.init.cstr -- string, i, env
-        "=" string.split -- string, i, name, value
-
-        swp -- string, i, value, name
-        rot4 dup rot -- i, value, string, string, name
-        string.= if -- i, value, string
-            pop swp pop true
-        else
-            swp pop -- i, string
-            swp 1 + swp os.env.get'
-        fi
-    fi
-end
-
-func os.env.get (string) (string, bool) in
-    0 swp os.env.get'
+        pop
+    end -- result, found
 end

@@ -472,6 +472,27 @@ c`. This means that when the stack hits the `pool` keyword, is must contain `a
 b c` as well. This will enforce that the stack has a clean structure no matter
 how many iteration will happen.
 
+IMPORTANT: The output of the while will be determined in the `while ... loop`.
+This happens because if the condition is false, the while will break on `loop`.
+This means that whatever `loop` has on the stack that will be what the while
+loop will leave on the stack once it is done. That means that the input of the
+`while` and the output of the `pool` must be the same, but they don't matter to
+the main stack, so it can be anything, but the `loop` expression is what will
+be left on the stack. For example
+
+```
+0 1 2 while           -- int, int, int
+    pop3 1 false loop -- int
+    1 2 3
+pool                  -- int, int, int
+```
+
+This while loop expects 3 `int`'s on the stack and the `pool` will need to
+generate 3 `int`'s for this to work. But at the end of the while loop (which in
+this case is just false, so it doesn't do anything), it will return a single
+`int`. So the stack will contain a single `int` at the end of the execution of
+the `while`.
+
 ## 6. Entrypoint
 
 The entrypoint of a stack lang program is the main function which should be
