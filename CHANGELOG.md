@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @alexjercan Implement Match Statement
 - @alexjercan Implement While Statement
 
+### Changed
+
+- @alexjercan Typecheck expressions continues even on inference failure
+
 ## [1.0.0] - 2024-11-27
 
 ### Added

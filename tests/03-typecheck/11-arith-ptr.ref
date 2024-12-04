@@ -1,2 +1,1 @@
 tests/03-typecheck/11-arith-ptr.stack:2:5, Semantic error: func ptr.+ has non matching args, expected (ptr, int) but got (int)
-tests/03-typecheck/11-arith-ptr.stack:1:6, Semantic error: func invalid_ptr_arithmetic has non matching return, expected (ptr) but got (int)

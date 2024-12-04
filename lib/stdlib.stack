@@ -79,6 +79,11 @@ end
 
 -- DATA INT
 
+func min (int, int) (int) in
+    match a b in a b < if a else b fi end
+end
+
+
 func abs (int) (int) in
     dup 0 < if 0 swp - fi
 end

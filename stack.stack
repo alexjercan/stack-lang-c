@@ -2895,28 +2895,37 @@ func stack_context.typecheck.expr.name (stack_context, array, stack_ast_node) ()
             stack_context.typecheck.expr.name.infer -- node, ctx, stack, sym, array, ok
 
             not if -- node, ctx, stack, sym, array<kv>
-                pop stack_context_symbol.symbol -- node, ctx, stack, ptr
-                stack_context_func.* -- node, ctx, stack, func
-                stack_context_func.args -- node, ctx, stack, args
-                rot4 rot' -- ctx, node, stack, args
-                stack_context.typecheck.infer.showf -- ()
-            else
-                swp dup stack_context_symbol.symbol -- node, ctx, stack, map, sym, ptr
-                stack_context_func.* -- node, ctx, stack, map, sym, func
-                stack_context_func.args -- node, ctx, stack, map, sym, args
-                array.count -- node, ctx, stack, map, sym, L
-                rot4 dup rot -- node, ctx, map, sym, stack, stack, L
-                stack_context.typecheck.expr.name.stack_pop -- node, ctx, map, sym, stack
+                match node ctx stack sym xs in
+                    ctx node stack
 
-                swp dup stack_context_symbol.symbol -- node, ctx, map, stack, sym, ptr
-                stack_context_func.* -- node, ctx, map, stack, sym, func
-                stack_context_func.rets -- node, ctx, map, stack, sym, rets
+                    sym stack_context_symbol.symbol
+                    stack_context_func.*
+                    stack_context_func.args -- ctx, node, stack, args
 
-                swp pop -- node, ctx, map, stack, rets
-                rot -- node, ctx, stack, rets, map
-                stack_context.typecheck.expr.name.stack_add -- node, ctx
-                pop pop
-            fi -- ()
+                    stack_context.typecheck.infer.showf -- ()
+
+                    node ctx stack sym xs
+                end
+            fi
+
+            swp dup stack_context_symbol.symbol -- node, ctx, stack, map, sym, ptr
+            stack_context_func.* -- node, ctx, stack, map, sym, func
+            stack_context_func.args -- node, ctx, stack, map, sym, args
+            array.count -- node, ctx, stack, map, sym, L
+            rot4 dup rot -- node, ctx, map, sym, stack, stack, L
+            swp dup array.count -- node, ctx, map, sym, stack, L, stack, C
+            rot -- node, ctx, map, sym, stack, stack, C, L
+            min -- node, ctx, map, sym, stack, stack, L
+            stack_context.typecheck.expr.name.stack_pop -- node, ctx, map, sym, stack
+
+            swp dup stack_context_symbol.symbol -- node, ctx, map, stack, sym, ptr
+            stack_context_func.* -- node, ctx, map, stack, sym, func
+            stack_context_func.rets -- node, ctx, map, stack, sym, rets
+
+            swp pop -- node, ctx, map, stack, rets
+            rot -- node, ctx, stack, rets, map
+            stack_context.typecheck.expr.name.stack_add -- node, ctx
+            pop pop -- ()
         else
             pop -- stack, node, ctx
             swp -- stack, ctx, node

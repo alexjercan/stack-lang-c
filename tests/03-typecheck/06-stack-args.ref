@@ -1,3 +1,2 @@
 tests/03-typecheck/06-stack-args.stack:2:5, Semantic error: func + has non matching args, expected (int, int) but got (int)
 tests/03-typecheck/06-stack-args.stack:6:14, Semantic error: func example has non matching args, expected (int) but got (string)
-tests/03-typecheck/06-stack-args.stack:5:6, Semantic error: func main has non matching return, expected (int) but got (string)
