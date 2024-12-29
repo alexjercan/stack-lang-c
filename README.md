@@ -4,6 +4,7 @@ Stack Lang is the new hot thing (makes C obsolete!!!)
 
 Backlog:
 - [ ] generate more tests for all cases ~20 each (lexer, parser, preprocessor, typechecker)
+- [ ] better documentation
 - [ ] optimizations for speed => we don't need everything to be a function we can inline most things
 - [ ] refactor stack.stack to use `while` and `match`
 - [ ] memory management => custom allocator that free's unused variables

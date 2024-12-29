@@ -1,5 +1,5 @@
 {
-  description = "A basic flake";
+  description = "A basic flake for Stack Lang";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -23,7 +23,7 @@
     in {
       packages.default = pkgs.stdenv.mkDerivation {
         pname = "slc";
-        version = "1.0.0";
+        version = "1.1.0";
 
         makeFlags = ["PREFIX=$(out)"];
 
