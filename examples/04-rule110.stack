@@ -1,4 +1,4 @@
-@import stdlib
+@import "stdlib"
 
 func rule110.match000 () (int) in 0 end
 func rule110.match001 () (int) in 1 end

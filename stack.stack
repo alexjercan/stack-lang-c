@@ -1,4 +1,4 @@
-@import stdlib
+@import "stdlib"
 
 const STACK_EXT "stack"
 
@@ -538,8 +538,8 @@ end
 
 func stack_parser.parse.import (stack_parser) (stack_ast_import) in -- parser
     dup stack_parser.read stack_token.kind STACK_TOKEN_IMPORT = unwrap -- parser
-    dup stack_parser.read dup stack_token.kind STACK_TOKEN_NAME = unwrap -- parser tok
-    dup2 stack_token.value rot stack_token.pos stack_ast_node.init swp -- name, parser
+    dup stack_parser.read dup stack_token.kind STACK_TOKEN_STRING = unwrap -- parser tok
+    dup2 stack_token.value stack_assembler.emit.string.interpret rot stack_token.pos stack_ast_node.init swp -- name, parser
 
     pop -- name
     stack_ast_import.init -- import
@@ -832,9 +832,9 @@ func stack_ast.dump' (int, array) () in
 
             pop
         else dup stack_ast_feature.kind STACK_AST_FEATURE_IMPORT = if -- i, array, feat
-            "@import " string.stdout
+            "@import \"" string.stdout
             stack_ast_feature.feature stack_ast_const.* dup stack_ast_const.name stack_ast_node.value string.stdout -- i, array, import
-            "\n\n" string.stdout
+            "\"\n\n" string.stdout
 
             pop
         else

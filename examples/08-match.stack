@@ -1,4 +1,4 @@
-@import stdlib
+@import "stdlib"
 
 func main () (int) in
     0

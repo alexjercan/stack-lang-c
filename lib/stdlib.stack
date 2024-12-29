@@ -1,3 +1,5 @@
+@import "linux"
+
 -- This is the standard library of `stack`.
 
 const STDIN 0
@@ -307,21 +309,6 @@ func string.stderr (string) () in -- s
     STDERR swp stdlib.fwrite -- bool
     unwrap
 end
-
--- SYSCALLS
-
-func sys.read (int, ptr, int) (int) in 0 syscall3 end
-func sys.write (int, ptr, int) (int) in 1 syscall3 end
-func sys.open (ptr, int, int) (int) in 2 syscall3 end
-func sys.close (int) (int) in 3 syscall1 end
-func sys.exit (int) () in 60 syscall1 pop end
-
-const O_RDONLY 0
-const O_WRONLY 1
-const O_RDWR   2
-const O_CREAT  64
-
-const O_0644   420
 
 -- STDLIB
 

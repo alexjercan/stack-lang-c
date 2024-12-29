@@ -1,4 +1,4 @@
-@import stdlib
+@import "stdlib"
 
 func args.dump (int, ptr, int) () in -- argc, argv, i
     rot dup2 >= if -- argv i argc

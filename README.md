@@ -145,7 +145,7 @@ To import another file in a stack program you can use the `@import` macro and
 then specify the name of the module.
 
 ```stack
-@import stdlib
+@import "stdlib"
 ```
 
 Stack will look for the module file in the current folders in order:

@@ -1,4 +1,4 @@
-@import stdlib
+@import "stdlib"
 
 func say_N (string, int) () in
     -- the while loop will expect the same input and output
