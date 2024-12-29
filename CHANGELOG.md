@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - @alexjercan Typecheck expressions continues even on inference failure
 
+### Fixed
+
+- @alexjercan Preprocessor checks duplicate imports
+
 ## [1.0.0] - 2024-11-27
 
 ### Added

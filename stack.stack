@@ -852,7 +852,34 @@ func stack_ast.dump (stack_ast) () in stack_ast.features 0 swp stack_ast.dump' e
 
 -- STACK PREPROCESSOR
 
-data stack_preprocessor ()
+data stack_preprocessor (array imports) -- array<string>
+
+func stack_preprocessor.init.empty () (stack_preprocessor) in
+    string.sizeof array.init.with_sz stack_preprocessor.init
+end
+
+func stack_preprocessor.imports.contains (stack_preprocessor, string) (bool) in
+    swp stack_preprocessor.imports -- string, array<string>
+    match path imports in
+        false 0 while -- ok, i
+            dup imports array.count < loop -- ok, i
+            dup imports swp -- ok, i, arr, i
+            array.get unwrap string.* -- ok, i, item
+            path string.= if -- ok, i
+                swp pop true swp
+            fi -- ok, i
+
+            1 + -- ok, i+1
+        pool -- ok, i
+        pop
+    end
+end
+
+func stack_preprocessor.imports.append (stack_preprocessor, string) (bool) in
+    swp stack_preprocessor.imports -- string, array<string>
+    swp string.& -- array<string>, ptr
+    array.append -- bool
+end
 
 func stack_home () (string) in
     "STACK_HOME" os.env.get not if pop "." fi
@@ -921,19 +948,26 @@ func stack_preprocessor.run.import (int, stack_preprocessor, stack_ast) () in --
         dup STACK_AST_FEATURE_IMPORT = if -- pre, ast, i, feat, kind
             pop stack_ast_feature.feature stack_ast_import.* stack_ast_import.name stack_ast_node.value stack_home -- pre ast i filename home
             "/lib" string.concat "/" string.concat swp string.concat "." string.concat STACK_EXT string.concat -- pre ast i path
-            dup "r" stdlib.fopen unwrap -- pre ast i path fd
-            dup stdlib.fread.<eof> unwrap -- pre ast i path, fd, string
-            swp stdlib.fclose unwrap -- pre ast i path string
 
-            swp stack_lexer.init.with_buffer -- pre ast i stack_lexer
-            stack_parser.init.with_lexer -- pre ast i stack_parser
-            stack_parser.parse unwrap -- pre ast i, ast'
+            match pre ast i path in
+                pre path stack_preprocessor.imports.contains not if
+                    path "r" stdlib.fopen unwrap -- fd
+                    dup stdlib.fread.<eof> unwrap -- fd, string
+                    swp stdlib.fclose unwrap -- string
 
-            stack_preprocessor.init -- pre ast i ast', pre'
-            dup2 swp stack_preprocessor.run' pop -- pre ast i ast'
+                    path stack_lexer.init.with_buffer -- stack_lexer
+                    stack_parser.init.with_lexer -- stack_parser
+                    stack_parser.parse unwrap -- ast'
 
-            rot dup rot stack_ast.append -- pre i ast
-            swp rot'
+                    pre dup2 swp -- ast' pre pre ast'
+                    stack_preprocessor.run' pop -- ast'
+
+                    ast swp stack_ast.append -- ()
+                    pre path stack_preprocessor.imports.append unwrap -- ()
+                fi
+
+                i pre ast
+            end
         else
             pop pop rot'
         fi -- i, pre, ast
@@ -4070,7 +4104,7 @@ func main (int, ptr) (int) in -- argc, argv
         0 sys.exit swp
     fi swp -- args, stack_ast
 
-    stack_preprocessor.init -- args, ast, pre
+    stack_preprocessor.init.empty -- args, ast, pre
     dup2 swp stack_preprocessor.run pop -- args, ast
 
     swp dup stack_args.preprocessor if -- stack_ast, args
