@@ -3912,9 +3912,11 @@ func stack_assembler.emit.string.interpret' (int, string, string) (string) in --
                 pop "\b"
             else dup BYTE_f = if
                 pop "\f"
+            else dup BYTE_r = if
+                pop "\r"
             else
                 pop dup2 swp 1 + 1 string.substr -- result, i, string, s+1
-            fi fi fi fi -- result, i, string, s
+            fi fi fi fi fi -- result, i, string, s
             rot 2 + rot' -- result, i+2, string, s
         else
             dup2 swp 1 string.substr rot 1 + rot' -- result, i+1, string, s

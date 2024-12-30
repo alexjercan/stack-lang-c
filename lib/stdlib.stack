@@ -639,6 +639,7 @@ const BYTE_a 97
 const BYTE_b 98
 const BYTE_f 102
 const BYTE_n 110
+const BYTE_r 114
 const BYTE_t 116
 const BYTE_z 122
 const BYTE_{ 123
