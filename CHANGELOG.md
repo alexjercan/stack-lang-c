@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+### Added
+
+- @alexjercan Added relative import paths
+
+### Changed
+
+- @alexjercan Changed imports to use strings instead of names
+
 ## [1.1.0] - 2024-12-29
 
 ### Added
