@@ -3,6 +3,9 @@
 
 func main () (int) in
     STDIN stdlib.fread.<eof> unwrap json.loads
+
+    -- json_object.item json_map.* "some" json.map_get unwrap
+
     json.dumps string.stdout
     0
 end

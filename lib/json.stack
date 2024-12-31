@@ -1,5 +1,24 @@
 @import "stdlib"
 
+const JSON_OBJECT_INVALID   0
+const JSON_OBJECT_STRING    1
+const JSON_OBJECT_NUMBER    2
+const JSON_OBJECT_BOOLEAN   3
+const JSON_OBJECT_NULL      4
+const JSON_OBJECT_ARRAY     5
+const JSON_OBJECT_MAP       6
+
+data json_string (string s)
+data json_number (int n)
+data json_boolean (bool b)
+data json_null ()
+data json_array (array a) -- array<json_object>
+
+data json_kv (string key, json_object value)
+data json_map (array a) -- array<json_kv>
+
+data json_object (int kind, ptr item)
+
 func util.pos_to_lc (string, int) (int, int) in
     match buf ps in
         1 1 0 while -- ln cl idx
@@ -141,7 +160,7 @@ end
 
 func json_lexer.next.string (json_lexer) (string, int) in
     match lxr in
-        "\"" JSON_ILLEGAL_NO_ERROR lxr json_lexer.read while -- string, int, ch
+        "" JSON_ILLEGAL_NO_ERROR lxr json_lexer.read while -- string, int, ch
             dup BYTE_QUOTE = not loop -- string, int, ch
             match s err ch in
                 ch BYTE_EOF = if
@@ -163,7 +182,6 @@ func json_lexer.next.string (json_lexer) (string, int) in
         pool
 
         pop lxr json_lexer.read pop
-        swp "\"" string.concat swp
     end
 end
 
@@ -360,32 +378,13 @@ func json_parser.parse_null (json_parser) (json_object) in
     end
 end
 
-const JSON_OBJECT_INVALID   0
-const JSON_OBJECT_STRING    1
-const JSON_OBJECT_NUMBER    2
-const JSON_OBJECT_BOOLEAN   3
-const JSON_OBJECT_NULL      4
-const JSON_OBJECT_ARRAY     5
-const JSON_OBJECT_MAP       6
-
-data json_string (string s)
-data json_number (int n)
-data json_boolean (bool b)
-data json_null ()
-data json_array (array a) -- array<json_object>
-
-data json_kv (string key, json_object value)
-data json_map (array a) -- array<json_kv>
-
-data json_object (int kind, ptr item)
-
 func json_object.dump (json_object) (string) in
     match obj in
         obj json_object.kind
         obj json_object.item
         match knd itm in
             knd JSON_OBJECT_STRING = if
-                itm json_string.* json_string.s
+                "\"" itm json_string.* json_string.s string.concat "\"" string.concat
             else knd JSON_OBJECT_NUMBER = if
                 itm json_number.* json_number.n int.show
             else knd JSON_OBJECT_BOOLEAN = if
@@ -445,7 +444,7 @@ end
 
 func json_kv.dump (json_kv) (string) in
     match kv in
-        kv json_kv.key ":" string.concat
+        "\"" kv json_kv.key string.concat "\":" string.concat
         kv json_kv.value json_object.dump string.concat
     end
 end
@@ -458,4 +457,29 @@ end
 
 func json.dumps (json_object) (string) in
     json_object.dump
+end
+
+func json.map_get (json_map, string) (json_object, bool) in -- json_map, key
+    swp json_map.a match key arr in
+        true 0 while -- run, idx
+            match run idx in run idx run idx arr array.count < and end loop
+            match run idx in
+                arr idx array.get unwrap json_kv.* match kv in
+                    kv json_kv.key key string.= if
+                        false idx
+                    else
+                        true idx 1 +
+                    fi
+                end
+            end
+        pool -- run, idx+1
+
+        swp not match idx found in
+            found if
+                arr idx array.get unwrap json_kv.* json_kv.value true
+            else
+                JSON_OBJECT_INVALID ptr.null json_object.init false
+            fi
+        end
+    end
 end
