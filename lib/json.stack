@@ -130,7 +130,7 @@ func json_lexer.next.name (json_lexer) (string) in -- lexer
     match lxr in
         "" lxr json_lexer.ch -- string, ch
         while -- string, ch
-            dup byte.isname loop -- string, ch
+            dup byte.isalnum loop -- string, ch
             byte.chr string.concat -- string
             lxr json_lexer.read -- string, ch
         pool
@@ -217,7 +217,7 @@ func json_lexer.next (json_lexer) (json_token) in
                     JSON_TOKEN_ILLEGAL "" pos err json_token.init
                 fi
             end
-        else ch byte.isname if
+        else ch byte.isalnum if
             lxr json_lexer.next.name -- string
             match name in
                 name "true" string.= if
@@ -337,6 +337,10 @@ func json_parser.parse_map (json_parser) (json_object) in
                 else dup JSON_TOKEN_COMMA = if
                     pop true
                 else
+                    prs json_parser.peek match tok in
+                        tok json_token.pos int.show ":" string.concat "Got " string.concat
+                        tok json_token.kind json_token_kind.map string.concat " expected } or ,\n" string.concat string.stderr
+                    end
                     panic pop false
                 fi fi
             pool -- array<json_kv>, run
