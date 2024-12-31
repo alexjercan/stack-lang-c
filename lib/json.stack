@@ -379,73 +379,83 @@ data json_map (array a) -- array<json_kv>
 
 data json_object (int kind, ptr item)
 
-func json_object.dump (json_object) () in
+func json_object.dump (json_object) (string) in
     match obj in
         obj json_object.kind
         obj json_object.item
         match knd itm in
             knd JSON_OBJECT_STRING = if
-                itm json_string.* json_string.s string.stdout
+                itm json_string.* json_string.s
             else knd JSON_OBJECT_NUMBER = if
-                itm json_number.* json_number.n int.show string.stdout
+                itm json_number.* json_number.n int.show
             else knd JSON_OBJECT_BOOLEAN = if
-                itm json_boolean.* json_boolean.b bool.show string.stdout
+                itm json_boolean.* json_boolean.b bool.show
             else knd JSON_OBJECT_NULL = if
-                "null" string.stdout
+                "null"
             else knd JSON_OBJECT_ARRAY = if
                 itm json_array.* json_array.dump
             else knd JSON_OBJECT_MAP = if
                 itm json_map.* json_map.dump
             else
-                "invalid" string.stdout
+                "INVALID"
             fi fi fi fi fi fi
         end
     end
 end
 
-func json_array.dump (json_array) () in
-    "array[\n" string.stdout
+func json_array.dump (json_array) (string) in
+    "[" swp
     json_array.a match arr in
         0 while -- idx
             dup arr array.count < loop -- idx
             match idx in
-                arr idx array.get unwrap json_object.* json_object.dump
+                arr idx array.get unwrap json_object.* json_object.dump string.concat
 
                 idx arr array.count 1 - < if
-                    "," string.stdout
-                fi "\n" string.stdout
+                    "," string.concat
+                fi
 
                 idx 1 +
             end
         pool -- idx+1
         pop
     end
-    "]" string.stdout
+    "]" string.concat
 end
 
-func json_map.dump (json_map) () in
-    "map[\n" string.stdout
+func json_map.dump (json_map) (string) in
+    "{" swp
     json_map.a match arr in
         0 while -- idx
             dup arr array.count < loop -- idx
             match idx in
-                arr idx array.get unwrap json_kv.* json_kv.dump
+                arr idx array.get unwrap json_kv.* json_kv.dump string.concat
 
                 idx arr array.count 1 - < if
-                    "," string.stdout
-                fi "\n" string.stdout
+                    "," string.concat
+                fi
 
                 idx 1 +
             end
         pool -- idx+1
         pop
     end
-    "]" string.stdout
+    "}" string.concat
 end
 
-func json_kv.dump (json_kv) () in
+func json_kv.dump (json_kv) (string) in
     match kv in
-        kv json_kv.key string.stdout ": " string.stdout
-        kv json_kv.value json_object.dump
+        kv json_kv.key ":" string.concat
+        kv json_kv.value json_object.dump string.concat
     end
+end
+
+func json_loads (string) (json_object) in
+    "string" json_lexer.init.with_buffer
+    json_parser.init.with_lexer
+    json_parser.parse
+end
+
+func json_dumps (json_object) (string) in
+    json_object.dump
 end
