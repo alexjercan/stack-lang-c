@@ -152,6 +152,7 @@ func int.show (int) (string) in
 end
 
 func int.read (string) (int, bool) in
+    -- TODO: parse negative numbers
     match s in
         s string.len 0 <= if
             0 true
@@ -195,6 +196,10 @@ end
 
 func or (bool, bool) (bool) in
     if pop true else fi
+end
+
+func bool.show (bool) (string) in
+    if "true" else "false" fi
 end
 
 -- DATA STRING
