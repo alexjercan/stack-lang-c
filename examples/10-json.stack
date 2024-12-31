@@ -1,0 +1,10 @@
+@import "json"
+@import "stdlib"
+
+func main () (int) in
+    STDIN stdlib.fread.<eof> unwrap "file" json_lexer.init.with_buffer
+    -- json_lexer.dump
+    json_parser.init.with_lexer
+    json_parser.parse json_object.dump
+    0
+end
