@@ -450,12 +450,12 @@ func json_kv.dump (json_kv) (string) in
     end
 end
 
-func json_loads (string) (json_object) in
+func json.loads (string) (json_object) in
     "string" json_lexer.init.with_buffer
     json_parser.init.with_lexer
     json_parser.parse
 end
 
-func json_dumps (json_object) (string) in
+func json.dumps (json_object) (string) in
     json_object.dump
 end

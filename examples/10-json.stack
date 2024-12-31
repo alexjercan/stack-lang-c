@@ -2,7 +2,7 @@
 @import "stdlib"
 
 func main () (int) in
-    STDIN stdlib.fread.<eof> unwrap json_loads
-    json_dumps string.stdout
+    STDIN stdlib.fread.<eof> unwrap json.loads
+    json.dumps string.stdout
     0
 end
