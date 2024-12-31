@@ -138,14 +138,16 @@ end
 func int.show (int) (string) in
     dup 0 = if pop "0"
     else
-        "" swp while -- str, int
+        dup 0 < if abs "-" else "" fi -- int, str
+
+        "" rot while -- str, int
             dup 0 > loop -- str, int
             match s n in
                 n 10 mod digit.show s string.concat  -- str
                 n 10 / -- str, int
             end
         pool -- str, int
-        pop
+        pop string.concat
     fi
 end
 
@@ -201,7 +203,7 @@ data string (int len, ptr str)
 -- compute how much memory you need to allocate for the string ptr
 -- taking into account memory alignment by 8
 func string.memory-needed (int) (int) in -- sz
-    7 + 8 / 8 *
+    8 + 8 / 8 *
 end
 
 -- convert a c string (ptr) to a stack string
