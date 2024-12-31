@@ -36,6 +36,11 @@ func rot' (a, b, c) (c, a, b) in rot rot end
 -- rotate 4 elements counter clockwise
 func rot4' (a, b, c, d) (d, a, b, c) in rot4 rot4 rot4 end
 
+-- duplicate the second element first
+func over (a, b) (a, b, a) in
+    match a b in a b a end
+end
+
 -- DATA PTR
 
 const ptr.null 0 int.& ptr.*
@@ -77,6 +82,28 @@ func ptr.strlen (ptr) (int) in
         1 ptr.+ swp 1 + swp
     pool -- n, ptr
     pop
+end
+
+-- DATA ERROR
+
+data error
+    ( bool ok
+    , string message
+    )
+
+func error.fail (string) (error) in
+    false swp error.init
+end
+
+func error.nil () (error) in
+    true "" error.init
+end
+
+func error.unwrap (error) () in
+    dup error.ok not if
+        error.message "\n" string.concat string.stderr
+        panic
+    else pop fi
 end
 
 -- DATA INT
@@ -177,11 +204,13 @@ func string.memory-needed (int) (int) in -- sz
     7 + 8 / 8 *
 end
 
+-- convert a c string (ptr) to a stack string
 func string.init.cstr (ptr) (string) in
     dup ptr.strlen -- ptr, int
     swp string.init
 end
 
+-- concatenate two strings
 func string.concat (string, string) (string) in -- s1, s2
     match s1 s2 in
         s1 string.len s2 string.len + -- L
@@ -194,6 +223,7 @@ func string.concat (string, string) (string) in -- s1, s2
     end
 end
 
+-- create a substring given the start and length
 func string.substr (string, int, int) (string) in -- s, i, n
     match s1 i n in
         n string.memory-needed ptr.alloc -- ptr
@@ -204,6 +234,7 @@ func string.substr (string, int, int) (string) in -- s, i, n
     end
 end
 
+-- repeat a string n times
 func string.repeat (string, int) (string) in -- s, n
     match s n in
         "" 0 while -- result, i
@@ -217,12 +248,14 @@ func string.repeat (string, int) (string) in -- s, n
     end
 end
 
+-- index a string into a byte
 func string.!! (string, int) (int) in -- s, i
     swp -- i, s
     string.str swp ptr.+ -- str+i
     byte.init -- byte
 end
 
+-- check if two strings are equal
 func string.= (string, string) (bool) in -- s1, s2
     dup2 string.len swp string.len swp -- s1, s2, L1, L2
     dup rot' = if -- s1, s2, L
@@ -234,6 +267,7 @@ func string.= (string, string) (bool) in -- s1, s2
     fi -- bool
 end
 
+-- check if a string starts with another string
 func string.starts_with (string, string) (bool) in -- string, pre
     dup2 -- string, pre, string, pre
     string.len swp string.len -- string, pre, pre.L, string.L
@@ -249,6 +283,7 @@ func string.starts_with (string, string) (bool) in -- string, pre
     fi
 end
 
+-- split a string at the given index
 func string.split_at (string, int) (string, string) in -- string, i
     dup2 -- string, i, string, i
     swp string.len -- string, i, i, L
@@ -264,6 +299,7 @@ func string.split_at (string, int) (string, string) in -- string, i
     fi
 end
 
+-- check if string contains another string and return the index of the first occurence
 func string.index (string, string) (int, bool) in -- haystack, needle
     match s sep in
         0 true while -- i, run
@@ -282,15 +318,22 @@ func string.index (string, string) (int, bool) in -- haystack, needle
     end
 end
 
+-- split a string with a separator, returns first occurence only
 func string.split (string, string) (string, string) in -- string, sep
+    string.cut pop
+end
+
+-- same as split, but it also returns a bool if it failed or not
+func string.cut (string, string) (string, string, bool) in
     match s sep in
         s sep string.index not if
-            pop s ""
+            pop s "" false
         else
-            s swp string.split_at -- prefix, suffix
-            sep string.len -- prefix, suffix, L'
-            string.split_at -- prefix, sep, suffix'
-            swp pop -- prefix, rest
+            s swp string.split_at
+            sep string.len
+            string.split_at
+            swp pop
+            true
         fi
     end
 end
