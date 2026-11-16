@@ -1,0 +1,36 @@
+const E
+
+const N
+    5
+
+func main
+    ret0: int
+    body:
+        1
+        2
+        5
+        IF
+            3
+        ELSE
+        FI
+        IF
+        ELSE
+            5
+        FI
+        MATCH x
+            x
+        WHILE
+            true
+        LOOP
+            5
+        POOL
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

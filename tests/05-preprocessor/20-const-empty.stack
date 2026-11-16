@@ -1,0 +1,11 @@
+const E
+const N 5
+
+func main () (int) in
+    E E E 1 E E 2 E N E
+    E if E E 3 E else E E fi E
+    E if E else E N E E fi
+    E match x in E E x E E end
+    E while E E true E loop E E N E E pool E
+    E E E
+end

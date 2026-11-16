@@ -1,0 +1,33 @@
+const E
+
+const P
+
+const Q
+    4
+
+const R
+
+const S
+    IF
+        4
+    ELSE
+    FI
+
+func main
+    ret0: int
+    body:
+        4
+        IF
+            4
+        ELSE
+        FI
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

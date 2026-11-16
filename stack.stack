@@ -1243,6 +1243,10 @@ func stack_preprocessor.run.expand.exprs (int, array, stack_ast_const) () in -- 
                 rot -- ..., array, i, exprs
 
                 array.insert_many unwrap -- ...
+
+                dup stack_ast_const.exprs array.count 0 = if -- array i const
+                    swp 1 - swp -- array i-1 const
+                fi
             fi -- array i const
 
             rot'
