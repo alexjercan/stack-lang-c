@@ -1,0 +1,9 @@
+func main () (int) in
+    0
+end
+
+"Hello
+
+func other () (int) in
+    1
+end

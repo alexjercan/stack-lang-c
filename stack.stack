@@ -55,6 +55,10 @@ end
 
 func stack_token_kind.describe (int) (string) in
     dup STACK_TOKEN_EOF = if pop "end of file"
+    else dup STACK_TOKEN_NAME = if pop "name"
+    else dup STACK_TOKEN_NUMBER = if pop "number"
+    else dup STACK_TOKEN_BOOLEAN = if pop "boolean"
+    else dup STACK_TOKEN_STRING = if pop "string"
     else
         dup STACK_TOKEN_FUNC = if pop "func"
         else dup STACK_TOKEN_IN = if pop "in"
@@ -72,7 +76,7 @@ func stack_token_kind.describe (int) (string) in
         else stack_token_kind.map
         fi fi fi fi fi fi fi fi fi fi fi fi fi
         "'" swp string.concat "'" string.concat
-    fi
+    fi fi fi fi fi
 end
 
 const STACK_ILLEGAL_NO_ERROR    0
@@ -526,6 +530,7 @@ func stack_parser.parse.expr (stack_parser) (stack_ast_expr, bool) in
         true
     else dup stack_parser.peek stack_token.kind STACK_TOKEN_ILLEGAL = if
         dup stack_parser.illegal.showf
+        1 sys.exit
         pop 0 0 int.& stack_ast_expr.init false
     else
         pop 0 0 int.& stack_ast_expr.init false
@@ -611,6 +616,19 @@ func stack_parser.parse.import (stack_parser) (stack_ast_import) in -- parser
     stack_ast_import.init -- import
 end
 
+func stack_parser.parse.unexpected (stack_parser) () in
+    match parser in
+        parser stack_parser.peek stack_token.kind STACK_TOKEN_ILLEGAL = if
+            parser stack_parser.illegal.showf
+            1 sys.exit
+        else
+            parser "expected 'data', 'func', '@import', or 'const', got "
+            parser stack_parser.peek stack_token.kind stack_token_kind.describe string.concat
+            "\n" string.concat stack_parser.parse.exprs.error
+        fi
+    end
+end
+
 func stack_parser.parse' (stack_parser, stack_ast) (stack_ast) in -- parser, ast
     swp dup stack_parser.peek dup stack_token.kind STACK_TOKEN_EOF = if -- ast, parser, tok
         pop2
@@ -628,7 +646,7 @@ func stack_parser.parse' (stack_parser, stack_ast) (stack_ast) in -- parser, ast
             pop dup stack_parser.parse.const -- ast, parser, const
             rot dup rot stack_ast.features.append.const -- parser, ast
         else
-            panic pop swp
+            pop dup stack_parser.parse.unexpected swp
         fi fi fi fi -- parser, ast
 
         stack_parser.parse' -- ast

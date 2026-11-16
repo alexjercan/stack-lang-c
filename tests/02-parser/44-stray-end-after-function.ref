@@ -1,0 +1,1 @@
+tests/02-parser/44-stray-end-after-function.stack:5:1, Parser error: expected 'data', 'func', '@import', or 'const', got 'end'

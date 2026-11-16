@@ -1,0 +1,1 @@
+tests/02-parser/50-string-newline-in-const-expression.stack:1:9, Lexical Error: String contains new line character
