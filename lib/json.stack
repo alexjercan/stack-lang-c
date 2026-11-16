@@ -236,8 +236,8 @@ func json_lexer.next (json_lexer) (json_token) in
                 fi fi fi
             end
         else
-            lxr json_lexer.read pop
             JSON_TOKEN_ILLEGAL ch int.show pos JSON_ILLEGAL_INVALID json_token.init
+            lxr json_lexer.read pop
         fi fi fi fi fi fi fi fi fi fi
     end
 end

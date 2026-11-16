@@ -49,14 +49,14 @@ func main (int, ptr) (int) in
 
     -- Byte 26 alone is an invalid character, not EOF.
     byte26 lex match lxr in
-        lxr JSON_ILLEGAL_INVALID 4 expect.illegal
+        lxr JSON_TOKEN_ILLEGAL "26" JSON_ILLEGAL_INVALID 4 expect
         lxr 5 expect.eof
     end
 
     -- Byte 26 between numbers does not stop the lexer.
     "1" byte26 string.concat "2" string.concat lex match lxr in
         lxr JSON_TOKEN_NUMBER "1" JSON_ILLEGAL_NO_ERROR 6 expect
-        lxr JSON_ILLEGAL_INVALID 7 expect.illegal
+        lxr JSON_TOKEN_ILLEGAL "26" JSON_ILLEGAL_INVALID 7 expect
         lxr JSON_TOKEN_NUMBER "2" JSON_ILLEGAL_NO_ERROR 8 expect
         lxr 9 expect.eof
     end

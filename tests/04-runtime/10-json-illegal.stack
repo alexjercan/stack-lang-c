@@ -1,0 +1,71 @@
+@import "json"
+@import "tests/04-runtime/utils"
+
+func lex (string) (json_lexer) in "test" json_lexer.init.with_buffer end
+
+func expect (json_lexer, int, string, int, int, int) () in
+    match lxr kind value pos err n in
+        lxr json_lexer.next match tok in
+            tok json_token.kind kind = n check
+            tok json_token.value value string.= n check
+            tok json_token.pos pos = n check
+            tok json_token.err err = n check
+        end
+    end
+end
+
+func invalid.byte (int) (bool) in
+    match b in
+        b byte.isspace not b 13 = not and
+        b byte.isalnum not and
+        b BYTE_QUOTE = not and
+        b BYTE_[ = not and b BYTE_] = not and
+        b BYTE_{ = not and b BYTE_} = not and
+        b BYTE_: = not and b BYTE_COMMA = not and
+    end
+end
+
+func main () (int) in
+    "@" lex match lxr in
+        lxr JSON_TOKEN_ILLEGAL "64" 0 JSON_ILLEGAL_INVALID 1 expect
+        lxr JSON_TOKEN_EOF "" 1 JSON_ILLEGAL_NO_ERROR 2 expect
+    end
+
+    "@true" lex match lxr in
+        lxr JSON_TOKEN_ILLEGAL "64" 0 JSON_ILLEGAL_INVALID 3 expect
+        lxr JSON_TOKEN_BOOLEAN "true" 1 JSON_ILLEGAL_NO_ERROR 4 expect
+        lxr JSON_TOKEN_EOF "" 5 JSON_ILLEGAL_NO_ERROR 5 expect
+    end
+
+    "@?42" lex match lxr in
+        lxr JSON_TOKEN_ILLEGAL "64" 0 JSON_ILLEGAL_INVALID 6 expect
+        lxr JSON_TOKEN_ILLEGAL "63" 1 JSON_ILLEGAL_INVALID 7 expect
+        lxr JSON_TOKEN_NUMBER "42" 2 JSON_ILLEGAL_NO_ERROR 8 expect
+        lxr JSON_TOKEN_EOF "" 4 JSON_ILLEGAL_NO_ERROR 9 expect
+    end
+
+    "\t\n @true" lex match lxr in
+        lxr JSON_TOKEN_ILLEGAL "64" 3 JSON_ILLEGAL_INVALID 10 expect
+        lxr 3 json_lexer.pos.to_lc match line col in
+            line 2 = 11 check
+            col 2 = 12 check
+        end
+        lxr JSON_TOKEN_BOOLEAN "true" 4 JSON_ILLEGAL_NO_ERROR 13 expect
+        lxr JSON_TOKEN_EOF "" 8 JSON_ILLEGAL_NO_ERROR 14 expect
+    end
+
+    0 while dup 256 < loop
+        match b in
+            b invalid.byte if
+                b byte.chr "," string.concat lex match lxr in
+                    lxr JSON_TOKEN_ILLEGAL b int.show 0 JSON_ILLEGAL_INVALID 15 expect
+                    lxr JSON_TOKEN_COMMA "" 1 JSON_ILLEGAL_NO_ERROR 16 expect
+                    lxr JSON_TOKEN_EOF "" 2 JSON_ILLEGAL_NO_ERROR 17 expect
+                end
+            fi
+            b 1 +
+        end
+    pool pop
+
+    0
+end
