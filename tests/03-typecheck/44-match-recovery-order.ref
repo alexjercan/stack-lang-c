@@ -1,0 +1,6 @@
+tests/03-typecheck/44-match-recovery-order.stack:7:11, Semantic error: bind kept is already defined
+tests/03-typecheck/44-match-recovery-order.stack:14:11, Semantic error: bind kept is already defined
+tests/03-typecheck/44-match-recovery-order.stack:13:6, Semantic error: func show_restored has non matching return, expected () but got (int, bool, ptr, box)
+tests/03-typecheck/44-match-recovery-order.stack:21:15, Semantic error: bind kept is already defined
+tests/03-typecheck/44-match-recovery-order.stack:29:15, Semantic error: bind kept is already defined
+tests/03-typecheck/44-match-recovery-order.stack:37:11, Semantic error: bind kept is already defined

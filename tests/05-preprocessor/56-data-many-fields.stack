@@ -1,0 +1,8 @@
+data inner (int a, bool b)
+data unit ()
+data single (inner only)
+data wide (int f0, bool f1, ptr f2, inner f3, int f4, unit f5, single f6, bool f7, int f8)
+
+func main () (int) in
+    wide.sizeof wide.f8.offset - single.sizeof + unit.sizeof +
+end

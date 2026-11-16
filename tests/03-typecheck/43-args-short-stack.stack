@@ -1,0 +1,14 @@
+func four (int, int, int, int) (bool) in pop pop pop pop true end
+
+-- A call with too few stack items reports the items that are present.
+-- After the error, the checker removes only some of these items.
+func none () () in four end
+func one () () in 1 four end
+func two () () in 1 true four end
+func three () () in 1 true 2 four end
+
+-- A call with enough items of the wrong type removes all its arguments.
+func wrong () () in 9 true 1 2 3 four end
+func exact () () in 1 2 3 4 four pop end
+
+func main () (int) in 0 end

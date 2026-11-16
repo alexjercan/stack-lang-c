@@ -1,0 +1,144 @@
+-- The error position comes after many lines of different shapes.
+func f0 () (int) in
+     "line 0\n" pop
+
+	-- comment 0
+    0
+end
+func f1 () (int) in
+    1 pop "line 1\n" pop
+    1
+end
+func f2 () (int) in
+    1 pop 1 pop "line 2\n" pop
+    2
+end
+func f3 () (int) in
+    1 pop 1 pop 1 pop "line 3\n" pop
+
+	-- comment 3
+    3
+end
+func f4 () (int) in
+    1 pop 1 pop 1 pop 1 pop "line 4\n" pop
+    4
+end
+func f5 () (int) in
+     "line 5\n" pop
+    5
+end
+func f6 () (int) in
+    1 pop "line 6\n" pop
+
+	-- comment 6
+    6
+end
+func f7 () (int) in
+    1 pop 1 pop "line 7\n" pop
+    7
+end
+func f8 () (int) in
+    1 pop 1 pop 1 pop "line 8\n" pop
+    8
+end
+func f9 () (int) in
+    1 pop 1 pop 1 pop 1 pop "line 9\n" pop
+
+	-- comment 9
+    9
+end
+func f10 () (int) in
+     "line 10\n" pop
+    10
+end
+func f11 () (int) in
+    1 pop "line 11\n" pop
+    11
+end
+func f12 () (int) in
+    1 pop 1 pop "line 12\n" pop
+
+	-- comment 12
+    12
+end
+func f13 () (int) in
+    1 pop 1 pop 1 pop "line 13\n" pop
+    13
+end
+func f14 () (int) in
+    1 pop 1 pop 1 pop 1 pop "line 14\n" pop
+    14
+end
+func f15 () (int) in
+     "line 15\n" pop
+
+	-- comment 15
+    15
+end
+func f16 () (int) in
+    1 pop "line 16\n" pop
+    16
+end
+func f17 () (int) in
+    1 pop 1 pop "line 17\n" pop
+    17
+end
+func f18 () (int) in
+    1 pop 1 pop 1 pop "line 18\n" pop
+
+	-- comment 18
+    18
+end
+func f19 () (int) in
+    1 pop 1 pop 1 pop 1 pop "line 19\n" pop
+    19
+end
+func f20 () (int) in
+     "line 20\n" pop
+    20
+end
+func f21 () (int) in
+    1 pop "line 21\n" pop
+
+	-- comment 21
+    21
+end
+func f22 () (int) in
+    1 pop 1 pop "line 22\n" pop
+    22
+end
+func f23 () (int) in
+    1 pop 1 pop 1 pop "line 23\n" pop
+    23
+end
+func f24 () (int) in
+    1 pop 1 pop 1 pop 1 pop "line 24\n" pop
+
+	-- comment 24
+    24
+end
+func f25 () (int) in
+     "line 25\n" pop
+    25
+end
+func f26 () (int) in
+    1 pop "line 26\n" pop
+    26
+end
+func f27 () (int) in
+    1 pop 1 pop "line 27\n" pop
+
+	-- comment 27
+    27
+end
+func f28 () (int) in
+    1 pop 1 pop 1 pop "line 28\n" pop
+    28
+end
+func f29 () (int) in
+    1 pop 1 pop 1 pop 1 pop "line 29\n" pop
+    29
+end
+func late () (int) in
+    0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 , 0
+end

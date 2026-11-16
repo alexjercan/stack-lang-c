@@ -1,0 +1,29 @@
+func pick3 (a, b, a) (b, a) in pop swp end
+func same4 (v, v, v, v) (v) in pop pop pop end
+func mixed (int, a, bool, a) (a, int) in pop pop swp end
+
+func valid () (int) in
+    1 true 2 pick3 pop pop
+    1 2 3 4 same4 pop
+    1 true false true mixed pop pop
+    0
+end
+
+-- The third argument does not agree with the first one.
+func bad_repeat () () in 1 true false pick3 end
+
+-- Only the last argument differs.
+func bad_last () () in 1 2 3 true same4 end
+
+-- A concrete argument fails between generic arguments.
+func bad_concrete () () in 1 true 2 false mixed end
+func bad_first () () in true 1 false 2 mixed end
+
+-- Generic callers must agree by name.
+func generic_valid (x, y, x) (y, x) in pick3 end
+func generic_invalid (x, y, y) (y, x) in pick3 end
+
+-- A generic stack item is not a concrete type.
+func generic_concrete (x, x, x) (x) in true swp mixed pop end
+
+func main () (int) in 0 end

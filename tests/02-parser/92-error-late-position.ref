@@ -1,0 +1,1 @@
+tests/02-parser/92-error-late-position.stack:143:115, Parser error: expected expression or 'end', got ','

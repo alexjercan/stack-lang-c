@@ -1,0 +1,44 @@
+const E
+const F E
+const TWO 1 1 +
+const TRIPLE TWO TWO TWO
+const NEST true if TWO pop else E fi true
+const WHERE __line__ __col__
+
+-- Empty constants at the start, in the middle, and at the end of a body.
+func flat () (int) in
+    E E 0 E F TWO + E E TRIPLE + + + E F E
+end
+
+func repeated () (int) in
+    0
+    E TWO + F E TWO + F E TWO + F E TWO + F E TWO + F
+    E TWO + F E TWO + F E TWO + F E TWO + F E TWO + F
+    E TWO + F E TWO + F E TWO + F E TWO + F E TWO + F
+    E TWO + F E TWO + F E TWO + F E TWO + F E TWO + F
+    E TWO + F E TWO + F E TWO + F E TWO + F E TWO + F
+    E TWO + F E TWO + F E TWO + F E TWO + F E TWO + F
+    E TWO + F E TWO + F E TWO + F E TWO + F E TWO + F
+    E TWO + F E TWO + F E TWO + F E TWO + F E TWO + F
+end
+
+func nested (int) (int) in
+    match x in
+        E while E NEST if E x 0 > else false E fi E loop E TWO pop E pool E
+        NEST if E TRIPLE pop pop pop E else F fi
+        x E
+    end
+end
+
+func special () (int) in
+    __line__ __col__ + WHERE + + E __line__ +
+    true if
+        __line__ pop while false loop __col__ pop pool
+    else
+        1 match one in __file__ pop WHERE pop pop end
+    fi
+end
+
+func main () (int) in
+    flat 0 nested + special + repeated +
+end

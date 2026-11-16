@@ -1,0 +1,17 @@
+-- first comment
+-- second comment
+--
+---- dashes
+
+
+name0.name1.name2.name3.name4.name5.name6.name7.name8.name9.name10.name11.name12.name13.name14.name15.name16.name17.name18.name19.name20.name21.name22.name23.name24.name25.name26.name27.name28.name29.name30.name31.name32.name33.name34.name35.name36.name37.name38.name39.end
+-name0.name1.name2.name3.name4.name5.name6.name7.name8.name9.name10.name11.name12.name13.name14.name15.name16.name17.name18.name19.name20.name21.name22.name23.name24.name25.name26.name27.name28.name29.name30.name31.name32.name33.name34.name35.name36.name37.name38.name39.end - -- trailing comment
+-12345678901234567890 12345678901234567890123456789 0 -0 -
+"part0\n\t\"\\part1\n\t\"\\part2\n\t\"\\part3\n\t\"\\part4\n\t\"\\part5\n\t\"\\part6\n\t\"\\part7\n\t\"\\part8\n\t\"\\part9\n\t\"\\part10\n\t\"\\part11\n\t\"\\part12\n\t\"\\part13\n\t\"\\part14\n\t\"\\part15\n\t\"\\part16\n\t\"\\part17\n\t\"\\part18\n\t\"\\part19\n\t\"\\part20\n\t\"\\part21\n\t\"\\part22\n\t\"\\part23\n\t\"\\part24\n\t\"\\part25\n\t\"\\part26\n\t\"\\part27\n\t\"\\part28\n\t\"\\part29\n\t\"\\part30\n\t\"\\part31\n\t\"\\part32\n\t\"\\part33\n\t\"\\part34\n\t\"\\part35\n\t\"\\part36\n\t\"\\part37\n\t\"\\part38\n\t\"\\part39\n\t\"\\"
+( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) , ( ) ,
+	 	  n0 n1 n2 n3 n4 n5 n6 n7 n8 n9 n10 n11 n12 n13 n14 n15 n16 n17 n18 n19 n20 n21 n22 n23 n24 n25 n26 n27 n28 n29 n30 n31 n32 n33 n34 n35 n36 n37 n38 n39 n40 n41 n42 n43 n44 n45 n46 n47 n48 n49 n50 n51 n52 n53 n54 n55 n56 n57 n58 n59
+name--not-a-comment -1x 1-- --
+func in end data if else fi const match while loop pool true false import @import func in end data if else fi const match while loop pool true false import @import func in end data if else fi const match while loop pool true false import @import
+
+
+-- last comment without a newline

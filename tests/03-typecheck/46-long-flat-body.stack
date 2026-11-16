@@ -1,0 +1,124 @@
+func step.0 (int) (int) in 0 + end
+func step.1 (int) (int) in 1 + end
+func step.2 (int) (int) in 2 + end
+func step.3 (int) (int) in 3 + end
+func step.4 (int) (int) in 4 + end
+func step.5 (int) (int) in 5 + end
+func step.6 (int) (int) in 6 + end
+func step.7 (int) (int) in 7 + end
+func step.8 (int) (int) in 8 + end
+func step.9 (int) (int) in 9 + end
+func step.10 (int) (int) in 10 + end
+func step.11 (int) (int) in 11 + end
+func step.12 (int) (int) in 12 + end
+func step.13 (int) (int) in 13 + end
+func step.14 (int) (int) in 14 + end
+func step.15 (int) (int) in 15 + end
+func step.16 (int) (int) in 16 + end
+func step.17 (int) (int) in 17 + end
+func step.18 (int) (int) in 18 + end
+func step.19 (int) (int) in 19 + end
+func step.20 (int) (int) in 20 + end
+func step.21 (int) (int) in 21 + end
+func step.22 (int) (int) in 22 + end
+func step.23 (int) (int) in 23 + end
+func step.24 (int) (int) in 24 + end
+func step.25 (int) (int) in 25 + end
+func step.26 (int) (int) in 26 + end
+func step.27 (int) (int) in 27 + end
+func step.28 (int) (int) in 28 + end
+func step.29 (int) (int) in 29 + end
+func step.30 (int) (int) in 30 + end
+func step.31 (int) (int) in 31 + end
+func step.32 (int) (int) in 32 + end
+func step.33 (int) (int) in 33 + end
+func step.34 (int) (int) in 34 + end
+func step.35 (int) (int) in 35 + end
+func step.36 (int) (int) in 36 + end
+func step.37 (int) (int) in 37 + end
+func step.38 (int) (int) in 38 + end
+func step.39 (int) (int) in 39 + end
+func step.40 (int) (int) in 40 + end
+func step.41 (int) (int) in 41 + end
+func step.42 (int) (int) in 42 + end
+func step.43 (int) (int) in 43 + end
+func step.44 (int) (int) in 44 + end
+func step.45 (int) (int) in 45 + end
+func step.46 (int) (int) in 46 + end
+func step.47 (int) (int) in 47 + end
+func step.48 (int) (int) in 48 + end
+func step.49 (int) (int) in 49 + end
+func step.50 (int) (int) in 50 + end
+func step.51 (int) (int) in 51 + end
+func step.52 (int) (int) in 52 + end
+func step.53 (int) (int) in 53 + end
+func step.54 (int) (int) in 54 + end
+func step.55 (int) (int) in 55 + end
+func step.56 (int) (int) in 56 + end
+func step.57 (int) (int) in 57 + end
+func step.58 (int) (int) in 58 + end
+func step.59 (int) (int) in 59 + end
+
+func chain (int) (int) in
+    step.0 step.1 step.2 step.3 step.4 step.5 step.6 step.7
+    step.8 step.9 step.10 step.11 step.12 step.13 step.14 step.15
+    step.16 step.17 step.18 step.19 step.20 step.21 step.22 step.23
+    step.24 step.25 step.26 step.27 step.28 step.29 step.30 step.31
+    step.32 step.33 step.34 step.35 step.36 step.37 step.38 step.39
+    step.40 step.41 step.42 step.43 step.44 step.45 step.46 step.47
+    step.48 step.49 step.50 step.51 step.52 step.53 step.54 step.55
+    step.56 step.57 step.58 step.59
+end
+
+func flat () (int) in
+    0
+    0 + 1 + 2 + 3 + 4 + 5 + 6 + 0 + 1 + 2 +
+    3 + 4 + 5 + 6 + 0 + 1 + 2 + 3 + 4 + 5 +
+    6 + 0 + 1 + 2 + 3 + 4 + 5 + 6 + 0 + 1 +
+    2 + 3 + 4 + 5 + 6 + 0 + 1 + 2 + 3 + 4 +
+    5 + 6 + 0 + 1 + 2 + 3 + 4 + 5 + 6 + 0 +
+    1 + 2 + 3 + 4 + 5 + 6 + 0 + 1 + 2 + 3 +
+    4 + 5 + 6 + 0 + 1 + 2 + 3 + 4 + 5 + 6 +
+    0 + 1 + 2 + 3 + 4 + 5 + 6 + 0 + 1 + 2 +
+    3 + 4 + 5 + 6 + 0 + 1 + 2 + 3 + 4 + 5 +
+    6 + 0 + 1 + 2 + 3 + 4 + 5 + 6 + 0 + 1 +
+    2 + 3 + 4 + 5 + 6 + 0 + 1 + 2 + 3 + 4 +
+    5 + 6 + 0 + 1 + 2 + 3 + 4 + 5 + 6 + 0 +
+    1 + 2 + 3 + 4 + 5 + 6 + 0 + 1 + 2 + 3 +
+    4 + 5 + 6 + 0 + 1 + 2 + 3 + 4 + 5 + 6 +
+    0 + 1 + 2 + 3 + 4 + 5 + 6 + 0 + 1 + 2 +
+    3 + 4 + 5 + 6 + 0 + 1 + 2 + 3 + 4 + 5 +
+    6 + 0 + 1 + 2 + 3 + 4 + 5 + 6 + 0 + 1 +
+    2 + 3 + 4 + 5 + 6 + 0 + 1 + 2 + 3 + 4 +
+    5 + 6 + 0 + 1 + 2 + 3 + 4 + 5 + 6 + 0 +
+    1 + 2 + 3 + 4 + 5 + 6 + 0 + 1 + 2 + 3 +
+    4 + 5 + 6 + 0 + 1 + 2 + 3 + 4 + 5 + 6 +
+    0 + 1 + 2 + 3 + 4 + 5 + 6 + 0 + 1 + 2 +
+    3 + 4 + 5 + 6 + 0 + 1 + 2 + 3 + 4 + 5 +
+    6 + 0 + 1 + 2 + 3 + 4 + 5 + 6 + 0 + 1 +
+    2 + 3 + 4 + 5 + 6 + 0 + 1 + 2 + 3 + 4 +
+    5 + 6 + 0 + 1 + 2 + 3 + 4 + 5 + 6 + 0 +
+    1 + 2 + 3 + 4 + 5 + 6 + 0 + 1 + 2 + 3 +
+    4 + 5 + 6 + 0 + 1 + 2 + 3 + 4 + 5 + 6 +
+    0 + 1 + 2 + 3 + 4 + 5 + 6 + 0 + 1 + 2 +
+    3 + 4 + 5 + 6 + 0 + 1 + 2 + 3 + 4 + 5 +
+end
+
+func nested (int) (int) in
+    match start in
+        start 0 while dup 40 < loop
+            match total i in
+                i 20 < if
+                    i 10 < if total i + else total i 2 * + fi
+                else
+                    i 30 < if total i - else total fi
+                fi
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+func main () (int) in
+    0 chain flat + nested
+end

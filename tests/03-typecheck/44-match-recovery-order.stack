@@ -1,0 +1,45 @@
+func kept () (int) in 10 end
+
+data box (int v)
+
+-- A conflict on the last processed bind restores four earlier binds.
+func late_conflict (int, bool, ptr, box, int) (int, bool, ptr, box, int) in
+    match kept b c d e in
+        missing_body_late
+    end
+end
+
+-- The restored stack keeps its order and its types.
+func show_restored (int, bool, ptr, box) () in
+    match kept b c d in
+        missing_body_show
+    end
+end
+
+-- A conflict in the middle restores only the binds after it.
+func middle_conflict (int, bool, ptr, box, int) (int, bool) in
+    match a b kept d e in
+        missing_body_middle
+    end
+    match c d e in end
+end
+
+-- A conflict on the first processed bind restores nothing.
+func early_conflict (int, bool, ptr) (int, bool, ptr) in
+    match a b kept in
+        missing_body_early
+    end
+    match a b c in a b c end
+end
+
+-- The names of rolled back binds are free again.
+func reuse (int, bool, ptr, box) (box, ptr, bool, int) in
+    match kept b c d in
+        missing_body_reuse
+    end
+    match a b c d in d c b a end
+end
+
+func main () (int) in
+    kept
+end
