@@ -1,0 +1,18 @@
+@import "stdlib"
+@import "tests/04-runtime/utils"
+
+func main (int, ptr) (int) in
+    pop pop
+
+    -- EOF is a successful empty read.
+    "/dev/null" "r" stdlib.fopen unwrap
+    dup stdlib.fread.<eof> 1 check
+    string.len 0 = 2 check
+    stdlib.fclose 3 check
+
+    -- Actual read errors must still return false.
+    -1 stdlib.fread.<eof> not 4 check
+    string.len 0 = 5 check
+
+    0
+end

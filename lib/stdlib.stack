@@ -414,8 +414,9 @@ func stdlib.fread.<eof> (int) (string, bool) in -- fd
             pop "" false
         else
             dup string.len -- s, L
-            dup 0 <= if -- s, L
-                pop2 "" false
+            dup 0 = if -- s, L
+                -- A successful zero-byte read is EOF, not an I/O error.
+                pop true
             else stdlib.MAX_LINE >= if -- s
                 fd stdlib.fread.<eof> -- s1, s2, ok
                 not if -- s1, s2

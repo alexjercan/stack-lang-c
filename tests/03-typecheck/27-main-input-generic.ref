@@ -1,0 +1,1 @@
+tests/03-typecheck/27-main-input-generic.stack:1:6, Semantic error: func main must have input signature () or (int, ptr)

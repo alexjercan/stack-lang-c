@@ -1,0 +1,1 @@
+tests/03-typecheck/28-main-return-bool.stack:1:6, Semantic error: func main must have return signature (int)

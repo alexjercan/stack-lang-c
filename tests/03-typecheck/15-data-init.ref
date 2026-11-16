@@ -1,3 +1,4 @@
+Semantic error: entrypoint func main is not defined
 tests/03-typecheck/15-data-init.stack:5:5, Semantic error: func rot has non matching args, expected (a, b, c) but got (ptr, ptr)
 tests/03-typecheck/15-data-init.stack:5:5, Semantic error: func ptr.+ has non matching args, expected (ptr, int) but got (ptr, c, a, b, int)
 tests/03-typecheck/15-data-init.stack:5:5, Semantic error: func int.& has non matching args, expected (int) but got (ptr, c, ptr, a)

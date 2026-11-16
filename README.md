@@ -503,8 +503,7 @@ the `while`.
 
 ## 6. Entrypoint
 
-The entrypoint of a stack lang program is the main function which should be
-define as
+Every Stack program must define a `main` function. The recommended signature is
 
 ```stack
 func main (int, ptr) (int) in
@@ -512,16 +511,27 @@ func main (int, ptr) (int) in
 end
 ```
 
-The main function is expected to generate one `int` on the stack that
-represents the exit code.
+The input signature must be `(int, ptr)` or `()`. The return signature must
+be exactly `(int)`, which represents the exit code. Generic parameters and
+other types are not allowed in the entrypoint signature.
+
+The compiler checks these requirements during type checking, before it emits
+assembly. Library files without `main` must be imported into a program, not
+compiled as standalone programs.
 
 The stack starts with the `argc` and `argv` arguments on the stack. These can be
-ignored if the main input is set to `()`.
+ignored if the main input is set to `()`. For example:
+
+```stack
+func main () (int) in
+    0
+end
+```
 
 > **_NOTE:_**  The `argc` and `argv` will still be pushed on the stack if the
 > main input type is `()`. But since type checking assumes that the input to
 > main is correctly defined, then it will be ignored. However, defining main as
-> show is recommended to avoid any bugs.
+> shown is recommended to avoid bugs.
 
 The stack starts with `argc` and `argv` and must end with the `int` return
 code.

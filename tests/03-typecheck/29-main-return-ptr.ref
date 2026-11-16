@@ -1,0 +1,1 @@
+tests/03-typecheck/29-main-return-ptr.stack:1:6, Semantic error: func main must have return signature (int)

@@ -48,7 +48,20 @@ analyzer() {
             fi
         fi
 
-        diff_output=$(./"$MAIN" "$exec_arg" "$file_path" 2>&1 | diff - "$ref_path")
+        expected_status=0
+        # Typechecker refs contain errors; empty refs describe valid programs.
+        if [[ "$exec_arg" == "--typecheck" && -s "$ref_path" ]]; then
+            expected_status=1
+        fi
+        diff_output=$(
+            {
+                ./"$MAIN" "$exec_arg" "$file_path" 2>&1
+                compiler_status=$?
+                if [[ "$compiler_status" -ne "$expected_status" ]]; then
+                    printf 'Unexpected compiler exit status: got %s, expected %s\n' "$compiler_status" "$expected_status"
+                fi
+            } | diff - "$ref_path"
+        )
         test_status=$?
         if [ "$test_status" -eq 0 ] && [ "$memcheck_result" -eq 1 ]; then
             echo -e "\e[32mPASSED\e[0m"

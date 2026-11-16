@@ -1,0 +1,4 @@
+-- A main with (int, ptr) receives argc, which is at least 1.
+func main (int, ptr) (int) in
+    pop 0 > if 0 else 1 fi
+end

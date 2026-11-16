@@ -1,0 +1,1 @@
+tests/03-typecheck/26-main-input-bad-types.stack:1:6, Semantic error: func main must have input signature () or (int, ptr)

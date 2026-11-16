@@ -1,0 +1,1 @@
+tests/03-typecheck/30-main-return-empty.stack:1:6, Semantic error: func main must have return signature (int)

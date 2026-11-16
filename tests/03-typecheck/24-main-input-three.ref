@@ -1,0 +1,1 @@
+tests/03-typecheck/24-main-input-three.stack:1:6, Semantic error: func main must have input signature () or (int, ptr)

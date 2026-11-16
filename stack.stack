@@ -3367,7 +3367,46 @@ func stack_context.typecheck.rets.showf (stack_context, stack_ast_func, array, a
     pop
 end
 
+func stack_ast_func.is_main (stack_ast_func) (bool) in
+    stack_ast_func.name stack_ast_node.value STACK_FUNC_MAIN string.=
+end
+
+func stack_context.typecheck.main.signature (stack_context, stack_ast_func) () in
+    match ctx entry in
+        entry stack_ast_func.args match inputs in
+            inputs array.count 0 = if
+                true
+            else inputs array.count 2 = if
+                inputs 0 array.get unwrap stack_ast_node.* stack_ast_node.value STACK_DATA_INT string.=
+                inputs 1 array.get unwrap stack_ast_node.* stack_ast_node.value STACK_DATA_PTR string.=
+                and
+            else
+                false
+            fi fi
+        end
+        not if
+            ctx entry stack_ast_func.name
+            "func main must have input signature () or (int, ptr)\n" stack_context.showf
+        fi
+
+        entry stack_ast_func.rets match outputs in
+            outputs array.count 1 = if
+                outputs 0 array.get unwrap stack_ast_node.* stack_ast_node.value STACK_DATA_INT string.=
+            else
+                false
+            fi
+        end
+        not if
+            ctx entry stack_ast_func.name
+            "func main must have return signature (int)\n" stack_context.showf
+        fi
+    end
+end
+
 func stack_context.typecheck.func'' (stack_context, stack_ast_func) () in -- ctx, func
+    dup stack_ast_func.is_main if
+        dup2 stack_context.typecheck.main.signature
+    fi
     dup -- ctx, func, func
     stack_ast_func.args -- ctx, func, array<node>
     stack_params.node_to_string -- ctx, func, stack
@@ -3418,9 +3457,27 @@ func stack_context.typecheck.func (stack_context, stack_ast) () in
     0 rot' stack_context.typecheck.func'
 end
 
+func stack_context.typecheck.main.exists (stack_context, stack_ast) () in
+    pop match ctx in
+        -- Avoid a secondary missing-entrypoint error after a definition error.
+        ctx stack_context.ok if
+            ctx STACK_FUNC_MAIN stack_context.get_symbol swp if
+                stack_context_symbol.* stack_context_symbol.kind STACK_CONTEXT_SYMBOL_FUNC =
+            else
+                pop false
+            fi
+            not if
+                "Semantic error: entrypoint func main is not defined\n" string.stderr
+                ctx false stack_context.ok.set
+            fi
+        fi
+    end
+end
+
 func stack_context.typecheck (stack_context, stack_ast) () in
     dup2 stack_context.typecheck.data_def
     dup2 stack_context.typecheck.func_def
+    dup2 stack_context.typecheck.main.exists
     dup2 stack_context.typecheck.func
 
     pop2

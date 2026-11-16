@@ -1,1 +1,2 @@
+Semantic error: entrypoint func main is not defined
 tests/03-typecheck/09-deref.stack:2:5, Semantic error: func int.* has non matching args, expected (ptr) but got (int)

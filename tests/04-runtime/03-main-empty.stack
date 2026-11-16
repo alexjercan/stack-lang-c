@@ -1,0 +1,2 @@
+-- A main without inputs must be accepted and its result is the exit code.
+func main () (int) in 0 end
