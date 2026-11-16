@@ -1,0 +1,1 @@
+tests/02-parser/60-func-args-invalid-type.stack:1:12, Parser error: expected name or ')', got number

@@ -1,0 +1,1 @@
+tests/02-parser/59-func-rets-eof.stack:2:1, Parser error: expected ',' or ')', got end of file

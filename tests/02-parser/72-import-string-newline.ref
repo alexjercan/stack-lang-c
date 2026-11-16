@@ -1,0 +1,1 @@
+tests/02-parser/72-import-string-newline.stack:1:9, Lexical Error: String contains new line character

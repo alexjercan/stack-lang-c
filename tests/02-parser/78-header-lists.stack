@@ -1,0 +1,18 @@
+data empty ()
+data point (int x, int y)
+data triple (int a, ptr b, bool c)
+
+const ZERO 0
+
+func none () () in
+end
+
+func pair (int, int) (int, int) in
+end
+
+func main () (int) in
+    1 2 match a b in
+        a b +
+    end
+    pop ZERO
+end

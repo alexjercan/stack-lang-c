@@ -1,0 +1,36 @@
+data empty
+
+data point
+    x: int
+    y: int
+
+data triple
+    a: int
+    b: ptr
+    c: bool
+
+const ZERO
+    0
+
+func none
+    body:
+
+func pair
+    arg0: int
+    arg1: int
+    ret0: int
+    ret1: int
+    body:
+
+func main
+    ret0: int
+    body:
+        1
+        2
+        MATCH a b
+            a
+            b
+            +
+        pop
+        ZERO
+

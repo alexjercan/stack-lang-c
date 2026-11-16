@@ -1,0 +1,1 @@
+tests/02-parser/56-func-args-leading-comma.stack:1:12, Parser error: expected name or ')', got ','

@@ -1,0 +1,1 @@
+tests/02-parser/75-match-binding-eof.stack:3:1, Parser error: expected name, got end of file

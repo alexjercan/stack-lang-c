@@ -319,18 +319,69 @@ func stack_parser.parse.exprs.error (stack_parser, string) () in
     1 sys.exit
 end
 
+func stack_parser.illegal.check (stack_parser) () in
+    match parser in
+        parser stack_parser.peek stack_token.kind STACK_TOKEN_ILLEGAL = if
+            parser stack_parser.illegal.showf
+            1 sys.exit
+        fi
+    end
+end
+
+func stack_parser.expect.fail (stack_parser, string) () in -- parser, expected
+    match parser expected in
+        parser stack_parser.illegal.check
+        parser "expected " expected string.concat ", got " string.concat
+        parser stack_parser.peek stack_token.kind stack_token_kind.describe string.concat
+        "\n" string.concat stack_parser.parse.exprs.error
+    end
+end
+
+func stack_parser.expect (stack_parser, int) (stack_token) in -- parser, kind
+    match parser kind in
+        parser stack_parser.peek stack_token.kind kind = not if
+            parser kind stack_token_kind.describe stack_parser.expect.fail
+        fi
+        parser stack_parser.read
+    end
+end
+
+func stack_parser.list.empty (stack_parser) (bool) in
+    match parser in
+        parser stack_parser.peek stack_token.kind STACK_TOKEN_RPAREN = if
+            parser stack_parser.read pop true
+        else
+            parser stack_parser.peek stack_token.kind STACK_TOKEN_NAME = not if
+                parser "name or ')'" stack_parser.expect.fail
+            fi
+            false
+        fi
+    end
+end
+
+func stack_parser.list.continue (stack_parser) (bool) in
+    match parser in
+        parser stack_parser.peek stack_token.kind STACK_TOKEN_COMMA = if
+            parser stack_parser.read pop true
+        else
+            parser stack_parser.peek stack_token.kind STACK_TOKEN_RPAREN = not if
+                parser "',' or ')'" stack_parser.expect.fail
+            fi
+            parser stack_parser.read pop false
+        fi
+    end
+end
+
 func stack_parser.parse.exprs.unexpected (stack_parser, int, int) () in
     match parser stop1 stop2 in
-        parser "expected expression"
+        parser "expression"
         stop1 stop2 = if
             " or " string.concat stop1 stack_token_kind.describe string.concat
         else
             ", " string.concat stop1 stack_token_kind.describe string.concat
             ", or " string.concat stop2 stack_token_kind.describe string.concat
         fi
-        ", got " string.concat
-        parser stack_parser.peek stack_token.kind stack_token_kind.describe string.concat
-        "\n" string.concat stack_parser.parse.exprs.error
+        stack_parser.expect.fail
     end
 end
 
@@ -355,10 +406,7 @@ func stack_parser.parse.exprs.until2 (stack_parser, int, int, array) (array) in
             parser stack_parser.peek stack_token.kind stop1 =
             parser stack_parser.peek stack_token.kind stop2 = or not
         loop
-            parser stack_parser.peek stack_token.kind STACK_TOKEN_ILLEGAL = if
-                parser stack_parser.illegal.showf
-                1 sys.exit
-            fi
+            parser stack_parser.illegal.check
 
             parser stack_parser.parse.expr if
                 exprs swp stack_ast_expr.& array.append unwrap
@@ -374,25 +422,21 @@ func stack_parser.parse.exprs.until2 (stack_parser, int, int, array) (array) in
 end
 
 func stack_parser.parse.names.until' (stack_parser, array) (array) in
-    swp dup stack_parser.read -- arr, p, tok
-
-    dup stack_token.kind STACK_TOKEN_NAME = unwrap -- arr, p, tok
+    swp dup STACK_TOKEN_NAME stack_parser.expect -- arr, p, tok
 
     dup2 stack_token.value rot stack_token.pos stack_ast_node.init -- arr, p, node
     rot dup rot stack_ast_node.& array.append unwrap -- parser arr
 
-    swp dup stack_parser.read dup stack_token.kind STACK_TOKEN_RPAREN = if -- arr, parser, tok
-        pop2
-    else dup stack_token.kind STACK_TOKEN_COMMA = if
-        pop swp stack_parser.parse.names.until'
+    swp dup stack_parser.list.continue if -- arr, parser
+        swp stack_parser.parse.names.until'
     else
-        panic pop2
-    fi fi -- array
+        pop
+    fi -- array
 end
 
 func stack_parser.parse.names.until (stack_parser, array) (array) in
-    swp dup stack_parser.peek stack_token.kind STACK_TOKEN_RPAREN = if -- arr p
-        stack_parser.read pop -- array
+    swp dup stack_parser.list.empty if -- arr p
+        pop -- array
     else
         swp stack_parser.parse.names.until'
     fi -- array
@@ -420,9 +464,7 @@ func stack_parser.parse.cond (stack_parser) (stack_ast_cond) in
 end
 
 func stack_parser.parse.names.until.in (stack_parser, array) (array) in
-    swp dup stack_parser.read -- arr, p, tok
-
-    dup stack_token.kind STACK_TOKEN_NAME = unwrap -- arr, p, tok
+    swp dup STACK_TOKEN_NAME stack_parser.expect -- arr, p, tok
 
     dup2 stack_token.value rot stack_token.pos stack_ast_node.init -- arr, p, node
     rot dup rot stack_ast_node.& array.append unwrap -- parser arr
@@ -436,7 +478,8 @@ func stack_parser.parse.names.until.in (stack_parser, array) (array) in
     else dup STACK_TOKEN_NAME = if
         pop swp stack_parser.parse.names.until.in
     else
-        pop dup "expected 'in' after match bindings\n" stack_parser.parse.exprs.error
+        pop dup stack_parser.illegal.check
+        dup "expected 'in' after match bindings\n" stack_parser.parse.exprs.error
         pop
     fi fi fi -- array
 end
@@ -449,7 +492,7 @@ func stack_parser.parse.match (stack_parser) (stack_ast_match) in
     dup stack_ast_node.sizeof array.init.with_sz -- match, parser, parser, array<node>
     stack_parser.parse.names.until.in swp -- match, array<stack_ast_node>, parser
 
-    dup stack_parser.read stack_token.kind STACK_TOKEN_IN = unwrap -- match, array<node>, parser
+    dup STACK_TOKEN_IN stack_parser.expect pop -- match, array<node>, parser
     dup STACK_TOKEN_END stack_ast_expr.sizeof array.init.with_sz stack_parser.parse.exprs.until swp pop -- match, binds, exprs
     stack_ast_match.init -- match
 end
@@ -539,16 +582,16 @@ end
 
 func stack_parser.parse.func (stack_parser) (stack_ast_func) in -- parser
     dup stack_parser.read stack_token.kind STACK_TOKEN_FUNC = unwrap -- parser
-    dup stack_parser.read dup stack_token.kind STACK_TOKEN_NAME = unwrap -- parser tok
+    dup STACK_TOKEN_NAME stack_parser.expect -- parser tok
     dup2 stack_token.value rot stack_token.pos stack_ast_node.init swp -- name, parser
 
-    dup stack_parser.read stack_token.kind STACK_TOKEN_LPAREN = unwrap -- name, parser
+    dup STACK_TOKEN_LPAREN stack_parser.expect pop -- name, parser
     dup stack_ast_node.sizeof array.init.with_sz stack_parser.parse.names.until swp -- name, array<stack_ast_node>, parser
 
-    dup stack_parser.read stack_token.kind STACK_TOKEN_LPAREN = unwrap -- name, args, parser
+    dup STACK_TOKEN_LPAREN stack_parser.expect pop -- name, args, parser
     dup stack_ast_node.sizeof array.init.with_sz stack_parser.parse.names.until swp -- name, args, rets, parser
 
-    dup stack_parser.read stack_token.kind STACK_TOKEN_IN = unwrap -- name, parser
+    dup STACK_TOKEN_IN stack_parser.expect pop -- name, parser
     dup STACK_TOKEN_END stack_ast_expr.sizeof array.init.with_sz stack_parser.parse.exprs.until swp pop -- name, args, rets, exprs
     stack_ast_func.init -- func
 end
@@ -556,29 +599,25 @@ end
 func stack_parser.parse.data_field.until' (stack_parser, array) (array) in -- p, arr
     swp -- arr, p
 
-    dup stack_parser.read -- arr, p, tok
-    dup stack_token.kind STACK_TOKEN_NAME = unwrap -- arr, p, tok
+    dup STACK_TOKEN_NAME stack_parser.expect -- arr, p, tok
     dup2 stack_token.value rot stack_token.pos stack_ast_node.init rot' -- type, arr, p
 
-    dup stack_parser.read -- type, arr, p, tok
-    dup stack_token.kind STACK_TOKEN_NAME = unwrap -- type, arr, p, tok
+    dup STACK_TOKEN_NAME stack_parser.expect -- type, arr, p, tok
     dup2 stack_token.value rot stack_token.pos stack_ast_node.init rot' -- type, name, arr, p
 
     rot4' rot4' stack_ast_data_field.init -- arr, p, field
     rot dup rot stack_ast_data_field.& array.append unwrap -- parser arr
 
-    swp dup stack_parser.read dup stack_token.kind STACK_TOKEN_RPAREN = if -- arr, parser, tok
-        pop2
-    else dup stack_token.kind STACK_TOKEN_COMMA = if
-        pop swp stack_parser.parse.data_field.until'
+    swp dup stack_parser.list.continue if -- arr, parser
+        swp stack_parser.parse.data_field.until'
     else
-        panic pop2
-    fi fi -- array
+        pop
+    fi -- array
 end
 
 func stack_parser.parse.data_field.until (stack_parser, array) (array) in
-    swp dup stack_parser.peek stack_token.kind STACK_TOKEN_RPAREN = if -- arr p
-        stack_parser.read pop -- array
+    swp dup stack_parser.list.empty if -- arr p
+        pop -- array
     else
         swp stack_parser.parse.data_field.until'
     fi -- array
@@ -586,10 +625,10 @@ end
 
 func stack_parser.parse.data (stack_parser) (stack_ast_data) in -- parser
     dup stack_parser.read stack_token.kind STACK_TOKEN_DATA = unwrap -- parser
-    dup stack_parser.read dup stack_token.kind STACK_TOKEN_NAME = unwrap -- parser tok
+    dup STACK_TOKEN_NAME stack_parser.expect -- parser tok
     dup2 stack_token.value rot stack_token.pos stack_ast_node.init swp -- name, parser
 
-    dup stack_parser.read stack_token.kind STACK_TOKEN_LPAREN = unwrap -- name, parser
+    dup STACK_TOKEN_LPAREN stack_parser.expect pop -- name, parser
     dup stack_ast_data_field.sizeof array.init.with_sz stack_parser.parse.data_field.until swp -- name, array<stack_ast_data_field>, parser
 
     pop -- name, array
@@ -598,7 +637,7 @@ end
 
 func stack_parser.parse.const (stack_parser) (stack_ast_const) in -- parser
     dup stack_parser.read stack_token.kind STACK_TOKEN_CONST = unwrap -- parser
-    dup stack_parser.read dup stack_token.kind STACK_TOKEN_NAME = unwrap -- parser tok
+    dup STACK_TOKEN_NAME stack_parser.expect -- parser tok
     dup2 stack_token.value rot stack_token.pos stack_ast_node.init swp -- name, parser
 
     dup stack_ast_expr.sizeof array.init.with_sz stack_parser.parse.exprs.while swp -- name, array<stack_ast_data_field>, parser
@@ -609,7 +648,7 @@ end
 
 func stack_parser.parse.import (stack_parser) (stack_ast_import) in -- parser
     dup stack_parser.read stack_token.kind STACK_TOKEN_IMPORT = unwrap -- parser
-    dup stack_parser.read dup stack_token.kind STACK_TOKEN_STRING = unwrap -- parser tok
+    dup STACK_TOKEN_STRING stack_parser.expect -- parser tok
     dup2 stack_token.value stack_assembler.emit.string.interpret rot stack_token.pos stack_ast_node.init swp -- name, parser
 
     pop -- name
@@ -618,14 +657,7 @@ end
 
 func stack_parser.parse.unexpected (stack_parser) () in
     match parser in
-        parser stack_parser.peek stack_token.kind STACK_TOKEN_ILLEGAL = if
-            parser stack_parser.illegal.showf
-            1 sys.exit
-        else
-            parser "expected 'data', 'func', '@import', or 'const', got "
-            parser stack_parser.peek stack_token.kind stack_token_kind.describe string.concat
-            "\n" string.concat stack_parser.parse.exprs.error
-        fi
+        parser "'data', 'func', '@import', or 'const'" stack_parser.expect.fail
     end
 end
 
@@ -1025,8 +1057,8 @@ func stack_preprocessor.run.base.consts (stack_preprocessor, stack_ast) () in --
     pop3
 end
 
-func stack_preprocessor.run.import.open_error (stack_ast_node) () in
-    match node in
+func stack_preprocessor.run.import.error (stack_ast_node, string) () in -- node, action
+    match node action in
         node stack_ast_node.parser stack_parser.lexer match lexer in
             lexer stack_lexer.filename string.stderr
             lexer node stack_ast_node.pos stack_lexer.pos.to_lc -- line, col
@@ -1034,12 +1066,27 @@ func stack_preprocessor.run.import.open_error (stack_ast_node) () in
             swp int.show string.stderr
             ":" string.stderr
             int.show string.stderr
-            ", Preprocessor error: cannot open import \"" string.stderr
+            ", Preprocessor error: cannot " string.stderr
+            action string.stderr
+            " import \"" string.stderr
             node stack_ast_node.value string.stderr
             "\"\n" string.stderr
         end
     end
     1 sys.exit
+end
+
+func stack_preprocessor.run.import.node (stack_ast, int) (stack_ast_node) in -- ast, i
+    swp stack_ast.features swp array.get unwrap stack_ast_feature.*
+    stack_ast_feature.feature stack_ast_import.* stack_ast_import.name
+end
+
+func stack_preprocessor.run.import.read (stack_ast_node, int) (string) in -- node, fd
+    match node fd in
+        fd 0 < if node "open" stack_preprocessor.run.import.error fi
+        fd stdlib.fread.<eof> not if node "read" stack_preprocessor.run.import.error fi
+        fd stdlib.fclose not if node "close" stack_preprocessor.run.import.error fi
+    end
 end
 
 func stack_preprocessor.run.import (int, stack_preprocessor, stack_ast) () in -- i, pre, ast
@@ -1052,8 +1099,10 @@ func stack_preprocessor.run.import (int, stack_preprocessor, stack_ast) () in --
 
             dup "r" stdlib.fopen unwrap -- pre ast i filename fd
             dup 0 >= if -- pre ast i filename.stack fd
-                dup stdlib.fread.<eof> unwrap -- pre, ast, i, filename, fd, string
-                swp stdlib.fclose unwrap -- pre, ast, i, filename, string
+                match pre ast i path fd in
+                    pre ast i path
+                    ast i stack_preprocessor.run.import.node fd stack_preprocessor.run.import.read
+                end -- pre, ast, i, filename, string
 
                 match pre ast i path str in
                     pre path stack_preprocessor.imports.contains not if
@@ -1076,14 +1125,9 @@ func stack_preprocessor.run.import (int, stack_preprocessor, stack_ast) () in --
                 stack_home "/lib" string.concat "/" string.concat swp string.concat -- pre ast i path
                 match pre ast i path in
                     pre path stack_preprocessor.imports.contains not if
-                        path "r" stdlib.fopen unwrap -- fd
-                        dup 0 < if
-                            ast stack_ast.features i array.get unwrap stack_ast_feature.*
-                            stack_ast_feature.feature stack_ast_import.* stack_ast_import.name
-                            stack_preprocessor.run.import.open_error
-                        fi
-                        dup stdlib.fread.<eof> unwrap -- fd, string
-                        swp stdlib.fclose unwrap -- string
+                        ast i stack_preprocessor.run.import.node
+                        path "r" stdlib.fopen unwrap -- node, fd
+                        stack_preprocessor.run.import.read -- string
 
                         path stack_lexer.init.with_buffer -- stack_lexer
                         stack_parser.init.with_lexer -- stack_parser
@@ -3616,8 +3660,7 @@ end
 func emit (stack_assembler, string) () in -- asm, s
     swp stack_assembler.fd swp -- fd, s
     "\n" string.concat -- fd, s
-    stdlib.fwrite
-    unwrap
+    stdlib.fwrite not if "cannot write assembly output" stack_io.error fi
 end
 
 func stack_assembler.bind.index' (int, array, string) (int) in -- i, array<string>, name
@@ -4255,17 +4298,32 @@ func stack_args.parse (int, ptr) (stack_args) in -- argc, argv
     swp dup ptr.sizeof rot4 array.init 1 stack_args.init.empty stack_args.parse'
 end
 
+func stack_io.error (string) () in -- message
+    "I/O error: " swp string.concat "\n" string.concat string.stderr
+    1 sys.exit
+end
+
+func stack_io.read.source (string) (string) in -- filename
+    match filename in
+        filename string.len 0 = if
+            STDIN "standard input"
+        else
+            filename "r" stdlib.fopen unwrap
+            "source file \"" filename string.concat "\"" string.concat
+        fi -- fd, source
+
+        match fd source in
+            fd 0 < if "cannot open " source string.concat stack_io.error fi
+            fd stdlib.fread.<eof> not if "cannot read " source string.concat stack_io.error fi
+            fd stdlib.fclose not if "cannot close " source string.concat stack_io.error fi
+        end
+    end
+end
+
 func main (int, ptr) (int) in -- argc, argv
     stack_args.parse -- args
 
-    dup stack_args.filename dup string.len 0 = if -- args, filename
-        pop STDIN
-    else
-        "r" stdlib.fopen unwrap
-    fi dup -- args, fd, fd
-
-    stdlib.fread.<eof> unwrap -- args, fd, string
-    swp stdlib.fclose unwrap -- args, string
+    dup stack_args.filename stack_io.read.source -- args, string
     swp dup stack_args.filename -- string, args, fname
     dup string.len 0 = if pop "stdin" fi -- string, args, fname
     swp rot' -- args, string, filename

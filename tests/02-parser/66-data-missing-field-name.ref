@@ -1,0 +1,1 @@
+tests/02-parser/66-data-missing-field-name.stack:1:16, Parser error: expected name, got ','

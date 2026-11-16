@@ -1,0 +1,1 @@
+tests/02-parser/64-data-missing-lparen.stack:1:12, Parser error: expected '(', got name

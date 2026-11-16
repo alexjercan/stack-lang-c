@@ -117,14 +117,66 @@ runtime_analyzer() {
     PASSED_TESTS=$((PASSED_TESTS + passed))
 }
 
+io_check() {
+    local name=$1 expected_status=$2 expected_stderr=$3 out_path=$4 status
+    shift 4
+    IO_TOTAL=$((IO_TOTAL + 1))
+    echo -n "Testing $name ... "
+
+    "$@" > "$out_path" 2> "$IO_DIR/err"
+    status=$?
+    if [[ "$status" -eq "$expected_status" &&
+        "$(< "$IO_DIR/err")" == "$expected_stderr" &&
+        ! ( -f "$out_path" && -s "$out_path" && "$expected_status" -ne 0 ) ]]; then
+        echo "PASSED"
+        IO_PASSED=$((IO_PASSED + 1))
+    else
+        echo "FAILED (exit status $status, expected $expected_status)"
+        if [[ "$VERBOSE" -eq 1 ]]; then
+            while IFS= read -r line; do printf '%s\n' "$line"; done < "$IO_DIR/err"
+        fi
+    fi
+}
+
+io_analyzer() {
+    IO_DIR=$(mktemp -d) || return 1
+    IO_TOTAL=0
+    IO_PASSED=0
+    local out="$IO_DIR/out"
+
+    printf 'func main () (int) in\n    0\nend\n' > "$IO_DIR/valid.$EXT"
+    mkdir "$IO_DIR/directory.$EXT" "$IO_DIR/lib.$EXT"
+    printf '@import "%s/lib"\n\nfunc main () (int) in\n    0\nend\n' "$IO_DIR" > "$IO_DIR/import.$EXT"
+
+    echo "Running I/O tests"
+    io_check "missing source" 1 "I/O error: cannot open source file \"$IO_DIR/missing.$EXT\"" "$out" \
+        "$MAIN" --typecheck "$IO_DIR/missing.$EXT"
+    io_check "directory source" 1 "I/O error: cannot read source file \"$IO_DIR/directory.$EXT\"" "$out" \
+        "$MAIN" --typecheck "$IO_DIR/directory.$EXT"
+    io_check "valid stdin" 0 "" "$out" \
+        "$MAIN" --typecheck < "$IO_DIR/valid.$EXT"
+    io_check "unreadable stdin" 1 "I/O error: cannot read standard input" "$out" \
+        "$MAIN" --typecheck 0> /dev/null
+    io_check "directory import" 1 "$IO_DIR/import.$EXT:1:9, Preprocessor error: cannot read import \"$IO_DIR/lib\"" "$out" \
+        "$MAIN" --typecheck "$IO_DIR/import.$EXT"
+    io_check "full output" 1 "I/O error: cannot write assembly output" /dev/full \
+        "$MAIN" --assembler "$IO_DIR/valid.$EXT"
+
+    rm -rf "$IO_DIR"
+    echo "Passed $IO_PASSED/$IO_TOTAL I/O tests"
+    TOTAL_TESTS=$((TOTAL_TESTS + IO_TOTAL))
+    PASSED_TESTS=$((PASSED_TESTS + IO_PASSED))
+}
+
 usage() {
-    echo "Usage: $0 [--all | --lexer | --parser | --typecheck | --runtime] [--no-build] [--memcheck] [--main <main>] [-h | --help]"
+    echo "Usage: $0 [--all | --lexer | --parser | --typecheck | --io | --runtime] [--no-build] [--memcheck] [--main <main>] [-h | --help]"
     echo
     echo "Options:"
     echo "  --all           Enable 'all' mode."
     echo "  --lexer         Enable 'lexer' mode."
     echo "  --parser        Enable 'parser' mode."
     echo "  --typecheck     Enable 'typecheck' mode."
+    echo "  --io            Enable 'io' mode."
     echo "  --runtime       Compile, assemble, link, and run executable tests."
     echo "  --no-build      Use the existing compiler without rebuilding."
     echo "  --memcheck      Enable memory check."
@@ -150,6 +202,10 @@ main() {
                 ;;
             --typecheck)
                 ARG1="typecheck"
+                shift
+                ;;
+            --io)
+                ARG1="io"
                 shift
                 ;;
             --runtime)
@@ -207,6 +263,10 @@ main() {
     if [[ "$ARG1" == "typecheck" || "$ARG1" == "all" ]]; then
         echo -e "\e[33mTesting the typechecker\e[0m"
         analyzer "03-typecheck" "--typecheck" "$MEMCHECK" "$VERBOSE"
+    fi
+
+    if [[ "$ARG1" == "io" || "$ARG1" == "all" ]]; then
+        io_analyzer || return 1
     fi
 
     if [[ "$ARG1" == "runtime" || "$ARG1" == "all" ]]; then

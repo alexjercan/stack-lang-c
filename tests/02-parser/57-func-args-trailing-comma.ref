@@ -1,0 +1,1 @@
+tests/02-parser/57-func-args-trailing-comma.stack:1:16, Parser error: expected name, got ')'

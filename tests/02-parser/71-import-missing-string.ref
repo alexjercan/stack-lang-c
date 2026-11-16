@@ -1,0 +1,1 @@
+tests/02-parser/71-import-missing-string.stack:1:9, Parser error: expected string, got name

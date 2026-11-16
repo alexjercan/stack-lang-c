@@ -1,0 +1,1 @@
+tests/02-parser/54-func-missing-in.stack:2:5, Parser error: expected 'in', got number

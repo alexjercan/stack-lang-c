@@ -1,0 +1,1 @@
+tests/02-parser/68-data-unterminated-string-eof.stack:1:20, Lexical Error: Unterminated string

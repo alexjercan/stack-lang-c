@@ -1,0 +1,1 @@
+tests/02-parser/67-data-missing-comma.stack:1:19, Parser error: expected ',' or ')', got name

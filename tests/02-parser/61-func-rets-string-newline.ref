@@ -1,0 +1,1 @@
+tests/02-parser/61-func-rets-string-newline.stack:1:20, Lexical Error: String contains new line character

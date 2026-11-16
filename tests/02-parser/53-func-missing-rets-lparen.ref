@@ -1,0 +1,1 @@
+tests/02-parser/53-func-missing-rets-lparen.stack:1:14, Parser error: expected '(', got name

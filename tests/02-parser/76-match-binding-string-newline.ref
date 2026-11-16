@@ -1,0 +1,1 @@
+tests/02-parser/76-match-binding-string-newline.stack:2:13, Lexical Error: String contains new line character
