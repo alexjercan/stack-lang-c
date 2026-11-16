@@ -175,8 +175,12 @@ func json_lexer.next.string (json_lexer) (string, int) in
                         lxr json_lexer.read -- s, ch
                     fi -- string, ch
 
-                    byte.chr string.concat -- s
-                    err lxr json_lexer.read -- string, int, ch
+                    dup BYTE_EOF = if -- string, ch
+                        err swp -- string, int, ch
+                    else
+                        byte.chr string.concat -- s
+                        err lxr json_lexer.read -- string, int, ch
+                    fi
                 fi fi fi
             end
         pool

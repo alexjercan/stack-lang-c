@@ -1,0 +1,4 @@
+func main () (int) in
+    "ab" pop -- c
+    0
+end

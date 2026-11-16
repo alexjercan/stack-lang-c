@@ -1,0 +1,6 @@
+STRING("ab")
+NAME(x)
+STRING("\")
+NAME(y)
+STRING("")
+<EOF>

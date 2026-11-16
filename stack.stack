@@ -183,8 +183,12 @@ func stack_lexer.next.string (int, stack_lexer, int, string) (stack_token) in --
                 swp dup stack_lexer.read rot swp
             fi -- pos, stack_lexer, result, ch
 
-            byte.chr string.concat -- pos, stack_lexer, result
-            swp dup stack_lexer.read rot stack_lexer.next.string -- stack_token
+            dup BYTE_EOF = if -- pos, stack_lexer, result, ch
+                swp stack_lexer.next.string -- stack_token
+            else
+                byte.chr string.concat -- pos, stack_lexer, result
+                swp dup stack_lexer.read rot stack_lexer.next.string -- stack_token
+            fi
         fi fi fi -- stack_token
     else
         pop "\"" string.concat -- pos, stack_lexer, result

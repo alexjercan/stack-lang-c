@@ -1,0 +1,7 @@
+func main
+    ret0: int
+    body:
+        "ab"
+        pop
+        0
+

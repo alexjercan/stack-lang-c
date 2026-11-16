@@ -1,0 +1,109 @@
+@import "stdlib"
+@import "json"
+@import "tests/04-runtime/utils"
+
+func byte26 () (string) in 26 byte.chr end
+
+func lex (string) (json_lexer) in "test" json_lexer.init.with_buffer end
+
+-- Check the next token kind, value, and error code.
+func expect (json_lexer, int, string, int, int) () in
+    match lxr kind value err n in
+        lxr json_lexer.next match tok in
+            tok json_token.kind kind = n check
+            tok json_token.value value string.= n check
+            tok json_token.err err = n check
+        end
+    end
+end
+
+-- Check an illegal token error code. The value is not checked.
+func expect.illegal (json_lexer, int, int) () in
+    match lxr err n in
+        lxr json_lexer.next match tok in
+            tok json_token.kind JSON_TOKEN_ILLEGAL = n check
+            tok json_token.err err = n check
+        end
+    end
+end
+
+-- Position of the EOF token after one leading token.
+func eof.pos (string) (int) in
+    lex dup json_lexer.next pop json_lexer.next json_token.pos
+end
+
+func expect.eof (json_lexer, int) () in
+    match lxr n in
+        lxr JSON_TOKEN_EOF "" JSON_ILLEGAL_NO_ERROR n expect
+        lxr JSON_TOKEN_EOF "" JSON_ILLEGAL_NO_ERROR n expect
+    end
+end
+
+func main (int, ptr) (int) in
+    pop pop
+
+    -- True EOF is out of band.
+    BYTE_EOF 0 < 1 check
+    "" lex 2 expect.eof
+    " \n\t" lex 3 expect.eof
+
+    -- Byte 26 alone is an invalid character, not EOF.
+    byte26 lex match lxr in
+        lxr JSON_ILLEGAL_INVALID 4 expect.illegal
+        lxr 5 expect.eof
+    end
+
+    -- Byte 26 between numbers does not stop the lexer.
+    "1" byte26 string.concat "2" string.concat lex match lxr in
+        lxr JSON_TOKEN_NUMBER "1" JSON_ILLEGAL_NO_ERROR 6 expect
+        lxr JSON_ILLEGAL_INVALID 7 expect.illegal
+        lxr JSON_TOKEN_NUMBER "2" JSON_ILLEGAL_NO_ERROR 8 expect
+        lxr 9 expect.eof
+    end
+
+    -- Byte 26 inside a string is string data.
+    "\"a" byte26 string.concat "b\",1" string.concat lex match lxr in
+        lxr json_lexer.next match tok in
+            tok json_token.kind JSON_TOKEN_STRING = 10 check
+            tok json_token.value match s in
+                s string.len 3 = 11 check
+                s 0 string.!! BYTE_a = 12 check
+                s 1 string.!! 26 = 13 check
+                s 2 string.!! BYTE_b = 14 check
+            end
+        end
+        lxr JSON_TOKEN_COMMA "" JSON_ILLEGAL_NO_ERROR 15 expect
+        lxr JSON_TOKEN_NUMBER "1" JSON_ILLEGAL_NO_ERROR 16 expect
+        lxr 17 expect.eof
+    end
+
+    -- An escaped byte 26 keeps the current escape semantics.
+    "\"\\" byte26 string.concat "\"]" string.concat lex match lxr in
+        lxr JSON_TOKEN_STRING "\\" byte26 string.concat JSON_ILLEGAL_NO_ERROR 18 expect
+        lxr JSON_TOKEN_RBRACE "" JSON_ILLEGAL_NO_ERROR 19 expect
+        lxr 20 expect.eof
+    end
+
+    -- True EOF ends unterminated strings, also after a backslash.
+    "\"ab" lex match lxr in
+        lxr JSON_ILLEGAL_STRING_EOF 21 expect.illegal
+        lxr 22 expect.eof
+    end
+    "\"ab\\" lex match lxr in
+        lxr JSON_ILLEGAL_STRING_EOF 23 expect.illegal
+        lxr 24 expect.eof
+    end
+    "\"\\" lex match lxr in
+        lxr JSON_ILLEGAL_STRING_EOF 25 expect.illegal
+        lxr 26 expect.eof
+    end
+    "\"ab\\" eof.pos "\"abc" eof.pos = 27 check
+
+    -- The parser keeps byte 26 string data and rejects it as a value.
+    "[\"a" byte26 string.concat "b\",1]" string.concat json.loads json.dumps
+    "[\"a" byte26 string.concat "b\",1]" string.concat string.= 28 check
+    byte26 json.loads json_object.kind JSON_OBJECT_INVALID = 29 check
+    "" json.loads json_object.kind JSON_OBJECT_INVALID = 30 check
+
+    0
+end
