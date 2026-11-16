@@ -1,0 +1,3 @@
+tests/03-typecheck/18-match-generics-invalid.stack:5:26, Semantic error: func same has non matching args, expected (value, value) but got (int, bool)
+tests/03-typecheck/18-match-generics-invalid.stack:10:20, Semantic error: func + has non matching args, expected (int, int) but got (bool, int)
+tests/03-typecheck/18-match-generics-invalid.stack:15:20, Semantic error: func + has non matching args, expected (int, int) but got (a, int)

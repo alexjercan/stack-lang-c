@@ -1,0 +1,5 @@
+tests/03-typecheck/16-match-recovery.stack:5:16, Semantic error: bind kept is already defined
+tests/03-typecheck/16-match-recovery.stack:13:11, Semantic error: bind kept is already defined
+tests/03-typecheck/16-match-recovery.stack:21:11, Semantic error: bind item is already defined
+tests/03-typecheck/16-match-recovery.stack:30:19, Semantic error: bind outer is already defined
+tests/03-typecheck/16-match-recovery.stack:51:11, Semantic error: bind kept is already defined

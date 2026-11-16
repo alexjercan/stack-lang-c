@@ -1235,7 +1235,7 @@ func.32: ; stack_token_kind.map
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -4817,7 +4817,7 @@ func.88: ; stack_parser.parse.names.until'
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -6369,7 +6369,7 @@ func.96: ; stack_parser.parse.names.until.in
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -8463,7 +8463,7 @@ func.101: ; stack_parser.illegal.showf
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -13542,7 +13542,7 @@ func.108: ; stack_parser.parse.data_field.until'
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -16267,7 +16267,7 @@ func.119: ; stack_parser.parse'
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -18084,7 +18084,7 @@ func.146: ; stack_ast.dump.exprs'
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -19476,7 +19476,7 @@ func.153: ; stack_ast.dump'
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -25126,7 +25126,7 @@ func.168: ; stack_preprocessor.run.expand.update
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -68204,7 +68204,7 @@ func.201: ; stack_context.get_symbol'
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -68352,7 +68352,36 @@ func.202: ; stack_context.get_symbol
     pop     rbp
     ret
 
-func.203: ; stack_context.showf
+func.203: ; stack_context.has_data
+    push    rbp
+    mov     rbp, rsp
+
+    call    func.202 ; stack_context.get_symbol
+    call    func.2 ; swp
+    call    stack_pop
+    test    rax, rax
+    jnz     .if404
+.else404:
+    call    func.5 ; pop
+    mov     rdi, literal.86 ; false
+    call    stack_push_addr
+    jmp    .fi404
+.if404:
+    call    func.194 ; stack_context_symbol.*
+    call    func.195 ; stack_context_symbol.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.19 ; =
+.fi404:
+
+    pop     rbp
+    ret
+
+func.204: ; stack_context.showf
     push    rbp
     mov     rbp, rsp
 
@@ -68392,7 +68421,7 @@ func.203: ; stack_context.showf
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.49 ; string.*
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     call    func.2 ; swp
     call    func.90 ; stack_ast_node.&
     mov     rdi, literal.0 ; 0
@@ -68486,19 +68515,19 @@ func.203: ; stack_context.showf
     call    func.51 ; stack_lexer.pos.to_lc
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     call    func.2 ; swp
     call    func.34 ; int.show
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     call    func.34 ; int.show
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     mov     rdi, literal.154 ; ", Semantic error: "
     call    stack_push_addr
-    call    func.204 ; string.stderr
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
+    call    func.205 ; string.stderr
     mov     rdi, literal.86 ; false
     call    stack_push_addr
     call    func.2 ; swp
@@ -68531,7 +68560,7 @@ func.203: ; stack_context.showf
     pop     rbp
     ret
 
-func.205: ; stack_context.typecheck.data_def_ref
+func.206: ; stack_context.typecheck.data_def_ref
     push    rbp
     mov     rbp, rsp
 
@@ -68729,61 +68758,6 @@ func.205: ; stack_context.typecheck.data_def_ref
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if404
-.else404:
-    jmp    .fi404
-.if404:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi404:
-    call    func.2 ; swp
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.93 ; array.init.with_sz
-    mov     rdi, literal.107 ; "ptr"
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.1 ; dup
-    call    func.3 ; rot
-    call    func.40 ; string.&
-    call    func.85 ; array.append
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
     jnz     .if405
 .else405:
     jmp    .fi405
@@ -68819,6 +68793,61 @@ func.205: ; stack_context.typecheck.data_def_ref
     call    stack_push_addr
     call    func.36 ; sys.exit
 .fi405:
+    call    func.2 ; swp
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.93 ; array.init.with_sz
+    mov     rdi, literal.107 ; "ptr"
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.1 ; dup
+    call    func.3 ; rot
+    call    func.40 ; string.&
+    call    func.85 ; array.append
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if406
+.else406:
+    jmp    .fi406
+.if406:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi406:
     call    func.2 ; swp
     call    func.69 ; rot4'
     mov     rdi, literal.0 ; 0
@@ -68971,7 +69000,7 @@ func.205: ; stack_context.typecheck.data_def_ref
     pop     rbp
     ret
 
-func.206: ; stack_context.typecheck.data_def_deref
+func.207: ; stack_context.typecheck.data_def_deref
     push    rbp
     mov     rbp, rsp
 
@@ -69084,10 +69113,10 @@ func.206: ; stack_context.typecheck.data_def_deref
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if406
-.else406:
-    jmp    .fi406
-.if406:
+    jnz     .if407
+.else407:
+    jmp    .fi407
+.if407:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -69118,7 +69147,7 @@ func.206: ; stack_context.typecheck.data_def_deref
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi406:
+.fi407:
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
@@ -69224,10 +69253,10 @@ func.206: ; stack_context.typecheck.data_def_deref
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if407
-.else407:
-    jmp    .fi407
-.if407:
+    jnz     .if408
+.else408:
+    jmp    .fi408
+.if408:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -69258,7 +69287,7 @@ func.206: ; stack_context.typecheck.data_def_deref
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi407:
+.fi408:
     call    func.2 ; swp
     call    func.69 ; rot4'
     mov     rdi, literal.0 ; 0
@@ -69411,7 +69440,7 @@ func.206: ; stack_context.typecheck.data_def_deref
     pop     rbp
     ret
 
-func.207: ; stack_context.typecheck.data_def''
+func.208: ; stack_context.typecheck.data_def''
     push    rbp
     mov     rbp, rsp
 
@@ -69505,8 +69534,8 @@ func.207: ; stack_context.typecheck.data_def''
     call    func.5 ; pop
     call    stack_pop
     test    rax, rax
-    jnz     .if408
-.else408:
+    jnz     .if409
+.else409:
     call    func.1 ; dup
     call    func.126 ; stack_ast_data.&
     mov     rdi, literal.0 ; 0
@@ -69630,11 +69659,11 @@ func.207: ; stack_context.typecheck.data_def''
     call    func.199 ; stack_context.append.data
     call    func.2 ; swp
     call    func.53 ; dup2
-    call    func.205 ; stack_context.typecheck.data_def_ref
+    call    func.206 ; stack_context.typecheck.data_def_ref
     call    func.53 ; dup2
-    call    func.206 ; stack_context.typecheck.data_def_deref
-    jmp    .fi408
-.if408:
+    call    func.207 ; stack_context.typecheck.data_def_deref
+    jmp    .fi409
+.if409:
     call    func.53 ; dup2
     call    func.126 ; stack_ast_data.&
     mov     rdi, literal.0 ; 0
@@ -69729,14 +69758,14 @@ func.207: ; stack_context.typecheck.data_def''
     mov     rdi, literal.155 ; " is redefined\n"
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.203 ; stack_context.showf
-.fi408:
+    call    func.204 ; stack_context.showf
+.fi409:
     call    func.48 ; pop2
 
     pop     rbp
     ret
 
-func.208: ; stack_context.typecheck.data_def'
+func.209: ; stack_context.typecheck.data_def'
     push    rbp
     mov     rbp, rsp
 
@@ -69760,11 +69789,11 @@ func.208: ; stack_context.typecheck.data_def'
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if409
-.else409:
+    jnz     .if410
+.else410:
     call    func.66 ; pop3
-    jmp    .fi409
-.if409:
+    jmp    .fi410
+.if410:
     call    func.2 ; swp
     call    func.53 ; dup2
     call    func.133 ; stack_ast.&
@@ -69777,10 +69806,10 @@ func.208: ; stack_context.typecheck.data_def'
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if410
-.else410:
-    jmp    .fi410
-.if410:
+    jnz     .if411
+.else411:
+    jmp    .fi411
+.if411:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -69811,7 +69840,7 @@ func.208: ; stack_context.typecheck.data_def'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi410:
+.fi411:
     call    func.130 ; stack_ast_feature.*
     call    func.1 ; dup
     call    func.131 ; stack_ast_feature.&
@@ -69824,13 +69853,13 @@ func.208: ; stack_context.typecheck.data_def'
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if411
-.else411:
+    jnz     .if412
+.else412:
     call    func.5 ; pop
     call    func.2 ; swp
     call    func.62 ; rot'
-    jmp    .fi411
-.if411:
+    jmp    .fi412
+.if412:
     call    func.131 ; stack_ast_feature.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
@@ -69845,33 +69874,33 @@ func.208: ; stack_context.typecheck.data_def'
     call    func.71 ; dup3
     call    func.2 ; swp
     call    func.5 ; pop
-    call    func.207 ; stack_context.typecheck.data_def''
+    call    func.208 ; stack_context.typecheck.data_def''
     call    func.5 ; pop
-.fi411:
+.fi412:
     call    func.3 ; rot
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.62 ; rot'
-    call    func.208 ; stack_context.typecheck.data_def'
-.fi409:
+    call    func.209 ; stack_context.typecheck.data_def'
+.fi410:
 
     pop     rbp
     ret
 
-func.209: ; stack_context.typecheck.data_def
+func.210: ; stack_context.typecheck.data_def
     push    rbp
     mov     rbp, rsp
 
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.62 ; rot'
-    call    func.208 ; stack_context.typecheck.data_def'
+    call    func.209 ; stack_context.typecheck.data_def'
 
     pop     rbp
     ret
 
-func.210: ; stack_params.node_to_string'
+func.211: ; stack_params.node_to_string'
     push    rbp
     mov     rbp, rsp
 
@@ -69888,21 +69917,21 @@ func.210: ; stack_params.node_to_string'
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if412
-.else412:
+    jnz     .if413
+.else413:
     call    func.48 ; pop2
-    jmp    .fi412
-.if412:
+    jmp    .fi413
+.if413:
     call    func.53 ; dup2
     call    func.2 ; swp
     call    func.142 ; array.get
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if413
-.else413:
-    jmp    .fi413
-.if413:
+    jnz     .if414
+.else414:
+    jmp    .fi414
+.if414:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -69933,7 +69962,7 @@ func.210: ; stack_params.node_to_string'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi413:
+.fi414:
     call    func.89 ; stack_ast_node.*
     call    func.90 ; stack_ast_node.&
     mov     rdi, literal.0 ; 0
@@ -70023,10 +70052,10 @@ func.210: ; stack_params.node_to_string'
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if414
-.else414:
-    jmp    .fi414
-.if414:
+    jnz     .if415
+.else415:
+    jmp    .fi415
+.if415:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -70057,19 +70086,19 @@ func.210: ; stack_params.node_to_string'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi414:
+.fi415:
     call    func.3 ; rot
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.62 ; rot'
-    call    func.210 ; stack_params.node_to_string'
-.fi412:
+    call    func.211 ; stack_params.node_to_string'
+.fi413:
 
     pop     rbp
     ret
 
-func.211: ; stack_params.node_to_string
+func.212: ; stack_params.node_to_string
     push    rbp
     mov     rbp, rsp
 
@@ -70085,12 +70114,12 @@ func.211: ; stack_params.node_to_string
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.62 ; rot'
-    call    func.210 ; stack_params.node_to_string'
+    call    func.211 ; stack_params.node_to_string'
 
     pop     rbp
     ret
 
-func.212: ; stack_context.typecheck.func_def''
+func.213: ; stack_context.typecheck.func_def''
     push    rbp
     mov     rbp, rsp
 
@@ -70184,8 +70213,8 @@ func.212: ; stack_context.typecheck.func_def''
     call    func.5 ; pop
     call    stack_pop
     test    rax, rax
-    jnz     .if415
-.else415:
+    jnz     .if416
+.else416:
     call    func.1 ; dup
     call    func.127 ; stack_ast_func.&
     mov     rdi, literal.0 ; 0
@@ -70369,7 +70398,7 @@ func.212: ; stack_context.typecheck.func_def''
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.211 ; stack_params.node_to_string
+    call    func.212 ; stack_params.node_to_string
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.127 ; stack_ast_func.&
@@ -70482,7 +70511,7 @@ func.212: ; stack_context.typecheck.func_def''
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.211 ; stack_params.node_to_string
+    call    func.212 ; stack_params.node_to_string
     call    func.2 ; swp
     call    func.69 ; rot4'
     mov     rdi, literal.0 ; 0
@@ -70632,8 +70661,8 @@ func.212: ; stack_context.typecheck.func_def''
     call    func.3 ; rot
     call    func.200 ; stack_context.append.func
     call    func.2 ; swp
-    jmp    .fi415
-.if415:
+    jmp    .fi416
+.if416:
     call    func.53 ; dup2
     call    func.127 ; stack_ast_func.&
     mov     rdi, literal.0 ; 0
@@ -70728,14 +70757,14 @@ func.212: ; stack_context.typecheck.func_def''
     mov     rdi, literal.155 ; " is redefined\n"
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.203 ; stack_context.showf
-.fi415:
+    call    func.204 ; stack_context.showf
+.fi416:
     call    func.48 ; pop2
 
     pop     rbp
     ret
 
-func.213: ; stack_context.typecheck.func_def'
+func.214: ; stack_context.typecheck.func_def'
     push    rbp
     mov     rbp, rsp
 
@@ -70759,11 +70788,11 @@ func.213: ; stack_context.typecheck.func_def'
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if416
-.else416:
+    jnz     .if417
+.else417:
     call    func.66 ; pop3
-    jmp    .fi416
-.if416:
+    jmp    .fi417
+.if417:
     call    func.2 ; swp
     call    func.53 ; dup2
     call    func.133 ; stack_ast.&
@@ -70776,10 +70805,10 @@ func.213: ; stack_context.typecheck.func_def'
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if417
-.else417:
-    jmp    .fi417
-.if417:
+    jnz     .if418
+.else418:
+    jmp    .fi418
+.if418:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -70810,7 +70839,7 @@ func.213: ; stack_context.typecheck.func_def'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi417:
+.fi418:
     call    func.130 ; stack_ast_feature.*
     call    func.1 ; dup
     call    func.131 ; stack_ast_feature.&
@@ -70823,13 +70852,13 @@ func.213: ; stack_context.typecheck.func_def'
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if418
-.else418:
+    jnz     .if419
+.else419:
     call    func.5 ; pop
     call    func.2 ; swp
     call    func.62 ; rot'
-    jmp    .fi418
-.if418:
+    jmp    .fi419
+.if419:
     call    func.131 ; stack_ast_feature.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
@@ -70844,40 +70873,28 @@ func.213: ; stack_context.typecheck.func_def'
     call    func.71 ; dup3
     call    func.2 ; swp
     call    func.5 ; pop
-    call    func.212 ; stack_context.typecheck.func_def''
+    call    func.213 ; stack_context.typecheck.func_def''
     call    func.5 ; pop
-.fi418:
+.fi419:
     call    func.3 ; rot
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.62 ; rot'
-    call    func.213 ; stack_context.typecheck.func_def'
-.fi416:
+    call    func.214 ; stack_context.typecheck.func_def'
+.fi417:
 
     pop     rbp
     ret
 
-func.214: ; stack_context.typecheck.func_def
+func.215: ; stack_context.typecheck.func_def
     push    rbp
     mov     rbp, rsp
 
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.62 ; rot'
-    call    func.213 ; stack_context.typecheck.func_def'
-
-    pop     rbp
-    ret
-
-func.215:
-    push    rbp
-    mov     rbp, rsp
-
-    ; ref data
-    call    stack_pop
-    mov     rdi, rax
-    call    stack_push_addr
+    call    func.214 ; stack_context.typecheck.func_def'
 
     pop     rbp
     ret
@@ -70887,6 +70904,18 @@ func.216:
     mov     rbp, rsp
 
     ; ref data
+    call    stack_pop
+    mov     rdi, rax
+    call    stack_push_addr
+
+    pop     rbp
+    ret
+
+func.217:
+    push    rbp
+    mov     rbp, rsp
+
+    ; ref data
     call    stack_pop_addr
     mov     rdi, rax
     call    stack_push
@@ -70894,12 +70923,12 @@ func.216:
     pop     rbp
     ret
 
-func.217: ; iter.next
+func.218: ; iter.next
     push    rbp
     mov     rbp, rsp
 
     call    func.1 ; dup
-    call    func.216 ; iter.&
+    call    func.217 ; iter.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
     mov     rdi, literal.0 ; 0
@@ -70917,7 +70946,7 @@ func.217: ; iter.next
     call    func.24 ; int.*
     call    func.2 ; swp
     call    func.1 ; dup
-    call    func.216 ; iter.&
+    call    func.217 ; iter.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.21 ; ptr.+
@@ -70926,18 +70955,18 @@ func.217: ; iter.next
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if419
-.else419:
+    jnz     .if420
+.else420:
     call    func.5 ; pop
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.23 ; int.&
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-    jmp    .fi419
-.if419:
+    jmp    .fi420
+.if420:
     call    func.1 ; dup
-    call    func.216 ; iter.&
+    call    func.217 ; iter.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
     mov     rdi, literal.0 ; 0
@@ -70947,7 +70976,7 @@ func.217: ; iter.next
     call    func.135 ; array.*
     call    func.2 ; swp
     call    func.1 ; dup
-    call    func.216 ; iter.&
+    call    func.217 ; iter.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.21 ; ptr.+
@@ -70957,7 +70986,7 @@ func.217: ; iter.next
     call    func.142 ; array.get
     call    func.3 ; rot
     call    func.1 ; dup
-    call    func.216 ; iter.&
+    call    func.217 ; iter.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.21 ; ptr.+
@@ -70966,7 +70995,7 @@ func.217: ; iter.next
     call    stack_push_addr
     call    func.7 ; +
     call    func.2 ; swp
-    call    func.216 ; iter.&
+    call    func.217 ; iter.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.21 ; ptr.+
@@ -70976,12 +71005,12 @@ func.217: ; iter.next
     call    stack_push_addr
     call    func.22 ; ptr.@
     call    func.5 ; pop
-.fi419:
+.fi420:
 
     pop     rbp
     ret
 
-func.218:
+func.219:
     push    rbp
     mov     rbp, rsp
 
@@ -70993,7 +71022,7 @@ func.218:
     pop     rbp
     ret
 
-func.219:
+func.220:
     push    rbp
     mov     rbp, rsp
 
@@ -71005,7 +71034,7 @@ func.219:
     pop     rbp
     ret
 
-func.220: ; string_tuple.get'
+func.221: ; string_tuple.get'
     push    rbp
     mov     rbp, rsp
 
@@ -71023,8 +71052,8 @@ func.220: ; string_tuple.get'
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if420
-.else420:
+    jnz     .if421
+.else421:
     call    func.5 ; pop
     call    func.5 ; pop
     call    func.5 ; pop
@@ -71034,18 +71063,18 @@ func.220: ; string_tuple.get'
     call    stack_push_addr
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-    jmp    .fi420
-.if420:
+    jmp    .fi421
+.if421:
     call    func.5 ; pop
     call    func.53 ; dup2
     call    func.142 ; array.get
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if421
-.else421:
-    jmp    .fi421
-.if421:
+    jnz     .if422
+.else422:
+    jmp    .fi422
+.if422:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -71076,14 +71105,14 @@ func.220: ; string_tuple.get'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi421:
-    call    func.218 ; string_tuple.*
+.fi422:
+    call    func.219 ; string_tuple.*
     call    func.2 ; swp
     call    func.5 ; pop
     call    func.4 ; rot4
     call    func.2 ; swp
     call    func.1 ; dup
-    call    func.219 ; string_tuple.&
+    call    func.220 ; string_tuple.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.21 ; ptr.+
@@ -71094,8 +71123,8 @@ func.220: ; string_tuple.get'
     call    func.72 ; string.=
     call    stack_pop
     test    rax, rax
-    jnz     .if422
-.else422:
+    jnz     .if423
+.else423:
     call    func.2 ; swp
     call    func.5 ; pop
     call    func.3 ; rot
@@ -71103,11 +71132,11 @@ func.220: ; string_tuple.get'
     call    stack_push_addr
     call    func.7 ; +
     call    func.62 ; rot'
-    call    func.220 ; string_tuple.get'
-    jmp    .fi422
-.if422:
+    call    func.221 ; string_tuple.get'
+    jmp    .fi423
+.if423:
     call    func.5 ; pop
-    call    func.219 ; string_tuple.&
+    call    func.220 ; string_tuple.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.8 ; 8
@@ -71126,25 +71155,25 @@ func.220: ; string_tuple.get'
     call    func.5 ; pop
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-.fi422:
-.fi420:
+.fi423:
+.fi421:
 
     pop     rbp
     ret
 
-func.221: ; string_tuple.get
+func.222: ; string_tuple.get
     push    rbp
     mov     rbp, rsp
 
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.62 ; rot'
-    call    func.220 ; string_tuple.get'
+    call    func.221 ; string_tuple.get'
 
     pop     rbp
     ret
 
-func.222: ; stack_context.typecheck.expr.name.infer'
+func.223: ; stack_context.typecheck.expr.name.infer'
     push    rbp
     mov     rbp, rsp
 
@@ -71167,8 +71196,8 @@ func.222: ; stack_context.typecheck.expr.name.infer'
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if423
-.else423:
+    jnz     .if424
+.else424:
     call    func.5 ; pop
     call    func.69 ; rot4'
     call    func.5 ; pop
@@ -71176,8 +71205,8 @@ func.222: ; stack_context.typecheck.expr.name.infer'
     call    func.5 ; pop
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-    jmp    .fi423
-.if423:
+    jmp    .fi424
+.if424:
     mov     rdi, literal.3 ; 3
     call    stack_push_addr
     call    func.6 ; pick
@@ -71212,54 +71241,6 @@ func.222: ; stack_context.typecheck.expr.name.infer'
     call    func.21 ; ptr.+
     call    func.24 ; int.*
     call    func.8 ; -
-    call    func.142 ; array.get
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if424
-.else424:
-    jmp    .fi424
-.if424:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi424:
-    call    func.49 ; string.*
-    mov     rdi, literal.3 ; 3
-    call    stack_push_addr
-    call    func.6 ; pick
-    call    func.135 ; array.*
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.6 ; pick
-    call    func.24 ; int.*
     call    func.142 ; array.get
     call    func.59 ; not
     call    stack_pop
@@ -71300,6 +71281,54 @@ func.222: ; stack_context.typecheck.expr.name.infer'
     call    func.36 ; sys.exit
 .fi425:
     call    func.49 ; string.*
+    mov     rdi, literal.3 ; 3
+    call    stack_push_addr
+    call    func.6 ; pick
+    call    func.135 ; array.*
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.6 ; pick
+    call    func.24 ; int.*
+    call    func.142 ; array.get
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if426
+.else426:
+    jmp    .fi426
+.if426:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi426:
+    call    func.49 ; string.*
     mov     rdi, literal.6 ; 6
     call    stack_push_addr
     call    func.6 ; pick
@@ -71308,13 +71337,12 @@ func.222: ; stack_context.typecheck.expr.name.infer'
     call    stack_push_addr
     call    func.6 ; pick
     call    func.49 ; string.*
-    call    func.202 ; stack_context.get_symbol
-    call    func.5 ; pop
+    call    func.203 ; stack_context.has_data
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if426
-.else426:
+    jnz     .if427
+.else427:
     mov     rdi, literal.6 ; 6
     call    stack_push_addr
     call    func.6 ; pick
@@ -71323,23 +71351,22 @@ func.222: ; stack_context.typecheck.expr.name.infer'
     call    stack_push_addr
     call    func.6 ; pick
     call    func.49 ; string.*
-    call    func.202 ; stack_context.get_symbol
-    call    func.5 ; pop
+    call    func.203 ; stack_context.has_data
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if427
-.else427:
+    jnz     .if428
+.else428:
     call    func.72 ; string.=
-    jmp    .fi427
-.if427:
+    jmp    .fi428
+.if428:
     call    func.5 ; pop
     call    func.5 ; pop
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi427:
-    jmp    .fi426
-.if426:
+.fi428:
+    jmp    .fi427
+.if427:
     mov     rdi, literal.3 ; 3
     call    stack_push_addr
     call    func.6 ; pick
@@ -71348,17 +71375,17 @@ func.222: ; stack_context.typecheck.expr.name.infer'
     call    stack_push_addr
     call    func.6 ; pick
     call    func.49 ; string.*
-    call    func.221 ; string_tuple.get
+    call    func.222 ; string_tuple.get
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if428
-.else428:
+    jnz     .if429
+.else429:
     call    func.2 ; swp
     call    func.5 ; pop
     call    func.72 ; string.=
-    jmp    .fi428
-.if428:
+    jmp    .fi429
+.if429:
     call    func.5 ; pop
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
@@ -71427,20 +71454,20 @@ func.222: ; stack_context.typecheck.expr.name.infer'
     call    func.7 ; +
     call    func.22 ; ptr.@
     call    func.5 ; pop
-    call    func.218 ; string_tuple.*
+    call    func.219 ; string_tuple.*
     mov     rdi, literal.2 ; 2
     call    stack_push_addr
     call    func.6 ; pick
     call    func.135 ; array.*
     call    func.2 ; swp
-    call    func.219 ; string_tuple.&
+    call    func.220 ; string_tuple.&
     call    func.85 ; array.append
-.fi428:
-.fi426:
+.fi429:
+.fi427:
     call    stack_pop
     test    rax, rax
-    jnz     .if429
-.else429:
+    jnz     .if430
+.else430:
     call    func.5 ; pop
     call    func.69 ; rot4'
     call    func.5 ; pop
@@ -71448,19 +71475,19 @@ func.222: ; stack_context.typecheck.expr.name.infer'
     call    func.5 ; pop
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-    jmp    .fi429
-.if429:
+    jmp    .fi430
+.if430:
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
-    call    func.222 ; stack_context.typecheck.expr.name.infer'
-.fi429:
-.fi423:
+    call    func.223 ; stack_context.typecheck.expr.name.infer'
+.fi430:
+.fi424:
 
     pop     rbp
     ret
 
-func.223: ; stack_context.typecheck.expr.name.infer
+func.224: ; stack_context.typecheck.expr.name.infer
     push    rbp
     mov     rbp, rsp
 
@@ -71487,25 +71514,25 @@ func.223: ; stack_context.typecheck.expr.name.infer
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if430
-.else430:
+    jnz     .if431
+.else431:
     call    func.3 ; rot
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
-    call    func.222 ; stack_context.typecheck.expr.name.infer'
-    jmp    .fi430
-.if430:
+    call    func.223 ; stack_context.typecheck.expr.name.infer'
+    jmp    .fi431
+.if431:
     call    func.48 ; pop2
     call    func.2 ; swp
     call    func.5 ; pop
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi430:
+.fi431:
 
     pop     rbp
     ret
 
-func.224: ; stack_context.typecheck.infer.showf
+func.225: ; stack_context.typecheck.infer.showf
     push    rbp
     mov     rbp, rsp
 
@@ -71600,30 +71627,30 @@ func.224: ; stack_context.typecheck.infer.showf
     mov     rdi, literal.156 ; " has non matching args, expected ("
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.203 ; stack_context.showf
+    call    func.204 ; stack_context.showf
     call    func.5 ; pop
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.2 ; swp
-    call    func.225 ; array.string.showf
+    call    func.226 ; array.string.showf
     mov     rdi, literal.157 ; ") but got ("
     call    stack_push_addr
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.2 ; swp
-    call    func.225 ; array.string.showf
+    call    func.226 ; array.string.showf
     mov     rdi, literal.158 ; ")\n"
     call    stack_push_addr
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     call    func.5 ; pop
 
     pop     rbp
     ret
 
-func.226: ; stack_context.typecheck.expr.name.stack_pop'
+func.227: ; stack_context.typecheck.expr.name.stack_pop'
     push    rbp
     mov     rbp, rsp
 
@@ -71633,23 +71660,23 @@ func.226: ; stack_context.typecheck.expr.name.stack_pop'
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if431
-.else431:
+    jnz     .if432
+.else432:
     call    func.5 ; pop
     call    func.5 ; pop
     call    func.5 ; pop
-    jmp    .fi431
-.if431:
+    jmp    .fi432
+.if432:
     call    func.3 ; rot
     call    func.1 ; dup
-    call    func.227 ; array.pop
+    call    func.228 ; array.pop
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if432
-.else432:
-    jmp    .fi432
-.if432:
+    jnz     .if433
+.else433:
+    jmp    .fi433
+.if433:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -71680,32 +71707,32 @@ func.226: ; stack_context.typecheck.expr.name.stack_pop'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi432:
+.fi433:
     call    func.3 ; rot
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.62 ; rot'
     call    func.2 ; swp
-    call    func.226 ; stack_context.typecheck.expr.name.stack_pop'
-.fi431:
+    call    func.227 ; stack_context.typecheck.expr.name.stack_pop'
+.fi432:
 
     pop     rbp
     ret
 
-func.228: ; stack_context.typecheck.expr.name.stack_pop
+func.229: ; stack_context.typecheck.expr.name.stack_pop
     push    rbp
     mov     rbp, rsp
 
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.62 ; rot'
-    call    func.226 ; stack_context.typecheck.expr.name.stack_pop'
+    call    func.227 ; stack_context.typecheck.expr.name.stack_pop'
 
     pop     rbp
     ret
 
-func.229: ; stack_context.typecheck.expr.name.map
+func.230: ; stack_context.typecheck.expr.name.map
     push    rbp
     mov     rbp, rsp
 
@@ -71728,14 +71755,14 @@ func.229: ; stack_context.typecheck.expr.name.map
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if433
-.else433:
+    jnz     .if434
+.else434:
     call    func.69 ; rot4'
     call    func.5 ; pop
     call    func.5 ; pop
     call    func.5 ; pop
-    jmp    .fi433
-.if433:
+    jmp    .fi434
+.if434:
     mov     rdi, literal.2 ; 2
     call    stack_push_addr
     call    func.6 ; pick
@@ -71748,10 +71775,10 @@ func.229: ; stack_context.typecheck.expr.name.map
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if434
-.else434:
-    jmp    .fi434
-.if434:
+    jnz     .if435
+.else435:
+    jmp    .fi435
+.if435:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -71782,7 +71809,7 @@ func.229: ; stack_context.typecheck.expr.name.map
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi434:
+.fi435:
     call    func.49 ; string.*
     mov     rdi, literal.2 ; 2
     call    stack_push_addr
@@ -71792,66 +71819,16 @@ func.229: ; stack_context.typecheck.expr.name.map
     call    stack_push_addr
     call    func.6 ; pick
     call    func.49 ; string.*
-    call    func.221 ; string_tuple.get
-    call    stack_pop
-    test    rax, rax
-    jnz     .if435
-.else435:
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.6 ; pick
-    call    func.135 ; array.*
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.6 ; pick
-    call    func.49 ; string.*
-    call    func.40 ; string.&
-    call    func.85 ; array.append
-    call    func.59 ; not
+    call    func.222 ; string_tuple.get
     call    stack_pop
     test    rax, rax
     jnz     .if436
 .else436:
-    jmp    .fi436
-.if436:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi436:
-    jmp    .fi435
-.if435:
     mov     rdi, literal.2 ; 2
     call    stack_push_addr
     call    func.6 ; pick
     call    func.135 ; array.*
-    mov     rdi, literal.1 ; 1
+    mov     rdi, literal.2 ; 2
     call    stack_push_addr
     call    func.6 ; pick
     call    func.49 ; string.*
@@ -71895,37 +71872,18 @@ func.229: ; stack_context.typecheck.expr.name.map
     call    stack_push_addr
     call    func.36 ; sys.exit
 .fi437:
-.fi435:
-    call    func.48 ; pop2
-    call    func.4 ; rot4
+    jmp    .fi436
+.if436:
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.6 ; pick
+    call    func.135 ; array.*
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
-    call    func.7 ; +
-    call    func.69 ; rot4'
-    call    func.229 ; stack_context.typecheck.expr.name.map
-.fi433:
-
-    pop     rbp
-    ret
-
-func.230: ; stack_context.typecheck.expr.name.stack_add
-    push    rbp
-    mov     rbp, rsp
-
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.62 ; rot'
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.93 ; array.init.with_sz
-    call    func.229 ; stack_context.typecheck.expr.name.map
-    call    func.136 ; array.extend
+    call    func.6 ; pick
+    call    func.49 ; string.*
+    call    func.40 ; string.&
+    call    func.85 ; array.append
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
@@ -71964,11 +71922,80 @@ func.230: ; stack_context.typecheck.expr.name.stack_add
     call    stack_push_addr
     call    func.36 ; sys.exit
 .fi438:
+.fi436:
+    call    func.48 ; pop2
+    call    func.4 ; rot4
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.69 ; rot4'
+    call    func.230 ; stack_context.typecheck.expr.name.map
+.fi434:
 
     pop     rbp
     ret
 
-func.231: ; stack_context.typecheck.expr.name
+func.231: ; stack_context.typecheck.expr.name.stack_add
+    push    rbp
+    mov     rbp, rsp
+
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.62 ; rot'
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.93 ; array.init.with_sz
+    call    func.230 ; stack_context.typecheck.expr.name.map
+    call    func.136 ; array.extend
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if439
+.else439:
+    jmp    .fi439
+.if439:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi439:
+
+    pop     rbp
+    ret
+
+func.232: ; stack_context.typecheck.expr.name
     push    rbp
     mov     rbp, rsp
 
@@ -72061,8 +72088,8 @@ func.231: ; stack_context.typecheck.expr.name
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if439
-.else439:
+    jnz     .if440
+.else440:
     call    func.2 ; swp
     call    func.5 ; pop
     call    func.194 ; stack_context_symbol.*
@@ -72077,8 +72104,8 @@ func.231: ; stack_context.typecheck.expr.name
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if440
-.else440:
+    jnz     .if441
+.else441:
     call    func.5 ; pop
     call    func.2 ; swp
     call    func.1 ; dup
@@ -72169,10 +72196,10 @@ func.231: ; stack_context.typecheck.expr.name
     mov     rdi, literal.159 ; " is not defined\n"
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.203 ; stack_context.showf
+    call    func.204 ; stack_context.showf
     call    func.5 ; pop
-    jmp    .fi440
-.if440:
+    jmp    .fi441
+.if441:
     call    func.3 ; rot
     call    func.69 ; rot4'
     call    func.3 ; rot
@@ -72224,14 +72251,14 @@ func.231: ; stack_context.typecheck.expr.name
     call    func.21 ; ptr.+
     call    func.135 ; array.*
     call    func.2 ; swp
-    call    func.223 ; stack_context.typecheck.expr.name.infer
+    call    func.224 ; stack_context.typecheck.expr.name.infer
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if441
-.else441:
-    jmp    .fi441
-.if441:
+    jnz     .if442
+.else442:
+    jmp    .fi442
+.if442:
     sub     rsp, 40
     call    stack_pop_addr
     mov     qword [rbp - 40], rax
@@ -72274,7 +72301,7 @@ func.231: ; stack_context.typecheck.expr.name
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.224 ; stack_context.typecheck.infer.showf
+    call    func.225 ; stack_context.typecheck.infer.showf
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     mov     rdi, qword [rbp - 16]
@@ -72286,7 +72313,7 @@ func.231: ; stack_context.typecheck.expr.name
     mov     rdi, qword [rbp - 40]
     call    stack_push_addr
     add     rsp, 40
-.fi441:
+.fi442:
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.195 ; stack_context_symbol.&
@@ -72334,8 +72361,8 @@ func.231: ; stack_context.typecheck.expr.name
     call    func.21 ; ptr.+
     call    func.24 ; int.*
     call    func.3 ; rot
-    call    func.232 ; min
-    call    func.228 ; stack_context.typecheck.expr.name.stack_pop
+    call    func.233 ; min
+    call    func.229 ; stack_context.typecheck.expr.name.stack_pop
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.195 ; stack_context_symbol.&
@@ -72379,12 +72406,12 @@ func.231: ; stack_context.typecheck.expr.name
     call    func.2 ; swp
     call    func.5 ; pop
     call    func.3 ; rot
-    call    func.230 ; stack_context.typecheck.expr.name.stack_add
+    call    func.231 ; stack_context.typecheck.expr.name.stack_add
     call    func.5 ; pop
     call    func.5 ; pop
-.fi440:
-    jmp    .fi439
-.if439:
+.fi441:
+    jmp    .fi440
+.if440:
     call    func.48 ; pop2
     call    func.2 ; swp
     call    func.1 ; dup
@@ -72475,38 +72502,38 @@ func.231: ; stack_context.typecheck.expr.name
     mov     rdi, literal.159 ; " is not defined\n"
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.203 ; stack_context.showf
+    call    func.204 ; stack_context.showf
     call    func.5 ; pop
-.fi439:
+.fi440:
 
     pop     rbp
     ret
 
-func.233: ; stack_context.typecheck.expr.cond.has_boolean
+func.234: ; stack_context.typecheck.expr.cond.has_boolean
     push    rbp
     mov     rbp, rsp
 
-    call    func.234 ; array.last
+    call    func.235 ; array.last
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if442
-.else442:
+    jnz     .if443
+.else443:
     call    func.49 ; string.*
     mov     rdi, literal.108 ; "bool"
     call    stack_push_addr
     call    func.72 ; string.=
-    jmp    .fi442
-.if442:
+    jmp    .fi443
+.if443:
     call    func.5 ; pop
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi442:
+.fi443:
 
     pop     rbp
     ret
 
-func.235: ; stack_context.typecheck.branch.showf
+func.236: ; stack_context.typecheck.branch.showf
     push    rbp
     mov     rbp, rsp
 
@@ -72521,46 +72548,46 @@ func.235: ; stack_context.typecheck.branch.showf
     call    func.89 ; stack_ast_node.*
     mov     rdi, literal.160 ; "stack mismatch lhs execution (..., "
     call    stack_push_addr
-    call    func.203 ; stack_context.showf
+    call    func.204 ; stack_context.showf
     call    func.5 ; pop
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.2 ; swp
-    call    func.225 ; array.string.showf
+    call    func.226 ; array.string.showf
     mov     rdi, literal.161 ; ") rhs execution (..., "
     call    stack_push_addr
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.2 ; swp
-    call    func.225 ; array.string.showf
+    call    func.226 ; array.string.showf
     mov     rdi, literal.158 ; ")\n"
     call    stack_push_addr
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     call    func.5 ; pop
 
     pop     rbp
     ret
 
-func.236: ; stack_context.typecheck.expr.cond.has_boolean.showf
+func.237: ; stack_context.typecheck.expr.cond.has_boolean.showf
     push    rbp
     mov     rbp, rsp
 
-    call    func.234 ; array.last
+    call    func.235 ; array.last
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if443
-.else443:
+    jnz     .if444
+.else444:
     call    func.49 ; string.*
-    jmp    .fi443
-.if443:
+    jmp    .fi444
+.if444:
     call    func.5 ; pop
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-.fi443:
+.fi444:
     mov     rdi, literal.162 ; "expected type ("
     call    stack_push_addr
     mov     rdi, literal.108 ; "bool"
@@ -72581,12 +72608,12 @@ func.236: ; stack_context.typecheck.expr.cond.has_boolean.showf
     call    func.21 ; ptr.+
     call    func.89 ; stack_ast_node.*
     call    func.2 ; swp
-    call    func.203 ; stack_context.showf
+    call    func.204 ; stack_context.showf
 
     pop     rbp
     ret
 
-func.237: ; array.string.='
+func.238: ; array.string.='
     push    rbp
     mov     rbp, rsp
 
@@ -72604,66 +72631,18 @@ func.237: ; array.string.='
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if444
-.else444:
+    jnz     .if445
+.else445:
     call    func.66 ; pop3
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-    jmp    .fi444
-.if444:
+    jmp    .fi445
+.if445:
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.6 ; pick
     call    func.135 ; array.*
     mov     rdi, literal.3 ; 3
-    call    stack_push_addr
-    call    func.6 ; pick
-    call    func.24 ; int.*
-    call    func.142 ; array.get
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if445
-.else445:
-    jmp    .fi445
-.if445:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi445:
-    call    func.49 ; string.*
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.6 ; pick
-    call    func.135 ; array.*
-    mov     rdi, literal.4 ; 4
     call    stack_push_addr
     call    func.6 ; pick
     call    func.24 ; int.*
@@ -72707,90 +72686,22 @@ func.237: ; array.string.='
     call    func.36 ; sys.exit
 .fi446:
     call    func.49 ; string.*
-    call    func.72 ; string.=
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.6 ; pick
+    call    func.135 ; array.*
+    mov     rdi, literal.4 ; 4
+    call    stack_push_addr
+    call    func.6 ; pick
+    call    func.24 ; int.*
+    call    func.142 ; array.get
+    call    func.59 ; not
     call    stack_pop
     test    rax, rax
     jnz     .if447
 .else447:
-    call    func.66 ; pop3
-    mov     rdi, literal.86 ; false
-    call    stack_push_addr
     jmp    .fi447
 .if447:
-    call    func.3 ; rot
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.62 ; rot'
-    call    func.237 ; array.string.='
-.fi447:
-.fi444:
-
-    pop     rbp
-    ret
-
-func.238: ; array.string.=
-    push    rbp
-    mov     rbp, rsp
-
-    call    func.53 ; dup2
-    call    func.94 ; array.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.24 ; int.*
-    call    func.2 ; swp
-    call    func.94 ; array.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.24 ; int.*
-    call    func.19 ; =
-    call    stack_pop
-    test    rax, rax
-    jnz     .if448
-.else448:
-    call    func.48 ; pop2
-    mov     rdi, literal.86 ; false
-    call    stack_push_addr
-    jmp    .fi448
-.if448:
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.62 ; rot'
-    call    func.237 ; array.string.='
-.fi448:
-
-    pop     rbp
-    ret
-
-func.239: ; stack_context.typecheck.expr.cond
-    push    rbp
-    mov     rbp, rsp
-
-    call    func.2 ; swp
-    call    func.1 ; dup
-    call    func.233 ; stack_context.typecheck.expr.cond.has_boolean
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if449
-.else449:
-    call    func.1 ; dup
-    call    func.227 ; array.pop
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if450
-.else450:
-    jmp    .fi450
-.if450:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -72821,9 +72732,85 @@ func.239: ; stack_context.typecheck.expr.cond
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi450:
+.fi447:
+    call    func.49 ; string.*
+    call    func.72 ; string.=
+    call    stack_pop
+    test    rax, rax
+    jnz     .if448
+.else448:
+    call    func.66 ; pop3
+    mov     rdi, literal.86 ; false
+    call    stack_push_addr
+    jmp    .fi448
+.if448:
+    call    func.3 ; rot
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.62 ; rot'
+    call    func.238 ; array.string.='
+.fi448:
+.fi445:
+
+    pop     rbp
+    ret
+
+func.239: ; array.string.=
+    push    rbp
+    mov     rbp, rsp
+
+    call    func.53 ; dup2
+    call    func.94 ; array.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    call    func.2 ; swp
+    call    func.94 ; array.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    call    func.19 ; =
+    call    stack_pop
+    test    rax, rax
+    jnz     .if449
+.else449:
+    call    func.48 ; pop2
+    mov     rdi, literal.86 ; false
+    call    stack_push_addr
+    jmp    .fi449
+.if449:
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.62 ; rot'
+    call    func.238 ; array.string.='
+.fi449:
+
+    pop     rbp
+    ret
+
+func.240: ; stack_context.typecheck.expr.cond
+    push    rbp
+    mov     rbp, rsp
+
+    call    func.2 ; swp
     call    func.1 ; dup
-    call    func.240 ; array.copy
+    call    func.234 ; stack_context.typecheck.expr.cond.has_boolean
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if450
+.else450:
+    call    func.1 ; dup
+    call    func.228 ; array.pop
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
@@ -72862,450 +72849,15 @@ func.239: ; stack_context.typecheck.expr.cond
     call    stack_push_addr
     call    func.36 ; sys.exit
 .fi451:
-    call    func.69 ; rot4'
-    call    func.2 ; swp
     call    func.1 ; dup
-    call    func.105 ; stack_ast_cond.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.135 ; array.*
-    call    func.2 ; swp
-    call    func.69 ; rot4'
-    call    func.71 ; dup3
-    call    func.241 ; stack_context.typecheck.exprs
-    call    func.5 ; pop
-    call    func.69 ; rot4'
-    call    func.2 ; swp
-    call    func.1 ; dup
-    call    func.105 ; stack_ast_cond.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.135 ; array.*
-    call    func.2 ; swp
-    call    func.69 ; rot4'
-    call    func.3 ; rot
-    call    func.2 ; swp
-    call    func.71 ; dup3
-    call    func.241 ; stack_context.typecheck.exprs
-    call    func.5 ; pop
-    call    func.2 ; swp
-    call    func.69 ; rot4'
-    call    func.3 ; rot
-    call    func.2 ; swp
-    call    func.53 ; dup2
-    call    func.238 ; array.string.=
+    call    func.241 ; array.copy
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
     jnz     .if452
 .else452:
-    call    func.5 ; pop
-    call    func.5 ; pop
-    call    func.5 ; pop
-    call    func.5 ; pop
     jmp    .fi452
 .if452:
-    call    func.235 ; stack_context.typecheck.branch.showf
-.fi452:
-    jmp    .fi449
-.if449:
-    call    func.236 ; stack_context.typecheck.expr.cond.has_boolean.showf
-.fi449:
-
-    pop     rbp
-    ret
-
-func.242: ; stack_context.typecheck.match.showf
-    push    rbp
-    mov     rbp, rsp
-
-    call    func.62 ; rot'
-    call    func.53 ; dup2
-    call    func.104 ; stack_ast_match.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.21 ; ptr.+
-    call    func.89 ; stack_ast_node.*
-    mov     rdi, literal.163 ; "match tried to bind to many items, expected ("
-    call    stack_push_addr
-    call    func.203 ; stack_context.showf
-    call    func.104 ; stack_ast_match.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.135 ; array.*
-    call    func.211 ; stack_params.node_to_string
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.225 ; array.string.showf
-    mov     rdi, literal.157 ; ") but got ("
-    call    stack_push_addr
-    call    func.204 ; string.stderr
-    call    func.2 ; swp
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.225 ; array.string.showf
-    mov     rdi, literal.158 ; ")\n"
-    call    stack_push_addr
-    call    func.204 ; string.stderr
-    call    func.5 ; pop
-
-    pop     rbp
-    ret
-
-func.243: ; stack_context.typecheck.match.init
-    push    rbp
-    mov     rbp, rsp
-
-    mov     rdi, literal.3 ; 3
-    call    stack_push_addr
-    call    func.6 ; pick
-    call    func.24 ; int.*
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.6 ; pick
-    call    func.135 ; array.*
-    call    func.94 ; array.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.24 ; int.*
-    call    func.18 ; <
-    call    stack_pop
-    test    rax, rax
-    jnz     .if453
-.else453:
-    call    func.5 ; pop
-    call    func.5 ; pop
-    call    func.5 ; pop
-    call    func.5 ; pop
-    jmp    .fi453
-.if453:
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.6 ; pick
-    call    func.135 ; array.*
-    call    func.94 ; array.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.24 ; int.*
-    mov     rdi, literal.4 ; 4
-    call    stack_push_addr
-    call    func.6 ; pick
-    call    func.24 ; int.*
-    call    func.8 ; -
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.8 ; -
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.6 ; pick
-    call    func.135 ; array.*
-    call    func.2 ; swp
-    call    func.142 ; array.get
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if454
-.else454:
-    jmp    .fi454
-.if454:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -73336,16 +72888,486 @@ func.243: ; stack_context.typecheck.match.init
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi454:
-    call    func.89 ; stack_ast_node.*
-    mov     rdi, literal.3 ; 3
+.fi452:
+    call    func.69 ; rot4'
+    call    func.2 ; swp
+    call    func.1 ; dup
+    call    func.105 ; stack_ast_cond.&
+    mov     rdi, literal.0 ; 0
     call    stack_push_addr
-    call    func.6 ; pick
-    call    func.196 ; stack_context.*
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.135 ; array.*
+    call    func.2 ; swp
+    call    func.69 ; rot4'
+    call    func.71 ; dup3
+    call    func.242 ; stack_context.typecheck.exprs
+    call    func.5 ; pop
+    call    func.69 ; rot4'
+    call    func.2 ; swp
+    call    func.1 ; dup
+    call    func.105 ; stack_ast_cond.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.135 ; array.*
+    call    func.2 ; swp
+    call    func.69 ; rot4'
+    call    func.3 ; rot
+    call    func.2 ; swp
+    call    func.71 ; dup3
+    call    func.242 ; stack_context.typecheck.exprs
+    call    func.5 ; pop
+    call    func.2 ; swp
+    call    func.69 ; rot4'
+    call    func.3 ; rot
+    call    func.2 ; swp
+    call    func.53 ; dup2
+    call    func.239 ; array.string.=
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if453
+.else453:
+    call    func.5 ; pop
+    call    func.5 ; pop
+    call    func.5 ; pop
+    call    func.5 ; pop
+    jmp    .fi453
+.if453:
+    call    func.236 ; stack_context.typecheck.branch.showf
+.fi453:
+    jmp    .fi450
+.if450:
+    call    func.237 ; stack_context.typecheck.expr.cond.has_boolean.showf
+.fi450:
+
+    pop     rbp
+    ret
+
+func.243: ; stack_context.typecheck.match.showf
+    push    rbp
+    mov     rbp, rsp
+
+    call    func.62 ; rot'
+    call    func.53 ; dup2
+    call    func.104 ; stack_ast_match.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.21 ; ptr.+
+    call    func.89 ; stack_ast_node.*
+    mov     rdi, literal.163 ; "match tried to bind to many items, expected ("
+    call    stack_push_addr
+    call    func.204 ; stack_context.showf
+    call    func.104 ; stack_ast_match.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.135 ; array.*
+    call    func.212 ; stack_params.node_to_string
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.226 ; array.string.showf
+    mov     rdi, literal.157 ; ") but got ("
+    call    stack_push_addr
+    call    func.205 ; string.stderr
+    call    func.2 ; swp
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.226 ; array.string.showf
+    mov     rdi, literal.158 ; ")\n"
+    call    stack_push_addr
+    call    func.205 ; string.stderr
+    call    func.5 ; pop
+
+    pop     rbp
+    ret
+
+func.244: ; stack_context.typecheck.match.init
+    push    rbp
+    mov     rbp, rsp
+
+    sub     rsp, 32
+    call    stack_pop_addr
+    mov     qword [rbp - 32], rax
+    call    stack_pop_addr
+    mov     qword [rbp - 24], rax
+    call    stack_pop_addr
+    mov     qword [rbp - 16], rax
+    call    stack_pop_addr
+    mov     qword [rbp - 8], rax
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 32]
+    call    stack_push_addr
+    call    func.94 ; array.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    call    func.18 ; <
+    call    stack_pop
+    test    rax, rax
+    jnz     .if454
+.else454:
+    mov     rdi, literal.87 ; true
+    call    stack_push_addr
+    jmp    .fi454
+.if454:
+    mov     rdi, qword [rbp - 32]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 32]
+    call    stack_push_addr
+    call    func.94 ; array.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    call    func.8 ; -
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
-    call    func.6 ; pick
+    call    func.8 ; -
+    call    func.142 ; array.get
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if455
+.else455:
+    jmp    .fi455
+.if455:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi455:
     call    func.89 ; stack_ast_node.*
+    sub     rsp, 8
+    call    stack_pop_addr
+    mov     qword [rbp - 40], rax
+    mov     rdi, qword [rbp - 16]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 40]
+    call    stack_push_addr
     call    func.90 ; stack_ast_node.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
@@ -73430,9 +73452,58 @@ func.243: ; stack_context.typecheck.match.init
     call    func.2 ; swp
     call    stack_pop
     test    rax, rax
-    jnz     .if455
-.else455:
+    jnz     .if456
+.else456:
     call    func.5 ; pop
+    mov     rdi, qword [rbp - 24]
+    call    stack_push_addr
+    call    func.235 ; array.last
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if457
+.else457:
+    jmp    .fi457
+.if457:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi457:
+    call    func.49 ; string.*
+    sub     rsp, 8
+    call    stack_pop_addr
+    mov     qword [rbp - 48], rax
+    mov     rdi, qword [rbp - 16]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 40]
+    call    stack_push_addr
     call    func.90 ; stack_ast_node.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
@@ -73513,50 +73584,6 @@ func.243: ; stack_context.typecheck.match.init
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.49 ; string.*
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.6 ; pick
-    call    func.135 ; array.*
-    call    func.234 ; array.last
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if456
-.else456:
-    jmp    .fi456
-.if456:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi456:
-    call    func.49 ; string.*
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.8 ; 8
@@ -73576,16 +73603,17 @@ func.243: ; stack_context.typecheck.match.init
     call    func.7 ; +
     call    func.93 ; array.init.with_sz
     call    func.1 ; dup
-    call    func.4 ; rot4
+    mov     rdi, qword [rbp - 48]
+    call    stack_push_addr
     call    func.40 ; string.&
     call    func.85 ; array.append
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if457
-.else457:
-    jmp    .fi457
-.if457:
+    jnz     .if458
+.else458:
+    jmp    .fi458
+.if458:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -73616,7 +73644,7 @@ func.243: ; stack_context.typecheck.match.init
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi457:
+.fi458:
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.0 ; 0
@@ -73759,24 +73787,17 @@ func.243: ; stack_context.typecheck.match.init
     call    func.22 ; ptr.@
     call    func.5 ; pop
     call    func.192 ; stack_context_func.*
-    mov     rdi, literal.3 ; 3
-    call    stack_push_addr
-    call    func.6 ; pick
-    call    func.196 ; stack_context.*
-    call    func.2 ; swp
     call    func.200 ; stack_context.append.func
-    mov     rdi, literal.1 ; 1
+    mov     rdi, qword [rbp - 24]
     call    stack_push_addr
-    call    func.6 ; pick
-    call    func.135 ; array.*
-    call    func.227 ; array.pop
+    call    func.228 ; array.pop
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if458
-.else458:
-    jmp    .fi458
-.if458:
+    jnz     .if459
+.else459:
+    jmp    .fi459
+.if459:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -73807,17 +73828,130 @@ func.243: ; stack_context.typecheck.match.init
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi458:
-    call    func.4 ; rot4
+.fi459:
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
-    call    func.69 ; rot4'
-    call    func.243 ; stack_context.typecheck.match.init
-    jmp    .fi455
-.if455:
-    call    func.5 ; pop
+    mov     rdi, qword [rbp - 16]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 24]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 32]
+    call    stack_push_addr
+    call    func.244 ; stack_context.typecheck.match.init
     call    func.1 ; dup
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if460
+.else460:
+    jmp    .fi460
+.if460:
+    mov     rdi, qword [rbp - 16]
+    call    stack_push_addr
+    call    func.197 ; stack_context.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.21 ; ptr.+
+    call    func.135 ; array.*
+    call    func.228 ; array.pop
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if461
+.else461:
+    jmp    .fi461
+.if461:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi461:
+    mov     rdi, qword [rbp - 24]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 48]
+    call    stack_push_addr
+    call    func.40 ; string.&
+    call    func.85 ; array.append
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if462
+.else462:
+    jmp    .fi462
+.if462:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi462:
+.fi460:
+    add     rsp, 8
+    jmp    .fi456
+.if456:
+    call    func.5 ; pop
+    mov     rdi, qword [rbp - 16]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 40]
+    call    stack_push_addr
+    mov     rdi, literal.164 ; "bind "
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 40]
+    call    stack_push_addr
     call    func.90 ; stack_ast_node.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
@@ -73898,27 +74032,22 @@ func.243: ; stack_context.typecheck.match.init
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.49 ; string.*
-    mov     rdi, literal.164 ; "bind "
-    call    stack_push_addr
-    call    func.2 ; swp
     call    func.33 ; string.concat
     mov     rdi, literal.165 ; " is already defined\n"
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.3 ; rot
-    call    func.5 ; pop
-    call    func.3 ; rot
-    call    func.5 ; pop
-    call    func.4 ; rot4
-    call    func.5 ; pop
-    call    func.203 ; stack_context.showf
-.fi455:
-.fi453:
+    call    func.204 ; stack_context.showf
+    mov     rdi, literal.86 ; false
+    call    stack_push_addr
+.fi456:
+    add     rsp, 8
+.fi454:
+    add     rsp, 32
 
     pop     rbp
     ret
 
-func.244: ; stack_context.typecheck.match.clear
+func.245: ; stack_context.typecheck.match.clear
     push    rbp
     mov     rbp, rsp
 
@@ -73941,13 +74070,13 @@ func.244: ; stack_context.typecheck.match.clear
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if459
-.else459:
+    jnz     .if463
+.else463:
     call    func.5 ; pop
     call    func.5 ; pop
     call    func.5 ; pop
-    jmp    .fi459
-.if459:
+    jmp    .fi463
+.if463:
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.6 ; pick
@@ -73957,621 +74086,7 @@ func.244: ; stack_context.typecheck.match.clear
     call    stack_push_addr
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.227 ; array.pop
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if460
-.else460:
-    jmp    .fi460
-.if460:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi460:
-    call    func.3 ; rot
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.62 ; rot'
-    call    func.244 ; stack_context.typecheck.match.clear
-.fi459:
-
-    pop     rbp
-    ret
-
-func.245: ; stack_context.typecheck.expr.match
-    push    rbp
-    mov     rbp, rsp
-
-    call    func.53 ; dup2
-    call    func.104 ; stack_ast_match.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.135 ; array.*
-    call    func.94 ; array.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.24 ; int.*
-    call    func.2 ; swp
-    call    func.94 ; array.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.24 ; int.*
-    call    func.2 ; swp
-    call    func.18 ; <
-    call    stack_pop
-    test    rax, rax
-    jnz     .if461
-.else461:
-    call    func.1 ; dup
-    call    func.104 ; stack_ast_match.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.135 ; array.*
-    call    func.2 ; swp
-    call    func.69 ; rot4'
-    call    func.71 ; dup3
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.69 ; rot4'
-    call    func.243 ; stack_context.typecheck.match.init
-    call    func.5 ; pop
-    call    func.3 ; rot
-    call    func.1 ; dup
-    call    func.104 ; stack_ast_match.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.135 ; array.*
-    call    func.2 ; swp
-    call    func.69 ; rot4'
-    call    func.71 ; dup3
-    call    func.241 ; stack_context.typecheck.exprs
-    call    func.4 ; rot4
-    call    func.104 ; stack_ast_match.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.135 ; array.*
-    call    func.62 ; rot'
-    call    func.5 ; pop
-    call    func.5 ; pop
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.62 ; rot'
-    call    func.244 ; stack_context.typecheck.match.clear
-    jmp    .fi461
-.if461:
-    call    func.2 ; swp
-    call    func.242 ; stack_context.typecheck.match.showf
-.fi461:
-
-    pop     rbp
-    ret
-
-func.246: ; stack_context.typecheck.expr.while.has_boolean
-    push    rbp
-    mov     rbp, rsp
-
-    call    func.234 ; array.last
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if462
-.else462:
-    call    func.49 ; string.*
-    mov     rdi, literal.108 ; "bool"
-    call    stack_push_addr
-    call    func.72 ; string.=
-    jmp    .fi462
-.if462:
-    call    func.5 ; pop
-    mov     rdi, literal.86 ; false
-    call    stack_push_addr
-.fi462:
-
-    pop     rbp
-    ret
-
-func.247: ; stack_context.typecheck.while.showf
-    push    rbp
-    mov     rbp, rsp
-
-    call    func.4 ; rot4
-    call    func.4 ; rot4
-    call    func.53 ; dup2
-    call    func.103 ; stack_ast_while.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.21 ; ptr.+
-    call    func.89 ; stack_ast_node.*
-    mov     rdi, literal.166 ; "stack mismatch while expects (..., "
-    call    stack_push_addr
-    call    func.203 ; stack_context.showf
-    call    func.5 ; pop
-    call    func.2 ; swp
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.225 ; array.string.showf
-    mov     rdi, literal.167 ; ") but pool gives (..., "
-    call    stack_push_addr
-    call    func.204 ; string.stderr
-    call    func.2 ; swp
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.225 ; array.string.showf
-    mov     rdi, literal.158 ; ")\n"
-    call    stack_push_addr
-    call    func.204 ; string.stderr
-    call    func.5 ; pop
-
-    pop     rbp
-    ret
-
-func.248: ; stack_context.typecheck.expr.while.has_boolean.showf
-    push    rbp
-    mov     rbp, rsp
-
-    call    func.234 ; array.last
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if463
-.else463:
-    call    func.49 ; string.*
-    jmp    .fi463
-.if463:
-    call    func.5 ; pop
-    mov     rdi, literal.27 ; ""
-    call    stack_push_addr
-.fi463:
-    mov     rdi, literal.162 ; "expected type ("
-    call    stack_push_addr
-    mov     rdi, literal.108 ; "bool"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.157 ; ") but got ("
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    call    func.2 ; swp
-    call    func.33 ; string.concat
-    mov     rdi, literal.158 ; ")\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    call    func.2 ; swp
-    call    func.103 ; stack_ast_while.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.21 ; ptr.+
-    call    func.89 ; stack_ast_node.*
-    call    func.2 ; swp
-    call    func.203 ; stack_context.showf
-
-    pop     rbp
-    ret
-
-func.249: ; stack_context.typecheck.expr.while
-    push    rbp
-    mov     rbp, rsp
-
-    call    func.2 ; swp
-    call    func.1 ; dup
-    call    func.240 ; array.copy
+    call    func.228 ; array.pop
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
@@ -74610,6 +74125,641 @@ func.249: ; stack_context.typecheck.expr.while
     call    stack_push_addr
     call    func.36 ; sys.exit
 .fi464:
+    call    func.3 ; rot
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.62 ; rot'
+    call    func.245 ; stack_context.typecheck.match.clear
+.fi463:
+
+    pop     rbp
+    ret
+
+func.246: ; stack_context.typecheck.expr.match
+    push    rbp
+    mov     rbp, rsp
+
+    sub     rsp, 24
+    call    stack_pop_addr
+    mov     qword [rbp - 24], rax
+    call    stack_pop_addr
+    mov     qword [rbp - 16], rax
+    call    stack_pop_addr
+    mov     qword [rbp - 8], rax
+    mov     rdi, qword [rbp - 24]
+    call    stack_push_addr
+    call    func.104 ; stack_ast_match.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.135 ; array.*
+    call    func.94 ; array.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    mov     rdi, qword [rbp - 16]
+    call    stack_push_addr
+    call    func.94 ; array.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    call    func.17 ; >
+    call    stack_pop
+    test    rax, rax
+    jnz     .if465
+.else465:
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 16]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 24]
+    call    stack_push_addr
+    call    func.104 ; stack_ast_match.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.135 ; array.*
+    call    func.244 ; stack_context.typecheck.match.init
+    call    stack_pop
+    test    rax, rax
+    jnz     .if466
+.else466:
+    jmp    .fi466
+.if466:
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 16]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 24]
+    call    stack_push_addr
+    call    func.104 ; stack_ast_match.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.135 ; array.*
+    call    func.242 ; stack_context.typecheck.exprs
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 24]
+    call    stack_push_addr
+    call    func.104 ; stack_ast_match.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.135 ; array.*
+    call    func.245 ; stack_context.typecheck.match.clear
+.fi466:
+    jmp    .fi465
+.if465:
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 24]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 16]
+    call    stack_push_addr
+    call    func.243 ; stack_context.typecheck.match.showf
+.fi465:
+    add     rsp, 24
+
+    pop     rbp
+    ret
+
+func.247: ; stack_context.typecheck.expr.while.has_boolean
+    push    rbp
+    mov     rbp, rsp
+
+    call    func.235 ; array.last
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if467
+.else467:
+    call    func.49 ; string.*
+    mov     rdi, literal.108 ; "bool"
+    call    stack_push_addr
+    call    func.72 ; string.=
+    jmp    .fi467
+.if467:
+    call    func.5 ; pop
+    mov     rdi, literal.86 ; false
+    call    stack_push_addr
+.fi467:
+
+    pop     rbp
+    ret
+
+func.248: ; stack_context.typecheck.while.showf
+    push    rbp
+    mov     rbp, rsp
+
+    call    func.4 ; rot4
+    call    func.4 ; rot4
+    call    func.53 ; dup2
+    call    func.103 ; stack_ast_while.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.21 ; ptr.+
+    call    func.89 ; stack_ast_node.*
+    mov     rdi, literal.166 ; "stack mismatch while expects (..., "
+    call    stack_push_addr
+    call    func.204 ; stack_context.showf
+    call    func.5 ; pop
+    call    func.2 ; swp
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.226 ; array.string.showf
+    mov     rdi, literal.167 ; ") but pool gives (..., "
+    call    stack_push_addr
+    call    func.205 ; string.stderr
+    call    func.2 ; swp
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.226 ; array.string.showf
+    mov     rdi, literal.158 ; ")\n"
+    call    stack_push_addr
+    call    func.205 ; string.stderr
+    call    func.5 ; pop
+
+    pop     rbp
+    ret
+
+func.249: ; stack_context.typecheck.expr.while.has_boolean.showf
+    push    rbp
+    mov     rbp, rsp
+
+    call    func.235 ; array.last
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if468
+.else468:
+    call    func.49 ; string.*
+    jmp    .fi468
+.if468:
+    call    func.5 ; pop
+    mov     rdi, literal.27 ; ""
+    call    stack_push_addr
+.fi468:
+    mov     rdi, literal.162 ; "expected type ("
+    call    stack_push_addr
+    mov     rdi, literal.108 ; "bool"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.157 ; ") but got ("
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    call    func.2 ; swp
+    call    func.33 ; string.concat
+    mov     rdi, literal.158 ; ")\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    call    func.2 ; swp
+    call    func.103 ; stack_ast_while.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.21 ; ptr.+
+    call    func.89 ; stack_ast_node.*
+    call    func.2 ; swp
+    call    func.204 ; stack_context.showf
+
+    pop     rbp
+    ret
+
+func.250: ; stack_context.typecheck.expr.while
+    push    rbp
+    mov     rbp, rsp
+
+    call    func.2 ; swp
+    call    func.1 ; dup
+    call    func.241 ; array.copy
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if469
+.else469:
+    jmp    .fi469
+.if469:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi469:
     sub     rsp, 32
     call    stack_pop_addr
     mov     qword [rbp - 32], rax
@@ -74720,25 +74870,25 @@ func.249: ; stack_context.typecheck.expr.while
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.241 ; stack_context.typecheck.exprs
+    call    func.242 ; stack_context.typecheck.exprs
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
-    call    func.246 ; stack_context.typecheck.expr.while.has_boolean
+    call    func.247 ; stack_context.typecheck.expr.while.has_boolean
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if465
-.else465:
+    jnz     .if470
+.else470:
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
-    call    func.227 ; array.pop
+    call    func.228 ; array.pop
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if466
-.else466:
-    jmp    .fi466
-.if466:
+    jnz     .if471
+.else471:
+    jmp    .fi471
+.if471:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -74769,17 +74919,17 @@ func.249: ; stack_context.typecheck.expr.while
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi466:
+.fi471:
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
-    call    func.240 ; array.copy
+    call    func.241 ; array.copy
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if467
-.else467:
-    jmp    .fi467
-.if467:
+    jnz     .if472
+.else472:
+    jmp    .fi472
+.if472:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -74810,7 +74960,7 @@ func.249: ; stack_context.typecheck.expr.while
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi467:
+.fi472:
     sub     rsp, 8
     call    stack_pop_addr
     mov     qword [rbp - 40], rax
@@ -74930,19 +75080,19 @@ func.249: ; stack_context.typecheck.expr.while
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.241 ; stack_context.typecheck.exprs
+    call    func.242 ; stack_context.typecheck.exprs
     mov     rdi, qword [rbp - 40]
     call    stack_push_addr
     mov     rdi, qword [rbp - 32]
     call    stack_push_addr
-    call    func.238 ; array.string.=
+    call    func.239 ; array.string.=
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if468
-.else468:
-    jmp    .fi468
-.if468:
+    jnz     .if473
+.else473:
+    jmp    .fi473
+.if473:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     mov     rdi, qword [rbp - 16]
@@ -74951,25 +75101,25 @@ func.249: ; stack_context.typecheck.expr.while
     call    stack_push_addr
     mov     rdi, qword [rbp - 32]
     call    stack_push_addr
-    call    func.247 ; stack_context.typecheck.while.showf
-.fi468:
+    call    func.248 ; stack_context.typecheck.while.showf
+.fi473:
     add     rsp, 8
-    jmp    .fi465
-.if465:
+    jmp    .fi470
+.if470:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
-    call    func.248 ; stack_context.typecheck.expr.while.has_boolean.showf
-.fi465:
+    call    func.249 ; stack_context.typecheck.expr.while.has_boolean.showf
+.fi470:
     add     rsp, 32
 
     pop     rbp
     ret
 
-func.250: ; stack_context.typecheck.expr
+func.251: ; stack_context.typecheck.expr
     push    rbp
     mov     rbp, rsp
 
@@ -74985,62 +75135,62 @@ func.250: ; stack_context.typecheck.expr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if469
-.else469:
+    jnz     .if474
+.else474:
     call    func.1 ; dup
     mov     rdi, literal.2 ; 2
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if470
-.else470:
+    jnz     .if475
+.else475:
     call    func.1 ; dup
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if471
-.else471:
+    jnz     .if476
+.else476:
     call    func.1 ; dup
     mov     rdi, literal.3 ; 3
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if472
-.else472:
+    jnz     .if477
+.else477:
     call    func.1 ; dup
     mov     rdi, literal.4 ; 4
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if473
-.else473:
+    jnz     .if478
+.else478:
     call    func.1 ; dup
     mov     rdi, literal.5 ; 5
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if474
-.else474:
+    jnz     .if479
+.else479:
     call    func.1 ; dup
     mov     rdi, literal.6 ; 6
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if475
-.else475:
+    jnz     .if480
+.else480:
     mov     rdi, literal.22 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -75069,8 +75219,8 @@ func.250: ; stack_context.typecheck.expr
     call    func.5 ; pop
     call    func.5 ; pop
     call    func.5 ; pop
-    jmp    .fi475
-.if475:
+    jmp    .fi480
+.if480:
     call    func.5 ; pop
     call    func.84 ; stack_ast_expr.&
     mov     rdi, literal.8 ; 8
@@ -75081,10 +75231,10 @@ func.250: ; stack_context.typecheck.expr
     call    func.21 ; ptr.+
     call    func.26 ; ptr.*
     call    func.100 ; stack_ast_while.*
-    call    func.249 ; stack_context.typecheck.expr.while
-.fi475:
-    jmp    .fi474
-.if474:
+    call    func.250 ; stack_context.typecheck.expr.while
+.fi480:
+    jmp    .fi479
+.if479:
     call    func.5 ; pop
     call    func.84 ; stack_ast_expr.&
     mov     rdi, literal.8 ; 8
@@ -75095,10 +75245,10 @@ func.250: ; stack_context.typecheck.expr
     call    func.21 ; ptr.+
     call    func.26 ; ptr.*
     call    func.98 ; stack_ast_match.*
-    call    func.245 ; stack_context.typecheck.expr.match
-.fi474:
-    jmp    .fi473
-.if473:
+    call    func.246 ; stack_context.typecheck.expr.match
+.fi479:
+    jmp    .fi478
+.if478:
     call    func.5 ; pop
     call    func.84 ; stack_ast_expr.&
     mov     rdi, literal.8 ; 8
@@ -75109,10 +75259,10 @@ func.250: ; stack_context.typecheck.expr
     call    func.21 ; ptr.+
     call    func.26 ; ptr.*
     call    func.95 ; stack_ast_cond.*
-    call    func.239 ; stack_context.typecheck.expr.cond
-.fi473:
-    jmp    .fi472
-.if472:
+    call    func.240 ; stack_context.typecheck.expr.cond
+.fi478:
+    jmp    .fi477
+.if477:
     call    func.5 ; pop
     call    func.84 ; stack_ast_expr.&
     mov     rdi, literal.8 ; 8
@@ -75123,10 +75273,10 @@ func.250: ; stack_context.typecheck.expr
     call    func.21 ; ptr.+
     call    func.26 ; ptr.*
     call    func.89 ; stack_ast_node.*
-    call    func.231 ; stack_context.typecheck.expr.name
-.fi472:
-    jmp    .fi471
-.if471:
+    call    func.232 ; stack_context.typecheck.expr.name
+.fi477:
+    jmp    .fi476
+.if476:
     call    func.5 ; pop
     call    func.5 ; pop
     mov     rdi, literal.108 ; "bool"
@@ -75136,10 +75286,10 @@ func.250: ; stack_context.typecheck.expr
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if476
-.else476:
-    jmp    .fi476
-.if476:
+    jnz     .if481
+.else481:
+    jmp    .fi481
+.if481:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -75170,11 +75320,11 @@ func.250: ; stack_context.typecheck.expr
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi476:
+.fi481:
     call    func.5 ; pop
-.fi471:
-    jmp    .fi470
-.if470:
+.fi476:
+    jmp    .fi475
+.if475:
     call    func.5 ; pop
     call    func.5 ; pop
     mov     rdi, literal.168 ; "string"
@@ -75184,10 +75334,10 @@ func.250: ; stack_context.typecheck.expr
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if477
-.else477:
-    jmp    .fi477
-.if477:
+    jnz     .if482
+.else482:
+    jmp    .fi482
+.if482:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -75218,11 +75368,11 @@ func.250: ; stack_context.typecheck.expr
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi477:
+.fi482:
     call    func.5 ; pop
-.fi470:
-    jmp    .fi469
-.if469:
+.fi475:
+    jmp    .fi474
+.if474:
     call    func.5 ; pop
     call    func.5 ; pop
     mov     rdi, literal.105 ; "int"
@@ -75232,10 +75382,10 @@ func.250: ; stack_context.typecheck.expr
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if478
-.else478:
-    jmp    .fi478
-.if478:
+    jnz     .if483
+.else483:
+    jmp    .fi483
+.if483:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -75266,43 +75416,43 @@ func.250: ; stack_context.typecheck.expr
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi478:
+.fi483:
     call    func.5 ; pop
-.fi469:
+.fi474:
 
     pop     rbp
     ret
 
-func.251: ; stack_context.typecheck.exprs'
+func.252: ; stack_context.typecheck.exprs'
     push    rbp
     mov     rbp, rsp
 
     call    func.1 ; dup
-    call    func.217 ; iter.next
+    call    func.218 ; iter.next
     call    stack_pop
     test    rax, rax
-    jnz     .if479
-.else479:
+    jnz     .if484
+.else484:
     call    func.5 ; pop
     call    func.5 ; pop
     call    func.5 ; pop
     call    func.5 ; pop
-    jmp    .fi479
-.if479:
+    jmp    .fi484
+.if484:
     call    func.102 ; stack_ast_expr.*
     call    func.2 ; swp
     call    func.69 ; rot4'
     call    func.71 ; dup3
-    call    func.250 ; stack_context.typecheck.expr
+    call    func.251 ; stack_context.typecheck.expr
     call    func.5 ; pop
     call    func.3 ; rot
-    call    func.251 ; stack_context.typecheck.exprs'
-.fi479:
+    call    func.252 ; stack_context.typecheck.exprs'
+.fi484:
 
     pop     rbp
     ret
 
-func.241: ; stack_context.typecheck.exprs
+func.242: ; stack_context.typecheck.exprs
     push    rbp
     mov     rbp, rsp
 
@@ -75369,13 +75519,13 @@ func.241: ; stack_context.typecheck.exprs
     call    stack_push_addr
     call    func.22 ; ptr.@
     call    func.5 ; pop
-    call    func.215 ; iter.*
-    call    func.251 ; stack_context.typecheck.exprs'
+    call    func.216 ; iter.*
+    call    func.252 ; stack_context.typecheck.exprs'
 
     pop     rbp
     ret
 
-func.225: ; array.string.showf
+func.226: ; array.string.showf
     push    rbp
     mov     rbp, rsp
 
@@ -75395,18 +75545,18 @@ func.225: ; array.string.showf
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if480
-.else480:
+    jnz     .if485
+.else485:
     call    func.53 ; dup2
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if481
-.else481:
+    jnz     .if486
+.else486:
     call    func.48 ; pop2
     call    func.48 ; pop2
-    jmp    .fi481
-.if481:
+    jmp    .fi486
+.if486:
     call    func.48 ; pop2
     call    func.53 ; dup2
     call    func.2 ; swp
@@ -75414,10 +75564,10 @@ func.225: ; array.string.showf
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if482
-.else482:
-    jmp    .fi482
-.if482:
+    jnz     .if487
+.else487:
+    jmp    .fi487
+.if487:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -75448,18 +75598,18 @@ func.225: ; array.string.showf
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi482:
+.fi487:
     call    func.49 ; string.*
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     call    func.2 ; swp
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.2 ; swp
-    call    func.225 ; array.string.showf
-.fi481:
-    jmp    .fi480
-.if480:
+    call    func.226 ; array.string.showf
+.fi486:
+    jmp    .fi485
+.if485:
     call    func.48 ; pop2
     call    func.53 ; dup2
     call    func.2 ; swp
@@ -75467,10 +75617,10 @@ func.225: ; array.string.showf
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if483
-.else483:
-    jmp    .fi483
-.if483:
+    jnz     .if488
+.else488:
+    jmp    .fi488
+.if488:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -75501,24 +75651,24 @@ func.225: ; array.string.showf
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi483:
+.fi488:
     call    func.49 ; string.*
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     mov     rdi, literal.80 ; ", "
     call    stack_push_addr
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     call    func.2 ; swp
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.2 ; swp
-    call    func.225 ; array.string.showf
-.fi480:
+    call    func.226 ; array.string.showf
+.fi485:
 
     pop     rbp
     ret
 
-func.252: ; stack_context.typecheck.rets.showf
+func.253: ; stack_context.typecheck.rets.showf
     push    rbp
     mov     rbp, rsp
 
@@ -75618,30 +75768,30 @@ func.252: ; stack_context.typecheck.rets.showf
     mov     rdi, literal.169 ; " has non matching return, expected ("
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.203 ; stack_context.showf
+    call    func.204 ; stack_context.showf
     call    func.5 ; pop
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.2 ; swp
-    call    func.225 ; array.string.showf
+    call    func.226 ; array.string.showf
     mov     rdi, literal.157 ; ") but got ("
     call    stack_push_addr
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.2 ; swp
-    call    func.225 ; array.string.showf
+    call    func.226 ; array.string.showf
     mov     rdi, literal.158 ; ")\n"
     call    stack_push_addr
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     call    func.5 ; pop
 
     pop     rbp
     ret
 
-func.253: ; stack_context.typecheck.func''
+func.254: ; stack_context.typecheck.func''
     push    rbp
     mov     rbp, rsp
 
@@ -75741,7 +75891,7 @@ func.253: ; stack_context.typecheck.func''
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.211 ; stack_params.node_to_string
+    call    func.212 ; stack_params.node_to_string
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.127 ; stack_ast_func.&
@@ -75872,7 +76022,7 @@ func.253: ; stack_context.typecheck.func''
     call    func.2 ; swp
     call    func.69 ; rot4'
     call    func.71 ; dup3
-    call    func.241 ; stack_context.typecheck.exprs
+    call    func.242 ; stack_context.typecheck.exprs
     call    func.5 ; pop
     call    func.3 ; rot
     call    func.1 ; dup
@@ -75986,29 +76136,29 @@ func.253: ; stack_context.typecheck.func''
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.211 ; stack_params.node_to_string
+    call    func.212 ; stack_params.node_to_string
     call    func.2 ; swp
     call    func.62 ; rot'
     call    func.53 ; dup2
-    call    func.238 ; array.string.=
+    call    func.239 ; array.string.=
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if484
-.else484:
+    jnz     .if489
+.else489:
     call    func.5 ; pop
     call    func.5 ; pop
     call    func.5 ; pop
     call    func.5 ; pop
-    jmp    .fi484
-.if484:
-    call    func.252 ; stack_context.typecheck.rets.showf
-.fi484:
+    jmp    .fi489
+.if489:
+    call    func.253 ; stack_context.typecheck.rets.showf
+.fi489:
 
     pop     rbp
     ret
 
-func.254: ; stack_context.typecheck.func'
+func.255: ; stack_context.typecheck.func'
     push    rbp
     mov     rbp, rsp
 
@@ -76032,11 +76182,11 @@ func.254: ; stack_context.typecheck.func'
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if485
-.else485:
+    jnz     .if490
+.else490:
     call    func.66 ; pop3
-    jmp    .fi485
-.if485:
+    jmp    .fi490
+.if490:
     call    func.2 ; swp
     call    func.53 ; dup2
     call    func.133 ; stack_ast.&
@@ -76049,10 +76199,10 @@ func.254: ; stack_context.typecheck.func'
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if486
-.else486:
-    jmp    .fi486
-.if486:
+    jnz     .if491
+.else491:
+    jmp    .fi491
+.if491:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -76083,7 +76233,7 @@ func.254: ; stack_context.typecheck.func'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi486:
+.fi491:
     call    func.130 ; stack_ast_feature.*
     call    func.1 ; dup
     call    func.131 ; stack_ast_feature.&
@@ -76096,13 +76246,13 @@ func.254: ; stack_context.typecheck.func'
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if487
-.else487:
+    jnz     .if492
+.else492:
     call    func.5 ; pop
     call    func.2 ; swp
     call    func.62 ; rot'
-    jmp    .fi487
-.if487:
+    jmp    .fi492
+.if492:
     call    func.131 ; stack_ast_feature.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
@@ -76117,55 +76267,43 @@ func.254: ; stack_context.typecheck.func'
     call    func.71 ; dup3
     call    func.2 ; swp
     call    func.5 ; pop
-    call    func.253 ; stack_context.typecheck.func''
+    call    func.254 ; stack_context.typecheck.func''
     call    func.5 ; pop
-.fi487:
+.fi492:
     call    func.3 ; rot
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.62 ; rot'
-    call    func.254 ; stack_context.typecheck.func'
-.fi485:
+    call    func.255 ; stack_context.typecheck.func'
+.fi490:
 
     pop     rbp
     ret
 
-func.255: ; stack_context.typecheck.func
+func.256: ; stack_context.typecheck.func
     push    rbp
     mov     rbp, rsp
 
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.62 ; rot'
-    call    func.254 ; stack_context.typecheck.func'
+    call    func.255 ; stack_context.typecheck.func'
 
     pop     rbp
     ret
 
-func.256: ; stack_context.typecheck
+func.257: ; stack_context.typecheck
     push    rbp
     mov     rbp, rsp
 
     call    func.53 ; dup2
-    call    func.209 ; stack_context.typecheck.data_def
+    call    func.210 ; stack_context.typecheck.data_def
     call    func.53 ; dup2
-    call    func.214 ; stack_context.typecheck.func_def
+    call    func.215 ; stack_context.typecheck.func_def
     call    func.53 ; dup2
-    call    func.255 ; stack_context.typecheck.func
+    call    func.256 ; stack_context.typecheck.func
     call    func.48 ; pop2
-
-    pop     rbp
-    ret
-
-func.257:
-    push    rbp
-    mov     rbp, rsp
-
-    ; ref data
-    call    stack_pop
-    mov     rdi, rax
-    call    stack_push_addr
 
     pop     rbp
     ret
@@ -76175,6 +76313,18 @@ func.258:
     mov     rbp, rsp
 
     ; ref data
+    call    stack_pop
+    mov     rdi, rax
+    call    stack_push_addr
+
+    pop     rbp
+    ret
+
+func.259:
+    push    rbp
+    mov     rbp, rsp
+
+    ; ref data
     call    stack_pop_addr
     mov     rdi, rax
     call    stack_push
@@ -76182,7 +76332,7 @@ func.258:
     pop     rbp
     ret
 
-func.259:
+func.260:
     push    rbp
     mov     rbp, rsp
 
@@ -76194,7 +76344,7 @@ func.259:
     pop     rbp
     ret
 
-func.260:
+func.261:
     push    rbp
     mov     rbp, rsp
 
@@ -76206,25 +76356,25 @@ func.260:
     pop     rbp
     ret
 
-func.261: ; stack_literal.=
+func.262: ; stack_literal.=
     push    rbp
     mov     rbp, rsp
 
     call    func.53 ; dup2
-    call    func.258 ; stack_literal.&
+    call    func.259 ; stack_literal.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.21 ; ptr.+
     call    func.24 ; int.*
     call    func.2 ; swp
-    call    func.258 ; stack_literal.&
+    call    func.259 ; stack_literal.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.21 ; ptr.+
     call    func.24 ; int.*
     call    func.19 ; =
     call    func.62 ; rot'
-    call    func.258 ; stack_literal.&
+    call    func.259 ; stack_literal.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
     mov     rdi, literal.0 ; 0
@@ -76233,7 +76383,7 @@ func.261: ; stack_literal.=
     call    func.21 ; ptr.+
     call    func.49 ; string.*
     call    func.2 ; swp
-    call    func.258 ; stack_literal.&
+    call    func.259 ; stack_literal.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
     mov     rdi, literal.0 ; 0
@@ -76247,7 +76397,7 @@ func.261: ; stack_literal.=
     pop     rbp
     ret
 
-func.262: ; stack_assembler.init.with_fd
+func.263: ; stack_assembler.init.with_fd
     push    rbp
     mov     rbp, rsp
 
@@ -76538,17 +76688,17 @@ func.262: ; stack_assembler.init.with_fd
     call    stack_push_addr
     call    func.22 ; ptr.@
     call    func.5 ; pop
-    call    func.259 ; stack_assembler.*
+    call    func.260 ; stack_assembler.*
 
     pop     rbp
     ret
 
-func.263: ; emit
+func.264: ; emit
     push    rbp
     mov     rbp, rsp
 
     call    func.2 ; swp
-    call    func.260 ; stack_assembler.&
+    call    func.261 ; stack_assembler.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.21 ; ptr.+
@@ -76558,234 +76708,6 @@ func.263: ; emit
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.35 ; stdlib.fwrite
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if488
-.else488:
-    jmp    .fi488
-.if488:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi488:
-
-    pop     rbp
-    ret
-
-func.264: ; stack_assembler.bind.index'
-    push    rbp
-    mov     rbp, rsp
-
-    call    func.2 ; swp
-    call    func.1 ; dup
-    call    func.94 ; array.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.24 ; int.*
-    call    func.4 ; rot4
-    call    func.1 ; dup
-    call    func.3 ; rot
-    call    func.47 ; >=
-    call    stack_pop
-    test    rax, rax
-    jnz     .if489
-.else489:
-    call    func.53 ; dup2
-    call    func.142 ; array.get
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if490
-.else490:
-    jmp    .fi490
-.if490:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi490:
-    call    func.49 ; string.*
-    call    func.4 ; rot4
-    call    func.1 ; dup
-    call    func.3 ; rot
-    call    func.72 ; string.=
-    call    stack_pop
-    test    rax, rax
-    jnz     .if491
-.else491:
-    call    func.2 ; swp
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.62 ; rot'
-    call    func.264 ; stack_assembler.bind.index'
-    jmp    .fi491
-.if491:
-    call    func.2 ; swp
-    call    func.62 ; rot'
-    call    func.48 ; pop2
-.fi491:
-    jmp    .fi489
-.if489:
-    call    func.66 ; pop3
-    mov     rdi, literal.170 ; -1
-    call    stack_push_addr
-.fi489:
-
-    pop     rbp
-    ret
-
-func.265: ; stack_assembler.bind.index
-    push    rbp
-    mov     rbp, rsp
-
-    call    func.2 ; swp
-    call    func.260 ; stack_assembler.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.135 ; array.*
-    call    func.2 ; swp
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.62 ; rot'
-    call    func.264 ; stack_assembler.bind.index'
-
-    pop     rbp
-    ret
-
-func.266: ; stack_assembler.bind.append
-    push    rbp
-    mov     rbp, rsp
-
-    call    func.2 ; swp
-    call    func.260 ; stack_assembler.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.135 ; array.*
-    call    func.2 ; swp
-    call    func.40 ; string.&
-    call    func.85 ; array.append
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if492
-.else492:
-    jmp    .fi492
-.if492:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi492:
-
-    pop     rbp
-    ret
-
-func.267: ; stack_assembler.bind.pop
-    push    rbp
-    mov     rbp, rsp
-
-    call    func.260 ; stack_assembler.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.135 ; array.*
-    call    func.227 ; array.pop
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
@@ -76828,10 +76750,11 @@ func.267: ; stack_assembler.bind.pop
     pop     rbp
     ret
 
-func.268: ; stack_assembler.func.name'
+func.265: ; stack_assembler.bind.index'
     push    rbp
     mov     rbp, rsp
 
+    call    func.2 ; swp
     call    func.1 ; dup
     call    func.94 ; array.&
     mov     rdi, literal.8 ; 8
@@ -76902,17 +76825,59 @@ func.268: ; stack_assembler.func.name'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
-    call    func.2 ; swp
-    call    func.3 ; rot
-    call    func.268 ; stack_assembler.func.name'
+    call    func.62 ; rot'
+    call    func.265 ; stack_assembler.bind.index'
     jmp    .fi496
 .if496:
-    call    func.3 ; rot
+    call    func.2 ; swp
+    call    func.62 ; rot'
     call    func.48 ; pop2
 .fi496:
     jmp    .fi494
 .if494:
+    call    func.66 ; pop3
+    mov     rdi, literal.170 ; -1
+    call    stack_push_addr
+.fi494:
+
+    pop     rbp
+    ret
+
+func.266: ; stack_assembler.bind.index
+    push    rbp
+    mov     rbp, rsp
+
+    call    func.2 ; swp
+    call    func.261 ; stack_assembler.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.135 ; array.*
+    call    func.2 ; swp
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
     call    func.62 ; rot'
+    call    func.265 ; stack_assembler.bind.index'
+
+    pop     rbp
+    ret
+
+func.267: ; stack_assembler.bind.append
+    push    rbp
+    mov     rbp, rsp
+
+    call    func.2 ; swp
+    call    func.261 ; stack_assembler.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.135 ; array.*
     call    func.2 ; swp
     call    func.40 ; string.&
     call    func.85 ; array.append
@@ -76954,53 +76919,66 @@ func.268: ; stack_assembler.func.name'
     call    stack_push_addr
     call    func.36 ; sys.exit
 .fi497:
-.fi494:
 
     pop     rbp
     ret
 
-func.269: ; stack_assembler.func.name
+func.268: ; stack_assembler.bind.pop
     push    rbp
     mov     rbp, rsp
 
-    call    func.2 ; swp
-    call    func.260 ; stack_assembler.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
+    call    func.261 ; stack_assembler.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
-    call    func.7 ; +
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    mov     rdi, literal.0 ; 0
+    call    func.228 ; array.pop
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if498
+.else498:
+    jmp    .fi498
+.if498:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
-    call    func.62 ; rot'
-    call    func.268 ; stack_assembler.func.name'
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
     call    func.34 ; int.show
-    mov     rdi, literal.171 ; "func."
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
     call    stack_push_addr
     call    func.2 ; swp
-    call    func.33 ; string.concat
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi498:
 
     pop     rbp
     ret
 
-func.270: ; stack_assembler.literal.name'
+func.269: ; stack_assembler.func.name'
     push    rbp
     mov     rbp, rsp
 
@@ -77019,17 +76997,17 @@ func.270: ; stack_assembler.literal.name'
     call    func.47 ; >=
     call    stack_pop
     test    rax, rax
-    jnz     .if498
-.else498:
+    jnz     .if499
+.else499:
     call    func.53 ; dup2
     call    func.142 ; array.get
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if499
-.else499:
-    jmp    .fi499
-.if499:
+    jnz     .if500
+.else500:
+    jmp    .fi500
+.if500:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -77060,41 +77038,41 @@ func.270: ; stack_assembler.literal.name'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi499:
-    call    func.257 ; stack_literal.*
+.fi500:
+    call    func.49 ; string.*
     call    func.4 ; rot4
     call    func.1 ; dup
     call    func.3 ; rot
-    call    func.261 ; stack_literal.=
+    call    func.72 ; string.=
     call    stack_pop
     test    rax, rax
-    jnz     .if500
-.else500:
+    jnz     .if501
+.else501:
     call    func.2 ; swp
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.2 ; swp
     call    func.3 ; rot
-    call    func.270 ; stack_assembler.literal.name'
-    jmp    .fi500
-.if500:
+    call    func.269 ; stack_assembler.func.name'
+    jmp    .fi501
+.if501:
     call    func.3 ; rot
     call    func.48 ; pop2
-.fi500:
-    jmp    .fi498
-.if498:
+.fi501:
+    jmp    .fi499
+.if499:
     call    func.62 ; rot'
     call    func.2 ; swp
-    call    func.258 ; stack_literal.&
+    call    func.40 ; string.&
     call    func.85 ; array.append
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if501
-.else501:
-    jmp    .fi501
-.if501:
+    jnz     .if502
+.else502:
+    jmp    .fi502
+.if502:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -77125,18 +77103,190 @@ func.270: ; stack_assembler.literal.name'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi501:
-.fi498:
+.fi502:
+.fi499:
 
     pop     rbp
     ret
 
-func.271: ; stack_assembler.literal.name
+func.270: ; stack_assembler.func.name
     push    rbp
     mov     rbp, rsp
 
     call    func.2 ; swp
-    call    func.260 ; stack_assembler.&
+    call    func.261 ; stack_assembler.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.135 ; array.*
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.62 ; rot'
+    call    func.269 ; stack_assembler.func.name'
+    call    func.34 ; int.show
+    mov     rdi, literal.171 ; "func."
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.33 ; string.concat
+
+    pop     rbp
+    ret
+
+func.271: ; stack_assembler.literal.name'
+    push    rbp
+    mov     rbp, rsp
+
+    call    func.1 ; dup
+    call    func.94 ; array.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    call    func.4 ; rot4
+    call    func.1 ; dup
+    call    func.3 ; rot
+    call    func.47 ; >=
+    call    stack_pop
+    test    rax, rax
+    jnz     .if503
+.else503:
+    call    func.53 ; dup2
+    call    func.142 ; array.get
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if504
+.else504:
+    jmp    .fi504
+.if504:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi504:
+    call    func.258 ; stack_literal.*
+    call    func.4 ; rot4
+    call    func.1 ; dup
+    call    func.3 ; rot
+    call    func.262 ; stack_literal.=
+    call    stack_pop
+    test    rax, rax
+    jnz     .if505
+.else505:
+    call    func.2 ; swp
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.2 ; swp
+    call    func.3 ; rot
+    call    func.271 ; stack_assembler.literal.name'
+    jmp    .fi505
+.if505:
+    call    func.3 ; rot
+    call    func.48 ; pop2
+.fi505:
+    jmp    .fi503
+.if503:
+    call    func.62 ; rot'
+    call    func.2 ; swp
+    call    func.259 ; stack_literal.&
+    call    func.85 ; array.append
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if506
+.else506:
+    jmp    .fi506
+.if506:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi506:
+.fi503:
+
+    pop     rbp
+    ret
+
+func.272: ; stack_assembler.literal.name
+    push    rbp
+    mov     rbp, rsp
+
+    call    func.2 ; swp
+    call    func.261 ; stack_assembler.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.8 ; 8
@@ -77177,7 +77327,7 @@ func.271: ; stack_assembler.literal.name
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.62 ; rot'
-    call    func.270 ; stack_assembler.literal.name'
+    call    func.271 ; stack_assembler.literal.name'
     call    func.34 ; int.show
     mov     rdi, literal.172 ; "literal."
     call    stack_push_addr
@@ -77187,7 +77337,7 @@ func.271: ; stack_assembler.literal.name
     pop     rbp
     ret
 
-func.272: ; stack_assembler.emit.expr.number
+func.273: ; stack_assembler.emit.expr.number
     push    rbp
     mov     rbp, rsp
 
@@ -77326,8 +77476,8 @@ func.272: ; stack_assembler.emit.expr.number
     call    stack_push_addr
     call    func.22 ; ptr.@
     call    func.5 ; pop
-    call    func.257 ; stack_literal.*
-    call    func.271 ; stack_assembler.literal.name
+    call    func.258 ; stack_literal.*
+    call    func.272 ; stack_assembler.literal.name
     mov     rdi, literal.173 ; "    mov     rdi, "
     call    stack_push_addr
     call    func.2 ; swp
@@ -77337,17 +77487,17 @@ func.272: ; stack_assembler.emit.expr.number
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.5 ; pop
 
     pop     rbp
     ret
 
-func.273: ; stack_assembler.emit.expr.boolean
+func.274: ; stack_assembler.emit.expr.boolean
     push    rbp
     mov     rbp, rsp
 
@@ -77486,8 +77636,8 @@ func.273: ; stack_assembler.emit.expr.boolean
     call    stack_push_addr
     call    func.22 ; ptr.@
     call    func.5 ; pop
-    call    func.257 ; stack_literal.*
-    call    func.271 ; stack_assembler.literal.name
+    call    func.258 ; stack_literal.*
+    call    func.272 ; stack_assembler.literal.name
     mov     rdi, literal.173 ; "    mov     rdi, "
     call    stack_push_addr
     call    func.2 ; swp
@@ -77497,17 +77647,17 @@ func.273: ; stack_assembler.emit.expr.boolean
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.5 ; pop
 
     pop     rbp
     ret
 
-func.274: ; stack_assembler.emit.expr.string
+func.275: ; stack_assembler.emit.expr.string
     push    rbp
     mov     rbp, rsp
 
@@ -77646,8 +77796,8 @@ func.274: ; stack_assembler.emit.expr.string
     call    stack_push_addr
     call    func.22 ; ptr.@
     call    func.5 ; pop
-    call    func.257 ; stack_literal.*
-    call    func.271 ; stack_assembler.literal.name
+    call    func.258 ; stack_literal.*
+    call    func.272 ; stack_assembler.literal.name
     mov     rdi, literal.173 ; "    mov     rdi, "
     call    stack_push_addr
     call    func.2 ; swp
@@ -77657,24 +77807,24 @@ func.274: ; stack_assembler.emit.expr.string
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.5 ; pop
 
     pop     rbp
     ret
 
-func.275: ; stack_assembler.emit.pretty_call
+func.276: ; stack_assembler.emit.pretty_call
     push    rbp
     mov     rbp, rsp
 
     call    func.1 ; dup
     call    func.3 ; rot
     call    func.2 ; swp
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.176 ; "    call    "
     call    stack_push_addr
     call    func.2 ; swp
@@ -77688,7 +77838,7 @@ func.275: ; stack_assembler.emit.pretty_call
     pop     rbp
     ret
 
-func.276: ; stack_assembler.emit.push_bind
+func.277: ; stack_assembler.emit.push_bind
     push    rbp
     mov     rbp, rsp
 
@@ -77710,17 +77860,17 @@ func.276: ; stack_assembler.emit.push_bind
     call    func.3 ; rot
     call    func.1 ; dup
     call    func.3 ; rot
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.48 ; pop2
 
     pop     rbp
     ret
 
-func.277: ; stack_assembler.emit.expr.name
+func.278: ; stack_assembler.emit.expr.name
     push    rbp
     mov     rbp, rsp
 
@@ -77805,15 +77955,15 @@ func.277: ; stack_assembler.emit.expr.name
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.49 ; string.*
-    call    func.265 ; stack_assembler.bind.index
+    call    func.266 ; stack_assembler.bind.index
     call    func.1 ; dup
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.47 ; >=
     call    stack_pop
     test    rax, rax
-    jnz     .if502
-.else502:
+    jnz     .if507
+.else507:
     call    func.5 ; pop
     call    func.53 ; dup2
     call    func.90 ; stack_ast_node.&
@@ -77896,15 +78046,15 @@ func.277: ; stack_assembler.emit.expr.name
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.49 ; string.*
-    call    func.275 ; stack_assembler.emit.pretty_call
+    call    func.276 ; stack_assembler.emit.pretty_call
     call    func.2 ; swp
     call    func.5 ; pop
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.3 ; rot
-    call    func.263 ; emit
-    jmp    .fi502
-.if502:
+    call    func.264 ; emit
+    jmp    .fi507
+.if507:
     call    func.71 ; dup3
     call    func.2 ; swp
     call    func.90 ; stack_ast_node.&
@@ -77987,21 +78137,21 @@ func.277: ; stack_assembler.emit.expr.name
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.49 ; string.*
-    call    func.276 ; stack_assembler.emit.push_bind
+    call    func.277 ; stack_assembler.emit.push_bind
     call    func.48 ; pop2
-.fi502:
+.fi507:
     call    func.5 ; pop
 
     pop     rbp
     ret
 
-func.278: ; stack_assembler.emit.expr.cond
+func.279: ; stack_assembler.emit.expr.cond
     push    rbp
     mov     rbp, rsp
 
     call    func.2 ; swp
     call    func.1 ; dup
-    call    func.260 ; stack_assembler.&
+    call    func.261 ; stack_assembler.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.8 ; 8
@@ -78065,7 +78215,7 @@ func.278: ; stack_assembler.emit.expr.cond
     call    func.62 ; rot'
     call    func.53 ; dup2
     call    func.2 ; swp
-    call    func.260 ; stack_assembler.&
+    call    func.261 ; stack_assembler.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.8 ; 8
@@ -78127,11 +78277,11 @@ func.278: ; stack_assembler.emit.expr.cond
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.180 ; "    test    rax, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.53 ; dup2
     call    func.2 ; swp
     call    func.34 ; int.show
@@ -78139,7 +78289,7 @@ func.278: ; stack_assembler.emit.expr.cond
     call    stack_push_addr
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.53 ; dup2
     call    func.2 ; swp
     call    func.34 ; int.show
@@ -78150,7 +78300,7 @@ func.278: ; stack_assembler.emit.expr.cond
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.3 ; rot
     call    func.53 ; dup2
     call    func.105 ; stack_ast_cond.&
@@ -78263,7 +78413,7 @@ func.278: ; stack_assembler.emit.expr.cond
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.279 ; stack_assembler.emit.exprs
+    call    func.280 ; stack_assembler.emit.exprs
     call    func.62 ; rot'
     call    func.53 ; dup2
     call    func.2 ; swp
@@ -78272,7 +78422,7 @@ func.278: ; stack_assembler.emit.expr.cond
     call    stack_push_addr
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.53 ; dup2
     call    func.2 ; swp
     call    func.34 ; int.show
@@ -78283,7 +78433,7 @@ func.278: ; stack_assembler.emit.expr.cond
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.3 ; rot
     call    func.53 ; dup2
     call    func.105 ; stack_ast_cond.&
@@ -78381,7 +78531,7 @@ func.278: ; stack_assembler.emit.expr.cond
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.279 ; stack_assembler.emit.exprs
+    call    func.280 ; stack_assembler.emit.exprs
     call    func.62 ; rot'
     call    func.53 ; dup2
     call    func.2 ; swp
@@ -78393,13 +78543,13 @@ func.278: ; stack_assembler.emit.expr.cond
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.66 ; pop3
 
     pop     rbp
     ret
 
-func.280: ; stack_assembler.emit.expr.match.binds
+func.281: ; stack_assembler.emit.expr.match.binds
     push    rbp
     mov     rbp, rsp
 
@@ -78517,18 +78667,18 @@ func.280: ; stack_assembler.emit.expr.match.binds
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if503
-.else503:
+    jnz     .if508
+.else508:
     call    func.66 ; pop3
-    jmp    .fi503
-.if503:
+    jmp    .fi508
+.if508:
     call    func.2 ; swp
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
-    call    func.260 ; stack_assembler.&
+    call    func.261 ; stack_assembler.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
     mov     rdi, literal.0 ; 0
@@ -78680,7 +78830,7 @@ func.280: ; stack_assembler.emit.expr.match.binds
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.3 ; rot
-    call    func.263 ; emit
+    call    func.264 ; emit
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.6 ; pick
@@ -78788,10 +78938,10 @@ func.280: ; stack_assembler.emit.expr.match.binds
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if504
-.else504:
-    jmp    .fi504
-.if504:
+    jnz     .if509
+.else509:
+    jmp    .fi509
+.if509:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -78822,7 +78972,7 @@ func.280: ; stack_assembler.emit.expr.match.binds
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi504:
+.fi509:
     call    func.89 ; stack_ast_node.*
     call    func.90 ; stack_ast_node.&
     mov     rdi, literal.0 ; 0
@@ -78907,22 +79057,22 @@ func.280: ; stack_assembler.emit.expr.match.binds
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.6 ; pick
-    call    func.259 ; stack_assembler.*
+    call    func.260 ; stack_assembler.*
     call    func.2 ; swp
-    call    func.266 ; stack_assembler.bind.append
+    call    func.267 ; stack_assembler.bind.append
     call    func.2 ; swp
     call    func.3 ; rot
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.62 ; rot'
-    call    func.280 ; stack_assembler.emit.expr.match.binds
-.fi503:
+    call    func.281 ; stack_assembler.emit.expr.match.binds
+.fi508:
 
     pop     rbp
     ret
 
-func.281: ; stack_assembler.emit.expr.match.binds_pop
+func.282: ; stack_assembler.emit.expr.match.binds_pop
     push    rbp
     mov     rbp, rsp
 
@@ -79040,27 +79190,27 @@ func.281: ; stack_assembler.emit.expr.match.binds_pop
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if505
-.else505:
+    jnz     .if510
+.else510:
     call    func.66 ; pop3
-    jmp    .fi505
-.if505:
+    jmp    .fi510
+.if510:
     call    func.2 ; swp
     call    func.1 ; dup
-    call    func.267 ; stack_assembler.bind.pop
+    call    func.268 ; stack_assembler.bind.pop
     call    func.2 ; swp
     call    func.3 ; rot
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.62 ; rot'
-    call    func.281 ; stack_assembler.emit.expr.match.binds_pop
-.fi505:
+    call    func.282 ; stack_assembler.emit.expr.match.binds_pop
+.fi510:
 
     pop     rbp
     ret
 
-func.282: ; stack_assembler.emit.expr.match
+func.283: ; stack_assembler.emit.expr.match
     push    rbp
     mov     rbp, rsp
 
@@ -79181,13 +79331,13 @@ func.282: ; stack_assembler.emit.expr.match
     call    func.3 ; rot
     call    func.1 ; dup
     call    func.3 ; rot
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.53 ; dup2
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.62 ; rot'
-    call    func.280 ; stack_assembler.emit.expr.match.binds
+    call    func.281 ; stack_assembler.emit.expr.match.binds
     call    func.53 ; dup2
     call    func.2 ; swp
     call    func.104 ; stack_ast_match.&
@@ -79300,7 +79450,7 @@ func.282: ; stack_assembler.emit.expr.match
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.279 ; stack_assembler.emit.exprs
+    call    func.280 ; stack_assembler.emit.exprs
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.104 ; stack_ast_match.&
@@ -79417,25 +79567,25 @@ func.282: ; stack_assembler.emit.expr.match
     call    func.3 ; rot
     call    func.1 ; dup
     call    func.3 ; rot
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.53 ; dup2
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.62 ; rot'
-    call    func.281 ; stack_assembler.emit.expr.match.binds_pop
+    call    func.282 ; stack_assembler.emit.expr.match.binds_pop
     call    func.48 ; pop2
 
     pop     rbp
     ret
 
-func.283: ; stack_assembler.emit.expr.while
+func.284: ; stack_assembler.emit.expr.while
     push    rbp
     mov     rbp, rsp
 
     call    func.2 ; swp
     call    func.1 ; dup
-    call    func.260 ; stack_assembler.&
+    call    func.261 ; stack_assembler.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.8 ; 8
@@ -79501,7 +79651,7 @@ func.283: ; stack_assembler.emit.expr.while
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     call    func.1 ; dup
-    call    func.260 ; stack_assembler.&
+    call    func.261 ; stack_assembler.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.8 ; 8
@@ -79558,7 +79708,7 @@ func.283: ; stack_assembler.emit.expr.while
     call    stack_push_addr
     call    func.7 ; +
     call    func.2 ; swp
-    call    func.260 ; stack_assembler.&
+    call    func.261 ; stack_assembler.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.8 ; 8
@@ -79627,7 +79777,7 @@ func.283: ; stack_assembler.emit.expr.while
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     mov     rdi, qword [rbp - 8]
@@ -79727,17 +79877,17 @@ func.283: ; stack_assembler.emit.expr.while
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.279 ; stack_assembler.emit.exprs
+    call    func.280 ; stack_assembler.emit.exprs
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     mov     rdi, literal.180 ; "    test    rax, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     mov     rdi, literal.192 ; "    jz     .pool"
@@ -79746,7 +79896,7 @@ func.283: ; stack_assembler.emit.expr.while
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     mov     rdi, literal.193 ; ".loop"
@@ -79758,7 +79908,7 @@ func.283: ; stack_assembler.emit.expr.while
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     mov     rdi, qword [rbp - 8]
@@ -79873,7 +80023,7 @@ func.283: ; stack_assembler.emit.expr.while
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.279 ; stack_assembler.emit.exprs
+    call    func.280 ; stack_assembler.emit.exprs
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     mov     rdi, literal.194 ; "    jmp     .while"
@@ -79882,7 +80032,7 @@ func.283: ; stack_assembler.emit.expr.while
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     mov     rdi, literal.195 ; ".pool"
@@ -79894,13 +80044,13 @@ func.283: ; stack_assembler.emit.expr.while
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     add     rsp, 24
 
     pop     rbp
     ret
 
-func.284: ; stack_assembler.emit.expr
+func.285: ; stack_assembler.emit.expr
     push    rbp
     mov     rbp, rsp
 
@@ -79916,62 +80066,62 @@ func.284: ; stack_assembler.emit.expr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if506
-.else506:
+    jnz     .if511
+.else511:
     call    func.1 ; dup
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if507
-.else507:
+    jnz     .if512
+.else512:
     call    func.1 ; dup
     mov     rdi, literal.2 ; 2
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if508
-.else508:
+    jnz     .if513
+.else513:
     call    func.1 ; dup
     mov     rdi, literal.3 ; 3
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if509
-.else509:
+    jnz     .if514
+.else514:
     call    func.1 ; dup
     mov     rdi, literal.4 ; 4
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if510
-.else510:
+    jnz     .if515
+.else515:
     call    func.1 ; dup
     mov     rdi, literal.5 ; 5
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if511
-.else511:
+    jnz     .if516
+.else516:
     call    func.1 ; dup
     mov     rdi, literal.6 ; 6
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if512
-.else512:
+    jnz     .if517
+.else517:
     mov     rdi, literal.22 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -79997,6 +80147,76 @@ func.284: ; stack_assembler.emit.expr
     call    stack_push_addr
     call    func.36 ; sys.exit
     call    func.66 ; pop3
+    jmp    .fi517
+.if517:
+    call    func.5 ; pop
+    call    func.84 ; stack_ast_expr.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.26 ; ptr.*
+    call    func.100 ; stack_ast_while.*
+    call    func.284 ; stack_assembler.emit.expr.while
+.fi517:
+    jmp    .fi516
+.if516:
+    call    func.5 ; pop
+    call    func.84 ; stack_ast_expr.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.26 ; ptr.*
+    call    func.98 ; stack_ast_match.*
+    call    func.283 ; stack_assembler.emit.expr.match
+.fi516:
+    jmp    .fi515
+.if515:
+    call    func.5 ; pop
+    call    func.84 ; stack_ast_expr.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.26 ; ptr.*
+    call    func.95 ; stack_ast_cond.*
+    call    func.279 ; stack_assembler.emit.expr.cond
+.fi515:
+    jmp    .fi514
+.if514:
+    call    func.5 ; pop
+    call    func.84 ; stack_ast_expr.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.26 ; ptr.*
+    call    func.89 ; stack_ast_node.*
+    call    func.278 ; stack_assembler.emit.expr.name
+.fi514:
+    jmp    .fi513
+.if513:
+    call    func.5 ; pop
+    call    func.84 ; stack_ast_expr.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.26 ; ptr.*
+    call    func.89 ; stack_ast_node.*
+    call    func.275 ; stack_assembler.emit.expr.string
+.fi513:
     jmp    .fi512
 .if512:
     call    func.5 ; pop
@@ -80008,8 +80228,8 @@ func.284: ; stack_assembler.emit.expr
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.26 ; ptr.*
-    call    func.100 ; stack_ast_while.*
-    call    func.283 ; stack_assembler.emit.expr.while
+    call    func.89 ; stack_ast_node.*
+    call    func.274 ; stack_assembler.emit.expr.boolean
 .fi512:
     jmp    .fi511
 .if511:
@@ -80022,84 +80242,14 @@ func.284: ; stack_assembler.emit.expr
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.26 ; ptr.*
-    call    func.98 ; stack_ast_match.*
-    call    func.282 ; stack_assembler.emit.expr.match
+    call    func.89 ; stack_ast_node.*
+    call    func.273 ; stack_assembler.emit.expr.number
 .fi511:
-    jmp    .fi510
-.if510:
-    call    func.5 ; pop
-    call    func.84 ; stack_ast_expr.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.26 ; ptr.*
-    call    func.95 ; stack_ast_cond.*
-    call    func.278 ; stack_assembler.emit.expr.cond
-.fi510:
-    jmp    .fi509
-.if509:
-    call    func.5 ; pop
-    call    func.84 ; stack_ast_expr.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.26 ; ptr.*
-    call    func.89 ; stack_ast_node.*
-    call    func.277 ; stack_assembler.emit.expr.name
-.fi509:
-    jmp    .fi508
-.if508:
-    call    func.5 ; pop
-    call    func.84 ; stack_ast_expr.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.26 ; ptr.*
-    call    func.89 ; stack_ast_node.*
-    call    func.274 ; stack_assembler.emit.expr.string
-.fi508:
-    jmp    .fi507
-.if507:
-    call    func.5 ; pop
-    call    func.84 ; stack_ast_expr.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.26 ; ptr.*
-    call    func.89 ; stack_ast_node.*
-    call    func.273 ; stack_assembler.emit.expr.boolean
-.fi507:
-    jmp    .fi506
-.if506:
-    call    func.5 ; pop
-    call    func.84 ; stack_ast_expr.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.26 ; ptr.*
-    call    func.89 ; stack_ast_node.*
-    call    func.272 ; stack_assembler.emit.expr.number
-.fi506:
 
     pop     rbp
     ret
 
-func.285: ; stack_assembler.emit.exprs'
+func.286: ; stack_assembler.emit.exprs'
     push    rbp
     mov     rbp, rsp
 
@@ -80118,17 +80268,17 @@ func.285: ; stack_assembler.emit.exprs'
     call    func.47 ; >=
     call    stack_pop
     test    rax, rax
-    jnz     .if513
-.else513:
+    jnz     .if518
+.else518:
     call    func.53 ; dup2
     call    func.142 ; array.get
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if514
-.else514:
-    jmp    .fi514
-.if514:
+    jnz     .if519
+.else519:
+    jmp    .fi519
+.if519:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -80159,46 +80309,46 @@ func.285: ; stack_assembler.emit.exprs'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi514:
+.fi519:
     call    func.102 ; stack_ast_expr.*
     call    func.4 ; rot4
     call    func.1 ; dup
     call    func.3 ; rot
-    call    func.284 ; stack_assembler.emit.expr
+    call    func.285 ; stack_assembler.emit.expr
     call    func.62 ; rot'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.62 ; rot'
-    call    func.285 ; stack_assembler.emit.exprs'
-    jmp    .fi513
-.if513:
+    call    func.286 ; stack_assembler.emit.exprs'
+    jmp    .fi518
+.if518:
     call    func.66 ; pop3
-.fi513:
+.fi518:
 
     pop     rbp
     ret
 
-func.279: ; stack_assembler.emit.exprs
+func.280: ; stack_assembler.emit.exprs
     push    rbp
     mov     rbp, rsp
 
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.62 ; rot'
-    call    func.285 ; stack_assembler.emit.exprs'
+    call    func.286 ; stack_assembler.emit.exprs'
 
     pop     rbp
     ret
 
-func.286: ; stack_assembler.emit.pretty_func
+func.287: ; stack_assembler.emit.pretty_func
     push    rbp
     mov     rbp, rsp
 
     call    func.1 ; dup
     call    func.3 ; rot
     call    func.2 ; swp
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
@@ -80211,7 +80361,7 @@ func.286: ; stack_assembler.emit.pretty_func
     pop     rbp
     ret
 
-func.287: ; stack_assembler.emit.func
+func.288: ; stack_assembler.emit.func
     push    rbp
     mov     rbp, rsp
 
@@ -80304,7 +80454,7 @@ func.287: ; stack_assembler.emit.func
     call    func.2 ; swp
     call    func.62 ; rot'
     call    func.53 ; dup2
-    call    func.286 ; stack_assembler.emit.pretty_func
+    call    func.287 ; stack_assembler.emit.pretty_func
     call    func.2 ; swp
     call    func.5 ; pop
     call    func.2 ; swp
@@ -80312,19 +80462,19 @@ func.287: ; stack_assembler.emit.func
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.4 ; rot4
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.196 ; "    push    rbp"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.197 ; "    mov     rbp, rsp"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.53 ; dup2
     call    func.2 ; swp
     call    func.127 ; stack_ast_func.&
@@ -80452,29 +80602,29 @@ func.287: ; stack_assembler.emit.func
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.279 ; stack_assembler.emit.exprs
+    call    func.280 ; stack_assembler.emit.exprs
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.198 ; "    pop     rbp"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.48 ; pop2
 
     pop     rbp
     ret
 
-func.288: ; stack_assembler.emit.data
+func.289: ; stack_assembler.emit.data
     push    rbp
     mov     rbp, rsp
 
@@ -80571,7 +80721,7 @@ func.288: ; stack_assembler.emit.data
     call    func.1 ; dup
     call    func.69 ; rot4'
     call    func.2 ; swp
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
@@ -80579,51 +80729,51 @@ func.288: ; stack_assembler.emit.data
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.4 ; rot4
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.196 ; "    push    rbp"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.197 ; "    mov     rbp, rsp"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.200 ; "    ; ref data"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.198 ; "    pop     rbp"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.126 ; stack_ast_data.&
@@ -80718,7 +80868,7 @@ func.288: ; stack_assembler.emit.data
     call    func.1 ; dup
     call    func.69 ; rot4'
     call    func.2 ; swp
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
@@ -80726,58 +80876,58 @@ func.288: ; stack_assembler.emit.data
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.4 ; rot4
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.196 ; "    push    rbp"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.197 ; "    mov     rbp, rsp"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.200 ; "    ; ref data"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.198 ; "    pop     rbp"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.2 ; swp
     call    func.48 ; pop2
 
     pop     rbp
     ret
 
-func.289: ; stack_assembler.emit.feature
+func.290: ; stack_assembler.emit.feature
     push    rbp
     mov     rbp, rsp
 
@@ -80793,38 +80943,38 @@ func.289: ; stack_assembler.emit.feature
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if515
-.else515:
+    jnz     .if520
+.else520:
     call    func.1 ; dup
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if516
-.else516:
+    jnz     .if521
+.else521:
     call    func.1 ; dup
     mov     rdi, literal.2 ; 2
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if517
-.else517:
+    jnz     .if522
+.else522:
     call    func.1 ; dup
     mov     rdi, literal.3 ; 3
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if518
-.else518:
+    jnz     .if523
+.else523:
     mov     rdi, literal.22 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -80850,16 +81000,16 @@ func.289: ; stack_assembler.emit.feature
     call    stack_push_addr
     call    func.36 ; sys.exit
     call    func.66 ; pop3
-    jmp    .fi518
-.if518:
+    jmp    .fi523
+.if523:
     call    func.66 ; pop3
-.fi518:
-    jmp    .fi517
-.if517:
+.fi523:
+    jmp    .fi522
+.if522:
     call    func.66 ; pop3
-.fi517:
-    jmp    .fi516
-.if516:
+.fi522:
+    jmp    .fi521
+.if521:
     call    func.5 ; pop
     call    func.131 ; stack_ast_feature.&
     mov     rdi, literal.8 ; 8
@@ -80870,10 +81020,10 @@ func.289: ; stack_assembler.emit.feature
     call    func.21 ; ptr.+
     call    func.26 ; ptr.*
     call    func.107 ; stack_ast_func.*
-    call    func.287 ; stack_assembler.emit.func
-.fi516:
-    jmp    .fi515
-.if515:
+    call    func.288 ; stack_assembler.emit.func
+.fi521:
+    jmp    .fi520
+.if520:
     call    func.5 ; pop
     call    func.131 ; stack_ast_feature.&
     mov     rdi, literal.8 ; 8
@@ -80884,13 +81034,13 @@ func.289: ; stack_assembler.emit.feature
     call    func.21 ; ptr.+
     call    func.26 ; ptr.*
     call    func.113 ; stack_ast_data.*
-    call    func.288 ; stack_assembler.emit.data
-.fi515:
+    call    func.289 ; stack_assembler.emit.data
+.fi520:
 
     pop     rbp
     ret
 
-func.290: ; stack_assembler.emit.ast.features'
+func.291: ; stack_assembler.emit.ast.features'
     push    rbp
     mov     rbp, rsp
 
@@ -80909,17 +81059,17 @@ func.290: ; stack_assembler.emit.ast.features'
     call    func.47 ; >=
     call    stack_pop
     test    rax, rax
-    jnz     .if519
-.else519:
+    jnz     .if524
+.else524:
     call    func.53 ; dup2
     call    func.142 ; array.get
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if520
-.else520:
-    jmp    .fi520
-.if520:
+    jnz     .if525
+.else525:
+    jmp    .fi525
+.if525:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -80950,39 +81100,39 @@ func.290: ; stack_assembler.emit.ast.features'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi520:
+.fi525:
     call    func.130 ; stack_ast_feature.*
     call    func.4 ; rot4
     call    func.1 ; dup
     call    func.3 ; rot
-    call    func.289 ; stack_assembler.emit.feature
+    call    func.290 ; stack_assembler.emit.feature
     call    func.62 ; rot'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.62 ; rot'
-    call    func.290 ; stack_assembler.emit.ast.features'
-    jmp    .fi519
-.if519:
+    call    func.291 ; stack_assembler.emit.ast.features'
+    jmp    .fi524
+.if524:
     call    func.66 ; pop3
-.fi519:
+.fi524:
 
     pop     rbp
     ret
 
-func.291: ; stack_assembler.emit.ast.features
+func.292: ; stack_assembler.emit.ast.features
     push    rbp
     mov     rbp, rsp
 
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.62 ; rot'
-    call    func.290 ; stack_assembler.emit.ast.features'
+    call    func.291 ; stack_assembler.emit.ast.features'
 
     pop     rbp
     ret
 
-func.292: ; stack_assembler.emit.ast
+func.293: ; stack_assembler.emit.ast
     push    rbp
     mov     rbp, rsp
 
@@ -80990,11 +81140,11 @@ func.292: ; stack_assembler.emit.ast
     call    func.1 ; dup
     mov     rdi, literal.203 ; "section '.text' executable"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.53 ; dup2
     call    func.2 ; swp
     call    func.133 ; stack_ast.&
@@ -81002,13 +81152,13 @@ func.292: ; stack_assembler.emit.ast
     call    stack_push_addr
     call    func.21 ; ptr.+
     call    func.135 ; array.*
-    call    func.291 ; stack_assembler.emit.ast.features
+    call    func.292 ; stack_assembler.emit.ast.features
     call    func.48 ; pop2
 
     pop     rbp
     ret
 
-func.293: ; stack_assembler.emit.string.interpret'
+func.294: ; stack_assembler.emit.string.interpret'
     push    rbp
     mov     rbp, rsp
 
@@ -81022,11 +81172,11 @@ func.293: ; stack_assembler.emit.string.interpret'
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if521
-.else521:
+    jnz     .if526
+.else526:
     call    func.48 ; pop2
-    jmp    .fi521
-.if521:
+    jmp    .fi526
+.if526:
     call    func.53 ; dup2
     call    func.2 ; swp
     call    func.50 ; string.!!
@@ -81035,20 +81185,20 @@ func.293: ; stack_assembler.emit.string.interpret'
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if522
-.else522:
+    jnz     .if527
+.else527:
     call    func.53 ; dup2
     call    func.2 ; swp
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
-    call    func.294 ; string.substr
+    call    func.295 ; string.substr
     call    func.3 ; rot
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.62 ; rot'
-    jmp    .fi522
-.if522:
+    jmp    .fi527
+.if527:
     call    func.53 ; dup2
     call    func.2 ; swp
     mov     rdi, literal.1 ; 1
@@ -81061,40 +81211,40 @@ func.293: ; stack_assembler.emit.string.interpret'
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if523
-.else523:
+    jnz     .if528
+.else528:
     call    func.1 ; dup
     mov     rdi, literal.205 ; 116
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if524
-.else524:
+    jnz     .if529
+.else529:
     call    func.1 ; dup
     mov     rdi, literal.206 ; 98
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if525
-.else525:
+    jnz     .if530
+.else530:
     call    func.1 ; dup
     mov     rdi, literal.207 ; 102
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if526
-.else526:
+    jnz     .if531
+.else531:
     call    func.1 ; dup
     mov     rdi, literal.208 ; 114
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if527
-.else527:
+    jnz     .if532
+.else532:
     call    func.5 ; pop
     call    func.53 ; dup2
     call    func.2 ; swp
@@ -81103,48 +81253,48 @@ func.293: ; stack_assembler.emit.string.interpret'
     call    func.7 ; +
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
-    call    func.294 ; string.substr
-    jmp    .fi527
-.if527:
+    call    func.295 ; string.substr
+    jmp    .fi532
+.if532:
     call    func.5 ; pop
     mov     rdi, literal.209 ; "\r"
     call    stack_push_addr
-.fi527:
-    jmp    .fi526
-.if526:
+.fi532:
+    jmp    .fi531
+.if531:
     call    func.5 ; pop
     mov     rdi, literal.210 ; "\f"
     call    stack_push_addr
-.fi526:
-    jmp    .fi525
-.if525:
+.fi531:
+    jmp    .fi530
+.if530:
     call    func.5 ; pop
     mov     rdi, literal.211 ; "\b"
     call    stack_push_addr
-.fi525:
-    jmp    .fi524
-.if524:
+.fi530:
+    jmp    .fi529
+.if529:
     call    func.5 ; pop
     mov     rdi, literal.212 ; "\t"
     call    stack_push_addr
-.fi524:
-    jmp    .fi523
-.if523:
+.fi529:
+    jmp    .fi528
+.if528:
     call    func.5 ; pop
     mov     rdi, literal.75 ; "\n"
     call    stack_push_addr
-.fi523:
+.fi528:
     call    func.3 ; rot
     mov     rdi, literal.2 ; 2
     call    stack_push_addr
     call    func.7 ; +
     call    func.62 ; rot'
-.fi522:
+.fi527:
     call    func.4 ; rot4
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.293 ; stack_assembler.emit.string.interpret'
-.fi521:
+    call    func.294 ; stack_assembler.emit.string.interpret'
+.fi526:
 
     pop     rbp
     ret
@@ -81165,18 +81315,18 @@ func.117: ; stack_assembler.emit.string.interpret
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.2 ; swp
-    call    func.294 ; string.substr
+    call    func.295 ; string.substr
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.2 ; swp
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.293 ; stack_assembler.emit.string.interpret'
+    call    func.294 ; stack_assembler.emit.string.interpret'
 
     pop     rbp
     ret
 
-func.295: ; stack_assembler.emit.literal.string.helper'
+func.296: ; stack_assembler.emit.literal.string.helper'
     push    rbp
     mov     rbp, rsp
 
@@ -81190,11 +81340,11 @@ func.295: ; stack_assembler.emit.literal.string.helper'
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if528
-.else528:
+    jnz     .if533
+.else533:
     call    func.48 ; pop2
-    jmp    .fi528
-.if528:
+    jmp    .fi533
+.if533:
     call    func.2 ; swp
     call    func.1 ; dup
     mov     rdi, literal.0 ; 0
@@ -81202,18 +81352,18 @@ func.295: ; stack_assembler.emit.literal.string.helper'
     call    func.17 ; >
     call    stack_pop
     test    rax, rax
-    jnz     .if529
-.else529:
+    jnz     .if534
+.else534:
     call    func.2 ; swp
-    jmp    .fi529
-.if529:
+    jmp    .fi534
+.if534:
     call    func.3 ; rot
     mov     rdi, literal.38 ; ","
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.62 ; rot'
     call    func.2 ; swp
-.fi529:
+.fi534:
     call    func.53 ; dup2
     call    func.2 ; swp
     call    func.50 ; string.!!
@@ -81226,13 +81376,13 @@ func.295: ; stack_assembler.emit.literal.string.helper'
     call    func.4 ; rot4
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.295 ; stack_assembler.emit.literal.string.helper'
-.fi528:
+    call    func.296 ; stack_assembler.emit.literal.string.helper'
+.fi533:
 
     pop     rbp
     ret
 
-func.296: ; stack_assembler.emit.literal.string.helper
+func.297: ; stack_assembler.emit.literal.string.helper
     push    rbp
     mov     rbp, rsp
 
@@ -81248,15 +81398,15 @@ func.296: ; stack_assembler.emit.literal.string.helper
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if530
-.else530:
+    jnz     .if535
+.else535:
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.2 ; swp
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.295 ; stack_assembler.emit.literal.string.helper'
+    call    func.296 ; stack_assembler.emit.literal.string.helper'
     mov     rdi, literal.213 ; ",0"
     call    stack_push_addr
     call    func.3 ; rot
@@ -81265,29 +81415,29 @@ func.296: ; stack_assembler.emit.literal.string.helper
     call    func.2 ; swp
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
-    call    func.297 ; mod
+    call    func.298 ; mod
     call    func.8 ; -
     call    func.139 ; string.repeat
     call    func.33 ; string.concat
     call    func.33 ; string.concat
-    jmp    .fi530
-.if530:
+    jmp    .fi535
+.if535:
     call    func.48 ; pop2
     mov     rdi, literal.214 ; "0"
     call    stack_push_addr
     call    func.33 ; string.concat
-.fi530:
+.fi535:
 
     pop     rbp
     ret
 
-func.298: ; stack_assembler.emit.literal
+func.299: ; stack_assembler.emit.literal
     push    rbp
     mov     rbp, rsp
 
     call    func.62 ; rot'
     call    func.1 ; dup
-    call    func.258 ; stack_literal.&
+    call    func.259 ; stack_literal.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
     mov     rdi, literal.0 ; 0
@@ -81296,7 +81446,7 @@ func.298: ; stack_assembler.emit.literal
     call    func.21 ; ptr.+
     call    func.49 ; string.*
     call    func.2 ; swp
-    call    func.258 ; stack_literal.&
+    call    func.259 ; stack_literal.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.21 ; ptr.+
@@ -81307,30 +81457,30 @@ func.298: ; stack_assembler.emit.literal
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if531
-.else531:
+    jnz     .if536
+.else536:
     call    func.1 ; dup
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if532
-.else532:
+    jnz     .if537
+.else537:
     call    func.1 ; dup
     mov     rdi, literal.2 ; 2
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if533
-.else533:
+    jnz     .if538
+.else538:
     mov     rdi, literal.22 ; "stack.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
     call    stack_push_addr
     call    func.33 ; string.concat
-    mov     rdi, literal.24 ; 3871
+    mov     rdi, literal.24 ; 3862
     call    stack_push_addr
     call    func.34 ; int.show
     call    func.33 ; string.concat
@@ -81357,8 +81507,8 @@ func.298: ; stack_assembler.emit.literal
     call    func.36 ; sys.exit
     call    func.66 ; pop3
     call    func.5 ; pop
-    jmp    .fi533
-.if533:
+    jmp    .fi538
+.if538:
     call    func.5 ; pop
     call    func.117 ; stack_assembler.emit.string.interpret
     mov     rdi, literal.172 ; "literal."
@@ -81385,13 +81535,13 @@ func.298: ; stack_assembler.emit.literal
     call    func.4 ; rot4
     call    func.1 ; dup
     call    func.3 ; rot
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.71 ; dup3
     mov     rdi, literal.216 ; "          dq string."
     call    stack_push_addr
     call    func.4 ; rot4
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.5 ; pop
     call    func.71 ; dup3
     mov     rdi, literal.217 ; "string."
@@ -81404,14 +81554,14 @@ func.298: ; stack_assembler.emit.literal
     call    func.2 ; swp
     call    func.5 ; pop
     call    func.2 ; swp
-    call    func.296 ; stack_assembler.emit.literal.string.helper
+    call    func.297 ; stack_assembler.emit.literal.string.helper
     call    func.53 ; dup2
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.5 ; pop
     call    func.66 ; pop3
-.fi533:
-    jmp    .fi532
-.if532:
+.fi538:
+    jmp    .fi537
+.if537:
     call    func.5 ; pop
     mov     rdi, literal.172 ; "literal."
     call    stack_push_addr
@@ -81427,20 +81577,20 @@ func.298: ; stack_assembler.emit.literal
     call    func.72 ; string.=
     call    stack_pop
     test    rax, rax
-    jnz     .if534
-.else534:
+    jnz     .if539
+.else539:
     mov     rdi, literal.214 ; "0"
     call    stack_push_addr
-    jmp    .fi534
-.if534:
+    jmp    .fi539
+.if539:
     mov     rdi, literal.219 ; "1"
     call    stack_push_addr
-.fi534:
+.fi539:
     call    func.33 ; string.concat
-    call    func.263 ; emit
-.fi532:
-    jmp    .fi531
-.if531:
+    call    func.264 ; emit
+.fi537:
+    jmp    .fi536
+.if536:
     call    func.5 ; pop
     mov     rdi, literal.172 ; "literal."
     call    stack_push_addr
@@ -81452,13 +81602,13 @@ func.298: ; stack_assembler.emit.literal
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
-.fi531:
+    call    func.264 ; emit
+.fi536:
 
     pop     rbp
     ret
 
-func.299: ; stack_assembler.emit.literals'
+func.300: ; stack_assembler.emit.literals'
     push    rbp
     mov     rbp, rsp
 
@@ -81477,17 +81627,17 @@ func.299: ; stack_assembler.emit.literals'
     call    func.47 ; >=
     call    stack_pop
     test    rax, rax
-    jnz     .if535
-.else535:
+    jnz     .if540
+.else540:
     call    func.53 ; dup2
     call    func.142 ; array.get
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if536
-.else536:
-    jmp    .fi536
-.if536:
+    jnz     .if541
+.else541:
+    jmp    .fi541
+.if541:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -81518,44 +81668,44 @@ func.299: ; stack_assembler.emit.literals'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi536:
-    call    func.257 ; stack_literal.*
+.fi541:
+    call    func.258 ; stack_literal.*
     call    func.4 ; rot4
     call    func.1 ; dup
     call    func.3 ; rot
     call    func.4 ; rot4
     call    func.1 ; dup
     call    func.69 ; rot4'
-    call    func.298 ; stack_assembler.emit.literal
+    call    func.299 ; stack_assembler.emit.literal
     call    func.3 ; rot
     call    func.2 ; swp
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.62 ; rot'
-    call    func.299 ; stack_assembler.emit.literals'
-    jmp    .fi535
-.if535:
+    call    func.300 ; stack_assembler.emit.literals'
+    jmp    .fi540
+.if540:
     call    func.66 ; pop3
-.fi535:
+.fi540:
 
     pop     rbp
     ret
 
-func.300: ; stack_assembler.emit.literals
+func.301: ; stack_assembler.emit.literals
     push    rbp
     mov     rbp, rsp
 
     call    func.1 ; dup
     mov     rdi, literal.220 ; "section '.data'"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
-    call    func.260 ; stack_assembler.&
+    call    func.261 ; stack_assembler.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.8 ; 8
@@ -81596,12 +81746,12 @@ func.300: ; stack_assembler.emit.literals
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.62 ; rot'
-    call    func.299 ; stack_assembler.emit.literals'
+    call    func.300 ; stack_assembler.emit.literals'
 
     pop     rbp
     ret
 
-func.301: ; stack_assembler.emit
+func.302: ; stack_assembler.emit
     push    rbp
     mov     rbp, rsp
 
@@ -81609,29 +81759,29 @@ func.301: ; stack_assembler.emit
     call    func.1 ; dup
     mov     rdi, literal.221 ; "format ELF64"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
-    call    func.302 ; stack_assembler.emit.allocator
+    call    func.303 ; stack_assembler.emit.allocator
     call    func.1 ; dup
-    call    func.303 ; stack_assembler.emit.entry
+    call    func.304 ; stack_assembler.emit.entry
     call    func.1 ; dup
-    call    func.304 ; stack_assembler.emit.keywords
+    call    func.305 ; stack_assembler.emit.keywords
     call    func.2 ; swp
     call    func.53 ; dup2
-    call    func.292 ; stack_assembler.emit.ast
+    call    func.293 ; stack_assembler.emit.ast
     call    func.2 ; swp
     call    func.1 ; dup
-    call    func.300 ; stack_assembler.emit.literals
+    call    func.301 ; stack_assembler.emit.literals
     call    func.48 ; pop2
 
     pop     rbp
     ret
 
-func.305:
+func.306:
     push    rbp
     mov     rbp, rsp
 
@@ -81643,7 +81793,7 @@ func.305:
     pop     rbp
     ret
 
-func.306:
+func.307:
     push    rbp
     mov     rbp, rsp
 
@@ -81655,7 +81805,7 @@ func.306:
     pop     rbp
     ret
 
-func.307: ; stack_args.init.empty
+func.308: ; stack_args.init.empty
     push    rbp
     mov     rbp, rsp
 
@@ -81851,12 +82001,12 @@ func.307: ; stack_args.init.empty
     call    func.7 ; +
     call    func.22 ; ptr.@
     call    func.5 ; pop
-    call    func.305 ; stack_args.*
+    call    func.306 ; stack_args.*
 
     pop     rbp
     ret
 
-func.308: ; stack_args.usage
+func.309: ; stack_args.usage
     push    rbp
     mov     rbp, rsp
 
@@ -81939,7 +82089,7 @@ func.308: ; stack_args.usage
     pop     rbp
     ret
 
-func.309: ; stack_args.parse'
+func.310: ; stack_args.parse'
     push    rbp
     mov     rbp, rsp
 
@@ -81957,18 +82107,18 @@ func.309: ; stack_args.parse'
     call    func.47 ; >=
     call    stack_pop
     test    rax, rax
-    jnz     .if537
-.else537:
+    jnz     .if542
+.else542:
     call    func.2 ; swp
     call    func.53 ; dup2
     call    func.142 ; array.get
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if538
-.else538:
-    jmp    .fi538
-.if538:
+    jnz     .if543
+.else543:
+    jmp    .fi543
+.if543:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -81999,10 +82149,10 @@ func.309: ; stack_args.parse'
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi538:
+.fi543:
     call    func.26 ; ptr.*
     call    func.1 ; dup
-    call    func.310 ; ptr.strlen
+    call    func.311 ; ptr.strlen
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
@@ -82054,8 +82204,8 @@ func.309: ; stack_args.parse'
     call    func.58 ; or
     call    stack_pop
     test    rax, rax
-    jnz     .if539
-.else539:
+    jnz     .if544
+.else544:
     call    func.1 ; dup
     mov     rdi, literal.241 ; "--lexer"
     call    stack_push_addr
@@ -82069,8 +82219,8 @@ func.309: ; stack_args.parse'
     call    func.58 ; or
     call    stack_pop
     test    rax, rax
-    jnz     .if540
-.else540:
+    jnz     .if545
+.else545:
     call    func.1 ; dup
     mov     rdi, literal.243 ; "--parser"
     call    stack_push_addr
@@ -82084,8 +82234,8 @@ func.309: ; stack_args.parse'
     call    func.58 ; or
     call    stack_pop
     test    rax, rax
-    jnz     .if541
-.else541:
+    jnz     .if546
+.else546:
     call    func.1 ; dup
     mov     rdi, literal.245 ; "--preprocessor"
     call    stack_push_addr
@@ -82099,8 +82249,8 @@ func.309: ; stack_args.parse'
     call    func.58 ; or
     call    stack_pop
     test    rax, rax
-    jnz     .if542
-.else542:
+    jnz     .if547
+.else547:
     call    func.1 ; dup
     mov     rdi, literal.247 ; "--typecheck"
     call    stack_push_addr
@@ -82114,8 +82264,8 @@ func.309: ; stack_args.parse'
     call    func.58 ; or
     call    stack_pop
     test    rax, rax
-    jnz     .if543
-.else543:
+    jnz     .if548
+.else548:
     call    func.1 ; dup
     mov     rdi, literal.249 ; "--assembler"
     call    stack_push_addr
@@ -82129,11 +82279,11 @@ func.309: ; stack_args.parse'
     call    func.58 ; or
     call    stack_pop
     test    rax, rax
-    jnz     .if544
-.else544:
+    jnz     .if549
+.else549:
     call    func.4 ; rot4
     call    func.1 ; dup
-    call    func.306 ; stack_args.&
+    call    func.307 ; stack_args.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.21 ; ptr.+
@@ -82148,12 +82298,12 @@ func.309: ; stack_args.parse'
     call    func.17 ; >
     call    stack_pop
     test    rax, rax
-    jnz     .if545
-.else545:
+    jnz     .if550
+.else550:
     call    func.1 ; dup
     call    func.3 ; rot
     call    func.2 ; swp
-    call    func.306 ; stack_args.&
+    call    func.307 ; stack_args.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.21 ; ptr.+
@@ -82170,10 +82320,10 @@ func.309: ; stack_args.parse'
     call    func.22 ; ptr.@
     call    func.5 ; pop
     call    func.62 ; rot'
-    jmp    .fi545
-.if545:
+    jmp    .fi550
+.if550:
     call    func.69 ; rot4'
-    call    func.308 ; stack_args.usage
+    call    func.309 ; stack_args.usage
     mov     rdi, literal.251 ; "Got unexpected CLI argument: `"
     call    stack_push_addr
     call    func.2 ; swp
@@ -82181,208 +82331,208 @@ func.309: ; stack_args.parse'
     mov     rdi, literal.252 ; "`\n"
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
+.fi550:
+    jmp    .fi549
+.if549:
+    call    func.4 ; rot4
+    call    func.1 ; dup
+    mov     rdi, literal.87 ; true
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.307 ; stack_args.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.2 ; swp
+    call    func.27 ; bool.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.22 ; ptr.@
+    call    func.5 ; pop
+    call    func.69 ; rot4'
+    call    func.5 ; pop
+.fi549:
+    jmp    .fi548
+.if548:
+    call    func.4 ; rot4
+    call    func.1 ; dup
+    mov     rdi, literal.87 ; true
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.307 ; stack_args.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.2 ; swp
+    call    func.27 ; bool.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.22 ; ptr.@
+    call    func.5 ; pop
+    call    func.69 ; rot4'
+    call    func.5 ; pop
+.fi548:
+    jmp    .fi547
+.if547:
+    call    func.4 ; rot4
+    call    func.1 ; dup
+    mov     rdi, literal.87 ; true
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.307 ; stack_args.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.2 ; swp
+    call    func.27 ; bool.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.22 ; ptr.@
+    call    func.5 ; pop
+    call    func.69 ; rot4'
+    call    func.5 ; pop
+.fi547:
+    jmp    .fi546
+.if546:
+    call    func.4 ; rot4
+    call    func.1 ; dup
+    mov     rdi, literal.87 ; true
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.307 ; stack_args.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.2 ; swp
+    call    func.27 ; bool.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.22 ; ptr.@
+    call    func.5 ; pop
+    call    func.69 ; rot4'
+    call    func.5 ; pop
+.fi546:
+    jmp    .fi545
+.if545:
+    call    func.4 ; rot4
+    call    func.1 ; dup
+    mov     rdi, literal.87 ; true
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.307 ; stack_args.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.2 ; swp
+    call    func.27 ; bool.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.22 ; ptr.@
+    call    func.5 ; pop
+    call    func.69 ; rot4'
+    call    func.5 ; pop
 .fi545:
     jmp    .fi544
 .if544:
-    call    func.4 ; rot4
-    call    func.1 ; dup
-    mov     rdi, literal.87 ; true
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.306 ; stack_args.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.2 ; swp
-    call    func.27 ; bool.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.22 ; ptr.@
     call    func.5 ; pop
-    call    func.69 ; rot4'
-    call    func.5 ; pop
-.fi544:
-    jmp    .fi543
-.if543:
-    call    func.4 ; rot4
-    call    func.1 ; dup
-    mov     rdi, literal.87 ; true
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.306 ; stack_args.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.2 ; swp
-    call    func.27 ; bool.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.22 ; ptr.@
-    call    func.5 ; pop
-    call    func.69 ; rot4'
-    call    func.5 ; pop
-.fi543:
-    jmp    .fi542
-.if542:
-    call    func.4 ; rot4
-    call    func.1 ; dup
-    mov     rdi, literal.87 ; true
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.306 ; stack_args.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.2 ; swp
-    call    func.27 ; bool.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.22 ; ptr.@
-    call    func.5 ; pop
-    call    func.69 ; rot4'
-    call    func.5 ; pop
-.fi542:
-    jmp    .fi541
-.if541:
-    call    func.4 ; rot4
-    call    func.1 ; dup
-    mov     rdi, literal.87 ; true
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.306 ; stack_args.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.2 ; swp
-    call    func.27 ; bool.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.22 ; ptr.@
-    call    func.5 ; pop
-    call    func.69 ; rot4'
-    call    func.5 ; pop
-.fi541:
-    jmp    .fi540
-.if540:
-    call    func.4 ; rot4
-    call    func.1 ; dup
-    mov     rdi, literal.87 ; true
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.306 ; stack_args.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.2 ; swp
-    call    func.27 ; bool.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.22 ; ptr.@
-    call    func.5 ; pop
-    call    func.69 ; rot4'
-    call    func.5 ; pop
-.fi540:
-    jmp    .fi539
-.if539:
-    call    func.5 ; pop
-    call    func.308 ; stack_args.usage
+    call    func.309 ; stack_args.usage
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi539:
+.fi544:
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
     call    func.3 ; rot
-    call    func.309 ; stack_args.parse'
-    jmp    .fi537
-.if537:
+    call    func.310 ; stack_args.parse'
+    jmp    .fi542
+.if542:
     call    func.48 ; pop2
-.fi537:
+.fi542:
 
     pop     rbp
     ret
 
-func.311: ; stack_args.parse
+func.312: ; stack_args.parse
     push    rbp
     mov     rbp, rsp
 
@@ -82475,8 +82625,8 @@ func.311: ; stack_args.parse
     call    func.135 ; array.*
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
-    call    func.307 ; stack_args.init.empty
-    call    func.309 ; stack_args.parse'
+    call    func.308 ; stack_args.init.empty
+    call    func.310 ; stack_args.parse'
 
     pop     rbp
     ret
@@ -82485,9 +82635,9 @@ func.0: ; main
     push    rbp
     mov     rbp, rsp
 
-    call    func.311 ; stack_args.parse
+    call    func.312 ; stack_args.parse
     call    func.1 ; dup
-    call    func.306 ; stack_args.&
+    call    func.307 ; stack_args.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.21 ; ptr.+
@@ -82501,199 +82651,13 @@ func.0: ; main
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.19 ; =
-    call    stack_pop
-    test    rax, rax
-    jnz     .if546
-.else546:
-    mov     rdi, literal.110 ; "r"
-    call    stack_push_addr
-    call    func.164 ; stdlib.fopen
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if547
-.else547:
-    jmp    .fi547
-.if547:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi547:
-    jmp    .fi546
-.if546:
-    call    func.5 ; pop
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-.fi546:
-    call    func.1 ; dup
-    call    func.165 ; stdlib.fread.<eof>
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if548
-.else548:
-    jmp    .fi548
-.if548:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi548:
-    call    func.2 ; swp
-    call    func.166 ; stdlib.fclose
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if549
-.else549:
-    jmp    .fi549
-.if549:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi549:
-    call    func.2 ; swp
-    call    func.1 ; dup
-    call    func.306 ; stack_args.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.21 ; ptr.+
-    call    func.49 ; string.*
-    call    func.1 ; dup
-    call    func.40 ; string.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.21 ; ptr.+
-    call    func.24 ; int.*
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.19 ; =
-    call    stack_pop
-    test    rax, rax
-    jnz     .if550
-.else550:
-    jmp    .fi550
-.if550:
-    call    func.5 ; pop
-    mov     rdi, literal.253 ; "stdin"
-    call    stack_push_addr
-.fi550:
-    call    func.2 ; swp
-    call    func.62 ; rot'
-    call    func.44 ; stack_lexer.init.with_buffer
-    call    func.2 ; swp
-    call    func.1 ; dup
-    call    func.306 ; stack_args.&
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    call    func.7 ; +
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.28 ; bool.*
     call    stack_pop
     test    rax, rax
     jnz     .if551
 .else551:
-    jmp    .fi551
-.if551:
-    call    func.2 ; swp
-    call    func.1 ; dup
-    call    func.75 ; stack_lexer.dump
-    mov     rdi, literal.0 ; 0
+    mov     rdi, literal.110 ; "r"
     call    stack_push_addr
-    call    func.36 ; sys.exit
-    call    func.2 ; swp
-.fi551:
-    call    func.2 ; swp
-    call    func.79 ; stack_parser.init.with_lexer
-    call    func.124 ; stack_parser.parse
+    call    func.164 ; stdlib.fopen
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
@@ -82732,9 +82696,195 @@ func.0: ; main
     call    stack_push_addr
     call    func.36 ; sys.exit
 .fi552:
+    jmp    .fi551
+.if551:
+    call    func.5 ; pop
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+.fi551:
+    call    func.1 ; dup
+    call    func.165 ; stdlib.fread.<eof>
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if553
+.else553:
+    jmp    .fi553
+.if553:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi553:
+    call    func.2 ; swp
+    call    func.166 ; stdlib.fclose
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if554
+.else554:
+    jmp    .fi554
+.if554:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi554:
     call    func.2 ; swp
     call    func.1 ; dup
-    call    func.306 ; stack_args.&
+    call    func.307 ; stack_args.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.21 ; ptr.+
+    call    func.49 ; string.*
+    call    func.1 ; dup
+    call    func.40 ; string.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.19 ; =
+    call    stack_pop
+    test    rax, rax
+    jnz     .if555
+.else555:
+    jmp    .fi555
+.if555:
+    call    func.5 ; pop
+    mov     rdi, literal.253 ; "stdin"
+    call    stack_push_addr
+.fi555:
+    call    func.2 ; swp
+    call    func.62 ; rot'
+    call    func.44 ; stack_lexer.init.with_buffer
+    call    func.2 ; swp
+    call    func.1 ; dup
+    call    func.307 ; stack_args.&
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.7 ; +
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.28 ; bool.*
+    call    stack_pop
+    test    rax, rax
+    jnz     .if556
+.else556:
+    jmp    .fi556
+.if556:
+    call    func.2 ; swp
+    call    func.1 ; dup
+    call    func.75 ; stack_lexer.dump
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+    call    func.2 ; swp
+.fi556:
+    call    func.2 ; swp
+    call    func.79 ; stack_parser.init.with_lexer
+    call    func.124 ; stack_parser.parse
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if557
+.else557:
+    jmp    .fi557
+.if557:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi557:
+    call    func.2 ; swp
+    call    func.1 ; dup
+    call    func.307 ; stack_args.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
     mov     rdi, literal.0 ; 0
@@ -82753,10 +82903,10 @@ func.0: ; main
     call    func.28 ; bool.*
     call    stack_pop
     test    rax, rax
-    jnz     .if553
-.else553:
-    jmp    .fi553
-.if553:
+    jnz     .if558
+.else558:
+    jmp    .fi558
+.if558:
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.154 ; stack_ast.dump
@@ -82764,7 +82914,7 @@ func.0: ; main
     call    stack_push_addr
     call    func.36 ; sys.exit
     call    func.2 ; swp
-.fi553:
+.fi558:
     call    func.2 ; swp
     call    func.157 ; stack_preprocessor.init.empty
     call    func.53 ; dup2
@@ -82773,7 +82923,7 @@ func.0: ; main
     call    func.5 ; pop
     call    func.2 ; swp
     call    func.1 ; dup
-    call    func.306 ; stack_args.&
+    call    func.307 ; stack_args.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
     mov     rdi, literal.8 ; 8
@@ -82795,10 +82945,10 @@ func.0: ; main
     call    func.28 ; bool.*
     call    stack_pop
     test    rax, rax
-    jnz     .if554
-.else554:
-    jmp    .fi554
-.if554:
+    jnz     .if559
+.else559:
+    jmp    .fi559
+.if559:
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.154 ; stack_ast.dump
@@ -82806,12 +82956,12 @@ func.0: ; main
     call    stack_push_addr
     call    func.36 ; sys.exit
     call    func.2 ; swp
-.fi554:
+.fi559:
     call    func.2 ; swp
     call    func.198 ; stack_context.init.base
     call    func.53 ; dup2
     call    func.2 ; swp
-    call    func.256 ; stack_context.typecheck
+    call    func.257 ; stack_context.typecheck
     call    func.197 ; stack_context.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
@@ -82835,17 +82985,17 @@ func.0: ; main
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if555
-.else555:
-    jmp    .fi555
-.if555:
+    jnz     .if560
+.else560:
+    jmp    .fi560
+.if560:
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi555:
+.fi560:
     call    func.2 ; swp
     call    func.1 ; dup
-    call    func.306 ; stack_args.&
+    call    func.307 ; stack_args.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
     mov     rdi, literal.8 ; 8
@@ -82870,22 +83020,22 @@ func.0: ; main
     call    func.28 ; bool.*
     call    stack_pop
     test    rax, rax
-    jnz     .if556
-.else556:
-    jmp    .fi556
-.if556:
+    jnz     .if561
+.else561:
+    jmp    .fi561
+.if561:
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi556:
+.fi561:
     call    func.2 ; swp
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
-    call    func.262 ; stack_assembler.init.with_fd
+    call    func.263 ; stack_assembler.init.with_fd
     call    func.2 ; swp
-    call    func.301 ; stack_assembler.emit
+    call    func.302 ; stack_assembler.emit
     call    func.1 ; dup
-    call    func.306 ; stack_args.&
+    call    func.307 ; stack_args.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
     mov     rdi, literal.8 ; 8
@@ -82913,14 +83063,14 @@ func.0: ; main
     call    func.28 ; bool.*
     call    stack_pop
     test    rax, rax
-    jnz     .if557
-.else557:
-    jmp    .fi557
-.if557:
+    jnz     .if562
+.else562:
+    jmp    .fi562
+.if562:
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi557:
+.fi562:
     call    func.5 ; pop
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
@@ -82928,4503 +83078,4503 @@ func.0: ; main
     pop     rbp
     ret
 
-func.303: ; stack_assembler.emit.entry
+func.304: ; stack_assembler.emit.entry
     push    rbp
     mov     rbp, rsp
 
     call    func.1 ; dup
     mov     rdi, literal.254 ; "section '.data' writeable"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.255 ; "stack_env dq 0"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.256 ; "; Define some constants"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.257 ; "loc_0 = 8"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.258 ; "loc_1 = 16"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.259 ; "loc_2 = 24"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.260 ; "loc_3 = 32"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.261 ; "loc_4 = 40"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.262 ; "loc_5 = 48"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.263 ; "loc_6 = 56"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.264 ; "loc_7 = 64"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.265 ; "arg_0 = 16"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.266 ; "arg_1 = 24"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.267 ; "arg_2 = 32"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.268 ; "arg_3 = 40"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.269 ; "arg_4 = 48"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.270 ; "arg_5 = 56"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.271 ; "arg_6 = 64"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.272 ; "arg_7 = 72"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.273 ; "; Define entry point"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.203 ; "section '.text' executable"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.274 ; "public _start"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.275 ; "_start:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.276 ; "    ; Initialize the memory"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.277 ; "    call allocator_init"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.278 ; "    ; store argc on the stack"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.279 ; "    mov     rdi, qword [rsp]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.280 ; "    ; store argv on the stack"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.281 ; "    mov     rdi, rsp"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.282 ; "    add     rdi, 8"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.283 ; "    ; store env in stack_env"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.284 ; "    mov     rax, qword [rsp]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.285 ; "    shl     rax, 3"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.281 ; "    mov     rdi, rsp"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.282 ; "    add     rdi, 8"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.286 ; "    add     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.282 ; "    add     rdi, 8"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.287 ; "    mov     qword [stack_env], rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.288 ; "    ; Call the main method"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.289 ; "main"
     call    stack_push_addr
-    call    func.275 ; stack_assembler.emit.pretty_call
+    call    func.276 ; stack_assembler.emit.pretty_call
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.3 ; rot
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.290 ; "    ; Exit the program"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.291 ; "    mov     rax, 60"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.292 ; "    syscall"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.5 ; pop
 
     pop     rbp
     ret
 
-func.302: ; stack_assembler.emit.allocator
+func.303: ; stack_assembler.emit.allocator
     push    rbp
     mov     rbp, rsp
 
     call    func.1 ; dup
     mov     rdi, literal.254 ; "section '.data' writeable"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.293 ; "; memory layout"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.294 ; "stack_pos dq 0"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.295 ; "stack_end dq 0"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.296 ; "heap_pos dq 0"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.297 ; "heap_end dq 0"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.203 ; "section '.text' executable"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.299 ; "; allocator_init"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.300 ; ";   INPUT: nothing"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.301 ; ";   OUTPUT: nothing"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.302 ; "allocator_init:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.305 ; "    ; allocate the stack 64K"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.306 ; "    mov     rax, 12                    ; brk"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.307 ; "    mov     rdi, 0                     ; increment = 0"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.292 ; "    syscall"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.308 ; "    mov     [stack_pos], rax           ; save the current position of the stack"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.309 ; "    mov     [stack_end], rax           ; save the end of the stack"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.306 ; "    mov     rax, 12                    ; brk"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.310 ; "    mov     rdi, 0x10000               ; 64K bytes (larger obj. will fail)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.311 ; "    add     rdi, [stack_end]           ; new end of the stack"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.292 ; "    syscall"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.312 ; "    ; initialize the heap"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.306 ; "    mov     rax, 12                    ; brk"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.307 ; "    mov     rdi, 0                     ; increment = 0"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.292 ; "    syscall"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.313 ; "    mov     [heap_pos], rax            ; save the current position of the heap"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.314 ; "    mov     [heap_end], rax            ; save the end of the heap"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.316 ; "; stack push addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.317 ; ";   INPUT: rdi contains the int64 (pointer) that we add to the stack"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.301 ; ";   OUTPUT: nothing"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.318 ; "stack_push_addr:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.319 ; "    mov     rsi, qword [stack_pos]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.320 ; "    mov     qword [rsi], rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.321 ; "    add     qword [stack_pos], 8"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.322 ; "; stack push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.317 ; ";   INPUT: rdi contains the int64 (pointer) that we add to the stack"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.301 ; ";   OUTPUT: nothing"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.323 ; "stack_push:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.324 ; "    push    rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.325 ; "    mov     rdi, 8"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.326 ; "    call    allocate"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.327 ; "    pop     rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.328 ; "    mov     [rax], rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.319 ; "    mov     rsi, qword [stack_pos]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.329 ; "    mov     qword [rsi], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.321 ; "    add     qword [stack_pos], 8"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.330 ; "; stack peek addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.300 ; ";   INPUT: nothing"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.331 ; ";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.332 ; "stack_peek_addr:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.333 ; "    mov     rax, qword [stack_pos]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.334 ; "    mov     rax, qword [rax - 8]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.335 ; "; stack peek"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.300 ; ";   INPUT: nothing"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.331 ; ";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.336 ; "stack_peek:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.333 ; "    mov     rax, qword [stack_pos]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.334 ; "    mov     rax, qword [rax - 8]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.337 ; "    mov     rax, qword [rax]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.338 ; "; stack pop addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.300 ; ";   INPUT: nothing"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.331 ; ";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.339 ; "stack_pop_addr:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.333 ; "    mov     rax, qword [stack_pos]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.334 ; "    mov     rax, qword [rax - 8]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.340 ; "    sub     qword [stack_pos], 8"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.341 ; "; stack pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.300 ; ";   INPUT: nothing"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.331 ; ";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.342 ; "stack_pop:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.333 ; "    mov     rax, qword [stack_pos]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.334 ; "    mov     rax, qword [rax - 8]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.337 ; "    mov     rax, qword [rax]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.340 ; "    sub     qword [stack_pos], 8"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.343 ; "; stack pick"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.344 ; ";   INPUT: rdi contains the index"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.345 ; ";   OUTPUT: rax contains the int64 (pointer) that we pick from the stack"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.346 ; "stack_pick_addr:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.333 ; "    mov     rax, qword [stack_pos]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.347 ; "    shl     rdi, 3 ; multiply index with 8"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.348 ; "    sub     rax, rdi ; offset stack_pos with index*8"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.334 ; "    mov     rax, qword [rax - 8]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.349 ; "; allocate"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.350 ; ";   INPUT: rdi contains the size in bytes"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.351 ; ";   OUTPUT: rax points to the newly allocated memory"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.352 ; "allocate:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.354 ; "    ; t0 <- heap_pos"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.355 ; "    mov     rax, qword [heap_pos]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.356 ; "    mov     qword [rbp - loc_0], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.357 ; "    ; t1 <- t0 + rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.358 ; "    mov     rax, qword [rbp - loc_0]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.359 ; "    add     rax, rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.360 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.361 ; ".alloc_do:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.362 ; "    ; cmp t1 <= heap_end"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.363 ; "    mov     rax, qword [rbp - loc_1]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.364 ; "    cmp     rax, qword [heap_end]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.365 ; "    jle     .alloc_ok"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.306 ; "    mov     rax, 12                    ; brk"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.310 ; "    mov     rdi, 0x10000               ; 64K bytes (larger obj. will fail)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.366 ; "    add     rdi, [heap_end]            ; new end of the heap"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.292 ; "    syscall"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.367 ; "    mov     [heap_end], rax            ; save the new end of the heap"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.368 ; "    jmp     .alloc_do"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.369 ; ".alloc_ok:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.370 ; "    ; heap_pos <- t1"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.363 ; "    mov     rax, qword [rbp - loc_1]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.371 ; "    mov     qword [heap_pos], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.372 ; "    ; return t0"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.358 ; "    mov     rax, qword [rbp - loc_0]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.5 ; pop
 
     pop     rbp
     ret
 
-func.304: ; stack_assembler.emit.keywords
+func.305: ; stack_assembler.emit.keywords
     push    rbp
     mov     rbp, rsp
 
     call    func.1 ; dup
     mov     rdi, literal.203 ; "section '.text' executable"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.374 ; "; dup"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.375 ; ";   INPUT: (a)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.376 ; ";   OUTPUT: (a, a)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.127 ; "dup"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.378 ; "    call    stack_peek_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.379 ; "; swp"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.380 ; ";   INPUT: (a, b)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.381 ; ";   OUTPUT: (b, a)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.124 ; "swp"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.382 ; "    ; t0 <- A"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.356 ; "    mov     qword [rbp - loc_0], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.383 ; "    ; t1 <- B"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.360 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.384 ; "    ; push A"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.385 ; "    mov     rdi, [rbp - loc_0]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.386 ; "    ; push B"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.387 ; "    mov     rdi, [rbp - loc_1]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.388 ; "; rot"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.389 ; ";   INPUT: (a, b, c)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.390 ; ";   OUTPUT: (b, c, a)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.126 ; "rot"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.391 ; "    sub     rsp, 32                    ; allocate 4 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.392 ; "    ; (C B A) -> (B A C)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.382 ; "    ; t0 <- A"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.356 ; "    mov     qword [rbp - loc_0], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.383 ; "    ; t1 <- B"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.360 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.393 ; "    ; t2 <- C"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.394 ; "    mov     qword [rbp - loc_2], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.386 ; "    ; push B"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.387 ; "    mov     rdi, [rbp - loc_1]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.384 ; "    ; push A"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.385 ; "    mov     rdi, [rbp - loc_0]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.395 ; "    ; push C"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.396 ; "    mov     rdi, [rbp - loc_2]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.397 ; "    add     rsp, 32                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.398 ; "; rot4"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.399 ; ";   INPUT: (a, b, c, d)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.400 ; ";   OUTPUT: (b, c, d, a)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.132 ; "rot4"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.391 ; "    sub     rsp, 32                    ; allocate 4 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.401 ; "    ; (D C B A) -> (C B A D)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.382 ; "    ; t0 <- A"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.356 ; "    mov     qword [rbp - loc_0], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.383 ; "    ; t1 <- B"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.360 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.393 ; "    ; t2 <- C"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.394 ; "    mov     qword [rbp - loc_2], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.402 ; "    ; t3 <- D"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.403 ; "    mov     qword [rbp - loc_3], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.395 ; "    ; push C"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.396 ; "    mov     rdi, [rbp - loc_2]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.386 ; "    ; push B"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.387 ; "    mov     rdi, [rbp - loc_1]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.384 ; "    ; push A"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.385 ; "    mov     rdi, [rbp - loc_0]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.404 ; "    ; push D"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.405 ; "    mov     rdi, [rbp - loc_3]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.397 ; "    add     rsp, 32                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.406 ; "; pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.375 ; ";   INPUT: (a)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.407 ; ";   OUTPUT: ()"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.122 ; "pop"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.408 ; "; pick"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.409 ; ";   INPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.410 ; ";   OUTPUT: (ptr)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.134 ; "pick"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.411 ; "    call    stack_pick_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.412 ; "; plus"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.413 ; ";   INPUT: (int, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.414 ; ";   OUTPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.116 ; "+"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.415 ; "    push    rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.327 ; "    pop     rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.286 ; "    add     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.416 ; "; sub"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.413 ; ";   INPUT: (int, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.414 ; ";   OUTPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.52 ; "-"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.415 ; "    push    rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.417 ; "    pop     rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.418 ; "    sub     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.419 ; "; mul"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.413 ; ";   INPUT: (int, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.414 ; ";   OUTPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.135 ; "*"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.415 ; "    push    rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.327 ; "    pop     rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.420 ; "    mul     rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.421 ; "; div"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.413 ; ";   INPUT: (int, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.414 ; ";   OUTPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.112 ; "/"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.415 ; "    push    rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.327 ; "    pop     rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.422 ; "    cqo"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.423 ; "    idiv    rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.424 ; "; mod"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.413 ; ";   INPUT: (int, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.414 ; ";   OUTPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.136 ; "%"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.415 ; "    push    rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.327 ; "    pop     rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.422 ; "    cqo"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.423 ; "    idiv    rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.425 ; "    mov     rdi, rdx"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.426 ; "; and"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.413 ; ";   INPUT: (int, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.414 ; ";   OUTPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.138 ; "&"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.415 ; "    push    rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.327 ; "    pop     rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.427 ; "    and     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.428 ; "; or"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.413 ; ";   INPUT: (int, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.414 ; ";   OUTPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.137 ; "|"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.415 ; "    push    rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.327 ; "    pop     rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.429 ; "    or      rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.430 ; "; xor"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.413 ; ";   INPUT: (int, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.414 ; ";   OUTPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.139 ; "^"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.415 ; "    push    rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.327 ; "    pop     rdi"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.431 ; "    xor     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.432 ; "; shr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.413 ; ";   INPUT: (int, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.414 ; ";   OUTPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.140 ; ">>"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.415 ; "    push    rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.433 ; "    pop     rcx"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.434 ; "    sar     rax, cl"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.435 ; "; shl"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.413 ; ";   INPUT: (int, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.414 ; ";   OUTPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.141 ; "<<"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.415 ; "    push    rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.433 ; "    pop     rcx"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.436 ; "    shl     rax, cl"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.437 ; "; greater than"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.413 ; ";   INPUT: (int, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.438 ; ";   OUTPUT: (bool)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.142 ; ">"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.415 ; "    push    rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.417 ; "    pop     rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.439 ; "    cmp     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.440 ; "    setg    al"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.441 ; "    and     al, 1"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.442 ; "    movzx   rax, al"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.443 ; "; less than"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.413 ; ";   INPUT: (int, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.438 ; ";   OUTPUT: (bool)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.143 ; "<"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.415 ; "    push    rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.417 ; "    pop     rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.439 ; "    cmp     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.444 ; "    setl    al"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.441 ; "    and     al, 1"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.442 ; "    movzx   rax, al"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.443 ; "; less than"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.413 ; ";   INPUT: (int, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.438 ; ";   OUTPUT: (bool)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.144 ; "="
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.415 ; "    push    rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.417 ; "    pop     rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.439 ; "    cmp     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.445 ; "    sete    al"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.441 ; "    and     al, 1"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.442 ; "    movzx   rax, al"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.446 ; "; memory allocate"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.409 ; ";   INPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.410 ; ";   OUTPUT: (ptr)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.125 ; "ptr.alloc"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.353 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.326 ; "    call    allocate"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.373 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.447 ; "; memory offset"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.448 ; ";   INPUT: (ptr, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.410 ; ";   OUTPUT: (ptr)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.119 ; "ptr.+"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.449 ; "    sub     rsp, 24                    ; allocate 3 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.450 ; "    ; t1 <- int"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.360 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.451 ; "    ; t2 <- ptr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.394 ; "    mov     qword [rbp - loc_2], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.452 ; "    ; ptr[0] <- byte a"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.453 ; "    mov     rax, qword [rbp - loc_2]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.454 ; "    mov     rdi, qword [rbp - loc_1]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.286 ; "    add     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.455 ; "    add     rsp, 24                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.456 ; "; memory copy"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.457 ; ";   INPUT: (dst, src, len)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.407 ; ";   OUTPUT: ()"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.123 ; "ptr.@"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.449 ; "    sub     rsp, 24                    ; allocate 3 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.458 ; "    ; t0 <- len"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.356 ; "    mov     qword [rbp - loc_0], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.459 ; "    ; t1 <- src"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.360 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.460 ; "    ; t2 <- dst"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.394 ; "    mov     qword [rbp - loc_2], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.461 ; "    mov     rdi, qword [rbp - loc_2]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.462 ; "    mov     rsi, qword [rbp - loc_1]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.463 ; "    mov     rdx, qword [rbp - loc_0]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.464 ; ".next_byte:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.465 ; "    cmp     rdx, 0                     ; check if done"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.466 ; "    jle     .done"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.467 ; "    mov     al, byte [rsi]             ; get byte from self"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.468 ; "    mov     byte [rdi], al             ; copy byte to new object"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.469 ; "    inc     rdi                        ; increment destination"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.470 ; "    inc     rsi                        ; increment source"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.471 ; "    dec     rdx                        ; decrement count"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.472 ; "    jmp .next_byte"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.473 ; ".done:"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.461 ; "    mov     rdi, qword [rbp - loc_2]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.455 ; "    add     rsp, 24                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.148 ; "int.&"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.474 ; "    ; deref data"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.149 ; "int.*"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.474 ; "    ; deref data"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.150 ; "ptr.&"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.474 ; "    ; deref data"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.151 ; "ptr.*"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.474 ; "    ; deref data"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.152 ; "bool.&"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.474 ; "    ; deref data"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.186 ; "    call    stack_pop_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.153 ; "bool.*"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.474 ; "    ; deref data"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.175 ; "    call    stack_push_addr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.145 ; "os.env"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.475 ; "    ; get env vars ptr"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.476 ; "    mov     rdi, qword [stack_env]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.477 ; "; syscall1"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.478 ; ";   INPUT: (a, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.414 ; ";   OUTPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.146 ; "syscall1"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.391 ; "    sub     rsp, 32                    ; allocate 4 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.479 ; "    ; t0 <- int"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.356 ; "    mov     qword [rbp - loc_0], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.480 ; "    ; t1 <- a"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.360 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.481 ; "    ; syscall1(t0) t1"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.358 ; "    mov     rax, qword [rbp - loc_0]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.454 ; "    mov     rdi, qword [rbp - loc_1]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.292 ; "    syscall"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.397 ; "    add     rsp, 32                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.482 ; "; syscall3"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.298 ; ";"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.483 ; ";   INPUT: (a, b, c, int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.414 ; ";   OUTPUT: (int)"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     call    func.1 ; dup
     mov     rdi, literal.147 ; "syscall3"
     call    stack_push_addr
     call    func.1 ; dup
     call    func.62 ; rot'
-    call    func.269 ; stack_assembler.func.name
+    call    func.270 ; stack_assembler.func.name
     mov     rdi, literal.377 ; ": ; "
     call    stack_push_addr
     call    func.33 ; string.concat
     call    func.2 ; swp
     call    func.33 ; string.concat
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.303 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.304 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.391 ; "    sub     rsp, 32                    ; allocate 4 local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.479 ; "    ; t0 <- int"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.356 ; "    mov     qword [rbp - loc_0], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.484 ; "    ; t1 <- c"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.360 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.485 ; "    ; t2 <- b"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.394 ; "    mov     qword [rbp - loc_2], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.486 ; "    ; t3 <- a"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.179 ; "    call    stack_pop"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.403 ; "    mov     qword [rbp - loc_3], rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.487 ; "    ; syscall3(t0) t3 t2 t1"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.358 ; "    mov     rax, qword [rbp - loc_0]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.488 ; "    mov     rdi, qword [rbp - loc_3]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.489 ; "    mov     rsi, qword [rbp - loc_2]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.490 ; "    mov     rdx, qword [rbp - loc_1]"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.292 ; "    syscall"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.201 ; "    mov     rdi, rax"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.202 ; "    call    stack_push"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.397 ; "    add     rsp, 32                    ; deallocate local variables"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.315 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.199 ; "    ret"
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.1 ; dup
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    call    func.263 ; emit
+    call    func.264 ; emit
     call    func.5 ; pop
 
     pop     rbp
@@ -87502,7 +87652,7 @@ func.69: ; rot4'
     pop     rbp
     ret
 
-func.312: ; over
+func.313: ; over
     push    rbp
     mov     rbp, rsp
 
@@ -87522,7 +87672,7 @@ func.312: ; over
     pop     rbp
     ret
 
-func.313: ; ptr.=
+func.314: ; ptr.=
     push    rbp
     mov     rbp, rsp
 
@@ -87545,7 +87695,7 @@ func.313: ; ptr.=
     pop     rbp
     ret
 
-func.314: ; ptr.realloc
+func.315: ; ptr.realloc
     push    rbp
     mov     rbp, rsp
 
@@ -87553,35 +87703,35 @@ func.314: ; ptr.realloc
     call    func.17 ; >
     call    stack_pop
     test    rax, rax
-    jnz     .if558
-.else558:
+    jnz     .if563
+.else563:
     call    func.20 ; ptr.alloc
     call    func.62 ; rot'
     call    func.22 ; ptr.@
-    jmp    .fi558
-.if558:
+    jmp    .fi563
+.if563:
     call    func.48 ; pop2
-.fi558:
+.fi563:
 
     pop     rbp
     ret
 
-func.315: ; ptr.memcmp
+func.316: ; ptr.memcmp
     push    rbp
     mov     rbp, rsp
 
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.69 ; rot4'
-.while559:
+.while564:
     call    func.1 ; dup
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.17 ; >
     call    stack_pop
     test    rax, rax
-    jz     .pool559
-.loop559:
+    jz     .pool564
+.loop564:
     sub     rsp, 32
     call    stack_pop_addr
     mov     qword [rbp - 32], rax
@@ -87593,10 +87743,10 @@ func.315: ; ptr.memcmp
     mov     qword [rbp - 8], rax
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
-    call    func.316 ; byte.init
+    call    func.317 ; byte.init
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
-    call    func.316 ; byte.init
+    call    func.317 ; byte.init
     call    func.8 ; -
     call    func.1 ; dup
     mov     rdi, literal.0 ; 0
@@ -87604,16 +87754,16 @@ func.315: ; ptr.memcmp
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if560
-.else560:
+    jnz     .if565
+.else565:
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
-    jmp    .fi560
-.if560:
+    jmp    .fi565
+.if565:
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     mov     rdi, literal.1 ; 1
@@ -87629,33 +87779,33 @@ func.315: ; ptr.memcmp
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.8 ; -
-.fi560:
+.fi565:
     add     rsp, 32
-    jmp     .while559
-.pool559:
+    jmp     .while564
+.pool564:
     call    func.66 ; pop3
 
     pop     rbp
     ret
 
-func.310: ; ptr.strlen
+func.311: ; ptr.strlen
     push    rbp
     mov     rbp, rsp
 
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.2 ; swp
-.while561:
+.while566:
     call    func.1 ; dup
-    call    func.316 ; byte.init
+    call    func.317 ; byte.init
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.19 ; =
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jz     .pool561
-.loop561:
+    jz     .pool566
+.loop566:
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.21 ; ptr.+
@@ -87664,14 +87814,14 @@ func.310: ; ptr.strlen
     call    stack_push_addr
     call    func.7 ; +
     call    func.2 ; swp
-    jmp     .while561
-.pool561:
+    jmp     .while566
+.pool566:
     call    func.5 ; pop
 
     pop     rbp
     ret
 
-func.317:
+func.318:
     push    rbp
     mov     rbp, rsp
 
@@ -87683,7 +87833,7 @@ func.317:
     pop     rbp
     ret
 
-func.318:
+func.319:
     push    rbp
     mov     rbp, rsp
 
@@ -87695,7 +87845,7 @@ func.318:
     pop     rbp
     ret
 
-func.319: ; error.fail
+func.320: ; error.fail
     push    rbp
     mov     rbp, rsp
 
@@ -87750,12 +87900,12 @@ func.319: ; error.fail
     call    stack_push_addr
     call    func.22 ; ptr.@
     call    func.5 ; pop
-    call    func.317 ; error.*
+    call    func.318 ; error.*
 
     pop     rbp
     ret
 
-func.320: ; error.nil
+func.321: ; error.nil
     push    rbp
     mov     rbp, rsp
 
@@ -87811,17 +87961,17 @@ func.320: ; error.nil
     call    stack_push_addr
     call    func.22 ; ptr.@
     call    func.5 ; pop
-    call    func.317 ; error.*
+    call    func.318 ; error.*
 
     pop     rbp
     ret
 
-func.321: ; error.unwrap
+func.322: ; error.unwrap
     push    rbp
     mov     rbp, rsp
 
     call    func.1 ; dup
-    call    func.318 ; error.&
+    call    func.319 ; error.&
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.21 ; ptr.+
@@ -87829,12 +87979,12 @@ func.321: ; error.unwrap
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if562
-.else562:
+    jnz     .if567
+.else567:
     call    func.5 ; pop
-    jmp    .fi562
-.if562:
-    call    func.318 ; error.&
+    jmp    .fi567
+.if567:
+    call    func.319 ; error.&
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
     mov     rdi, literal.0 ; 0
@@ -87845,7 +87995,7 @@ func.321: ; error.unwrap
     mov     rdi, literal.75 ; "\n"
     call    stack_push_addr
     call    func.33 ; string.concat
-    call    func.204 ; string.stderr
+    call    func.205 ; string.stderr
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -87876,12 +88026,12 @@ func.321: ; error.unwrap
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi562:
+.fi567:
 
     pop     rbp
     ret
 
-func.232: ; min
+func.233: ; min
     push    rbp
     mov     rbp, rsp
 
@@ -87897,21 +88047,21 @@ func.232: ; min
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if563
-.else563:
+    jnz     .if568
+.else568:
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
-    jmp    .fi563
-.if563:
+    jmp    .fi568
+.if568:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
-.fi563:
+.fi568:
     add     rsp, 16
 
     pop     rbp
     ret
 
-func.322: ; abs
+func.323: ; abs
     push    rbp
     mov     rbp, rsp
 
@@ -87921,20 +88071,20 @@ func.322: ; abs
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if564
-.else564:
-    jmp    .fi564
-.if564:
+    jnz     .if569
+.else569:
+    jmp    .fi569
+.if569:
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.2 ; swp
     call    func.8 ; -
-.fi564:
+.fi569:
 
     pop     rbp
     ret
 
-func.297: ; mod
+func.298: ; mod
     push    rbp
     mov     rbp, rsp
 
@@ -87947,19 +88097,19 @@ func.297: ; mod
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if565
-.else565:
+    jnz     .if570
+.else570:
     call    func.2 ; swp
     call    func.5 ; pop
-    jmp    .fi565
-.if565:
+    jmp    .fi570
+.if570:
     call    func.7 ; +
-.fi565:
+.fi570:
 
     pop     rbp
     ret
 
-func.323: ; digit.show
+func.324: ; digit.show
     push    rbp
     mov     rbp, rsp
 
@@ -87969,50 +88119,10 @@ func.323: ; digit.show
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if566
-.else566:
-    call    func.1 ; dup
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.19 ; =
-    call    stack_pop
-    test    rax, rax
-    jnz     .if567
-.else567:
-    call    func.1 ; dup
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.19 ; =
-    call    stack_pop
-    test    rax, rax
-    jnz     .if568
-.else568:
-    call    func.1 ; dup
-    mov     rdi, literal.3 ; 3
-    call    stack_push_addr
-    call    func.19 ; =
-    call    stack_pop
-    test    rax, rax
-    jnz     .if569
-.else569:
-    call    func.1 ; dup
-    mov     rdi, literal.4 ; 4
-    call    stack_push_addr
-    call    func.19 ; =
-    call    stack_pop
-    test    rax, rax
-    jnz     .if570
-.else570:
-    call    func.1 ; dup
-    mov     rdi, literal.5 ; 5
-    call    stack_push_addr
-    call    func.19 ; =
-    call    stack_pop
-    test    rax, rax
     jnz     .if571
 .else571:
     call    func.1 ; dup
-    mov     rdi, literal.6 ; 6
+    mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
@@ -88020,7 +88130,7 @@ func.323: ; digit.show
     jnz     .if572
 .else572:
     call    func.1 ; dup
-    mov     rdi, literal.7 ; 7
+    mov     rdi, literal.2 ; 2
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
@@ -88028,7 +88138,7 @@ func.323: ; digit.show
     jnz     .if573
 .else573:
     call    func.1 ; dup
-    mov     rdi, literal.8 ; 8
+    mov     rdi, literal.3 ; 3
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
@@ -88036,76 +88146,116 @@ func.323: ; digit.show
     jnz     .if574
 .else574:
     call    func.1 ; dup
-    mov     rdi, literal.9 ; 9
+    mov     rdi, literal.4 ; 4
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
     jnz     .if575
 .else575:
+    call    func.1 ; dup
+    mov     rdi, literal.5 ; 5
+    call    stack_push_addr
+    call    func.19 ; =
+    call    stack_pop
+    test    rax, rax
+    jnz     .if576
+.else576:
+    call    func.1 ; dup
+    mov     rdi, literal.6 ; 6
+    call    stack_push_addr
+    call    func.19 ; =
+    call    stack_pop
+    test    rax, rax
+    jnz     .if577
+.else577:
+    call    func.1 ; dup
+    mov     rdi, literal.7 ; 7
+    call    stack_push_addr
+    call    func.19 ; =
+    call    stack_pop
+    test    rax, rax
+    jnz     .if578
+.else578:
+    call    func.1 ; dup
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    call    func.19 ; =
+    call    stack_pop
+    test    rax, rax
+    jnz     .if579
+.else579:
+    call    func.1 ; dup
+    mov     rdi, literal.9 ; 9
+    call    stack_push_addr
+    call    func.19 ; =
+    call    stack_pop
+    test    rax, rax
+    jnz     .if580
+.else580:
     call    func.5 ; pop
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
+    jmp    .fi580
+.if580:
+    call    func.5 ; pop
+    mov     rdi, literal.491 ; "9"
+    call    stack_push_addr
+.fi580:
+    jmp    .fi579
+.if579:
+    call    func.5 ; pop
+    mov     rdi, literal.492 ; "8"
+    call    stack_push_addr
+.fi579:
+    jmp    .fi578
+.if578:
+    call    func.5 ; pop
+    mov     rdi, literal.493 ; "7"
+    call    stack_push_addr
+.fi578:
+    jmp    .fi577
+.if577:
+    call    func.5 ; pop
+    mov     rdi, literal.494 ; "6"
+    call    stack_push_addr
+.fi577:
+    jmp    .fi576
+.if576:
+    call    func.5 ; pop
+    mov     rdi, literal.495 ; "5"
+    call    stack_push_addr
+.fi576:
     jmp    .fi575
 .if575:
     call    func.5 ; pop
-    mov     rdi, literal.491 ; "9"
+    mov     rdi, literal.496 ; "4"
     call    stack_push_addr
 .fi575:
     jmp    .fi574
 .if574:
     call    func.5 ; pop
-    mov     rdi, literal.492 ; "8"
+    mov     rdi, literal.497 ; "3"
     call    stack_push_addr
 .fi574:
     jmp    .fi573
 .if573:
     call    func.5 ; pop
-    mov     rdi, literal.493 ; "7"
+    mov     rdi, literal.498 ; "2"
     call    stack_push_addr
 .fi573:
     jmp    .fi572
 .if572:
     call    func.5 ; pop
-    mov     rdi, literal.494 ; "6"
+    mov     rdi, literal.219 ; "1"
     call    stack_push_addr
 .fi572:
     jmp    .fi571
 .if571:
     call    func.5 ; pop
-    mov     rdi, literal.495 ; "5"
-    call    stack_push_addr
-.fi571:
-    jmp    .fi570
-.if570:
-    call    func.5 ; pop
-    mov     rdi, literal.496 ; "4"
-    call    stack_push_addr
-.fi570:
-    jmp    .fi569
-.if569:
-    call    func.5 ; pop
-    mov     rdi, literal.497 ; "3"
-    call    stack_push_addr
-.fi569:
-    jmp    .fi568
-.if568:
-    call    func.5 ; pop
-    mov     rdi, literal.498 ; "2"
-    call    stack_push_addr
-.fi568:
-    jmp    .fi567
-.if567:
-    call    func.5 ; pop
-    mov     rdi, literal.219 ; "1"
-    call    stack_push_addr
-.fi567:
-    jmp    .fi566
-.if566:
-    call    func.5 ; pop
     mov     rdi, literal.214 ; "0"
     call    stack_push_addr
-.fi566:
+.fi571:
 
     pop     rbp
     ret
@@ -88120,36 +88270,36 @@ func.34: ; int.show
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if576
-.else576:
+    jnz     .if581
+.else581:
     call    func.1 ; dup
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if577
-.else577:
+    jnz     .if582
+.else582:
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-    jmp    .fi577
-.if577:
-    call    func.322 ; abs
+    jmp    .fi582
+.if582:
+    call    func.323 ; abs
     mov     rdi, literal.52 ; "-"
     call    stack_push_addr
-.fi577:
+.fi582:
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
     call    func.3 ; rot
-.while578:
+.while583:
     call    func.1 ; dup
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.17 ; >
     call    stack_pop
     test    rax, rax
-    jz     .pool578
-.loop578:
+    jz     .pool583
+.loop583:
     sub     rsp, 16
     call    stack_pop_addr
     mov     qword [rbp - 16], rax
@@ -88159,8 +88309,8 @@ func.34: ; int.show
     call    stack_push_addr
     mov     rdi, literal.10 ; 10
     call    stack_push_addr
-    call    func.297 ; mod
-    call    func.323 ; digit.show
+    call    func.298 ; mod
+    call    func.324 ; digit.show
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.33 ; string.concat
@@ -88170,21 +88320,21 @@ func.34: ; int.show
     call    stack_push_addr
     call    func.10 ; /
     add     rsp, 16
-    jmp     .while578
-.pool578:
+    jmp     .while583
+.pool583:
     call    func.5 ; pop
     call    func.33 ; string.concat
-    jmp    .fi576
-.if576:
+    jmp    .fi581
+.if581:
     call    func.5 ; pop
     mov     rdi, literal.214 ; "0"
     call    stack_push_addr
-.fi576:
+.fi581:
 
     pop     rbp
     ret
 
-func.324: ; int.read
+func.325: ; int.read
     push    rbp
     mov     rbp, rsp
 
@@ -88203,15 +88353,15 @@ func.324: ; int.read
     call    func.54 ; <=
     call    stack_pop
     test    rax, rax
-    jnz     .if579
-.else579:
+    jnz     .if584
+.else584:
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-.while580:
+.while585:
     sub     rsp, 16
     call    stack_pop_addr
     mov     qword [rbp - 24], rax
@@ -88237,8 +88387,8 @@ func.324: ; int.read
     add     rsp, 16
     call    stack_pop
     test    rax, rax
-    jz     .pool580
-.loop580:
+    jz     .pool585
+.loop585:
     sub     rsp, 24
     call    stack_pop_addr
     mov     qword [rbp - 32], rax
@@ -88255,8 +88405,8 @@ func.324: ; int.read
     call    func.61 ; byte.isdigit
     call    stack_pop
     test    rax, rax
-    jnz     .if581
-.else581:
+    jnz     .if586
+.else586:
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
     mov     rdi, literal.1 ; 1
@@ -88264,8 +88414,8 @@ func.324: ; int.read
     call    func.7 ; +
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-    jmp    .fi581
-.if581:
+    jmp    .fi586
+.if586:
     mov     rdi, literal.499 ; 48
     call    stack_push_addr
     call    func.8 ; -
@@ -88282,19 +88432,19 @@ func.324: ; int.read
     call    func.7 ; +
     mov     rdi, qword [rbp - 32]
     call    stack_push_addr
-.fi581:
+.fi586:
     add     rsp, 24
-    jmp     .while580
-.pool580:
+    jmp     .while585
+.pool585:
     call    func.2 ; swp
     call    func.5 ; pop
-    jmp    .fi579
-.if579:
+    jmp    .fi584
+.if584:
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-.fi579:
+.fi584:
     add     rsp, 8
 
     pop     rbp
@@ -88308,15 +88458,15 @@ func.54: ; <=
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if582
-.else582:
+    jnz     .if587
+.else587:
     call    func.19 ; =
-    jmp    .fi582
-.if582:
+    jmp    .fi587
+.if587:
     call    func.48 ; pop2
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-.fi582:
+.fi587:
 
     pop     rbp
     ret
@@ -88329,15 +88479,15 @@ func.47: ; >=
     call    func.17 ; >
     call    stack_pop
     test    rax, rax
-    jnz     .if583
-.else583:
+    jnz     .if588
+.else588:
     call    func.19 ; =
-    jmp    .fi583
-.if583:
+    jmp    .fi588
+.if588:
     call    func.48 ; pop2
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-.fi583:
+.fi588:
 
     pop     rbp
     ret
@@ -88348,15 +88498,15 @@ func.59: ; not
 
     call    stack_pop
     test    rax, rax
-    jnz     .if584
-.else584:
+    jnz     .if589
+.else589:
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-    jmp    .fi584
-.if584:
+    jmp    .fi589
+.if589:
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi584:
+.fi589:
 
     pop     rbp
     ret
@@ -88367,14 +88517,14 @@ func.74: ; and
 
     call    stack_pop
     test    rax, rax
-    jnz     .if585
-.else585:
+    jnz     .if590
+.else590:
     call    func.5 ; pop
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-    jmp    .fi585
-.if585:
-.fi585:
+    jmp    .fi590
+.if590:
+.fi590:
 
     pop     rbp
     ret
@@ -88385,33 +88535,33 @@ func.58: ; or
 
     call    stack_pop
     test    rax, rax
-    jnz     .if586
-.else586:
-    jmp    .fi586
-.if586:
+    jnz     .if591
+.else591:
+    jmp    .fi591
+.if591:
     call    func.5 ; pop
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-.fi586:
+.fi591:
 
     pop     rbp
     ret
 
-func.325: ; bool.show
+func.326: ; bool.show
     push    rbp
     mov     rbp, rsp
 
     call    stack_pop
     test    rax, rax
-    jnz     .if587
-.else587:
+    jnz     .if592
+.else592:
     mov     rdi, literal.62 ; "false"
     call    stack_push_addr
-    jmp    .fi587
-.if587:
+    jmp    .fi592
+.if592:
     mov     rdi, literal.61 ; "true"
     call    stack_push_addr
-.fi587:
+.fi592:
 
     pop     rbp
     ret
@@ -88440,7 +88590,7 @@ func.40:
     pop     rbp
     ret
 
-func.326: ; string.memory-needed
+func.327: ; string.memory-needed
     push    rbp
     mov     rbp, rsp
 
@@ -88457,12 +88607,12 @@ func.326: ; string.memory-needed
     pop     rbp
     ret
 
-func.327: ; string.init.cstr
+func.328: ; string.init.cstr
     push    rbp
     mov     rbp, rsp
 
     call    func.1 ; dup
-    call    func.310 ; ptr.strlen
+    call    func.311 ; ptr.strlen
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
@@ -88530,7 +88680,7 @@ func.33: ; string.concat
     call    func.24 ; int.*
     call    func.7 ; +
     call    func.1 ; dup
-    call    func.326 ; string.memory-needed
+    call    func.327 ; string.memory-needed
     call    func.20 ; ptr.alloc
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
@@ -88620,7 +88770,7 @@ func.33: ; string.concat
     pop     rbp
     ret
 
-func.294: ; string.substr
+func.295: ; string.substr
     push    rbp
     mov     rbp, rsp
 
@@ -88633,7 +88783,7 @@ func.294: ; string.substr
     mov     qword [rbp - 8], rax
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
-    call    func.326 ; string.memory-needed
+    call    func.327 ; string.memory-needed
     call    func.20 ; ptr.alloc
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
@@ -88709,15 +88859,15 @@ func.139: ; string.repeat
     call    stack_push_addr
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
-.while588:
+.while593:
     call    func.1 ; dup
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jz     .pool588
-.loop588:
+    jz     .pool593
+.loop593:
     sub     rsp, 16
     call    stack_pop_addr
     mov     qword [rbp - 32], rax
@@ -88734,8 +88884,8 @@ func.139: ; string.repeat
     call    stack_push_addr
     call    func.7 ; +
     add     rsp, 16
-    jmp     .while588
-.pool588:
+    jmp     .while593
+.pool593:
     call    func.5 ; pop
     add     rsp, 16
 
@@ -88757,7 +88907,7 @@ func.50: ; string.!!
     call    func.26 ; ptr.*
     call    func.2 ; swp
     call    func.21 ; ptr.+
-    call    func.316 ; byte.init
+    call    func.317 ; byte.init
 
     pop     rbp
     ret
@@ -88784,13 +88934,13 @@ func.72: ; string.=
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if589
-.else589:
+    jnz     .if594
+.else594:
     call    func.66 ; pop3
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-    jmp    .fi589
-.if589:
+    jmp    .fi594
+.if594:
     call    func.62 ; rot'
     call    func.40 ; string.&
     mov     rdi, literal.8 ; 8
@@ -88811,16 +88961,16 @@ func.72: ; string.=
     call    func.26 ; ptr.*
     call    func.2 ; swp
     call    func.3 ; rot
-    call    func.315 ; ptr.memcmp
+    call    func.316 ; ptr.memcmp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.19 ; =
-.fi589:
+.fi594:
 
     pop     rbp
     ret
 
-func.328: ; string.starts_with
+func.329: ; string.starts_with
     push    rbp
     mov     rbp, rsp
 
@@ -88839,8 +88989,8 @@ func.328: ; string.starts_with
     call    func.17 ; >
     call    stack_pop
     test    rax, rax
-    jnz     .if590
-.else590:
+    jnz     .if595
+.else595:
     call    func.53 ; dup2
     call    func.40 ; string.&
     mov     rdi, literal.0 ; 0
@@ -88850,21 +89000,21 @@ func.328: ; string.starts_with
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.2 ; swp
-    call    func.294 ; string.substr
+    call    func.295 ; string.substr
     call    func.72 ; string.=
     call    func.2 ; swp
     call    func.5 ; pop
-    jmp    .fi590
-.if590:
+    jmp    .fi595
+.if595:
     call    func.48 ; pop2
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi590:
+.fi595:
 
     pop     rbp
     ret
 
-func.329: ; string.split_at
+func.330: ; string.split_at
     push    rbp
     mov     rbp, rsp
 
@@ -88878,13 +89028,13 @@ func.329: ; string.split_at
     call    func.17 ; >
     call    stack_pop
     test    rax, rax
-    jnz     .if591
-.else591:
+    jnz     .if596
+.else596:
     call    func.53 ; dup2
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.2 ; swp
-    call    func.294 ; string.substr
+    call    func.295 ; string.substr
     call    func.62 ; rot'
     call    func.53 ; dup2
     call    func.2 ; swp
@@ -88895,18 +89045,18 @@ func.329: ; string.split_at
     call    func.24 ; int.*
     call    func.2 ; swp
     call    func.8 ; -
-    call    func.294 ; string.substr
-    jmp    .fi591
-.if591:
+    call    func.295 ; string.substr
+    jmp    .fi596
+.if596:
     call    func.5 ; pop
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
-.fi591:
+.fi596:
 
     pop     rbp
     ret
 
-func.330: ; string.index
+func.331: ; string.index
     push    rbp
     mov     rbp, rsp
 
@@ -88919,7 +89069,7 @@ func.330: ; string.index
     call    stack_push_addr
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-.while592:
+.while597:
     sub     rsp, 16
     call    stack_pop_addr
     mov     qword [rbp - 32], rax
@@ -88945,8 +89095,8 @@ func.330: ; string.index
     add     rsp, 16
     call    stack_pop
     test    rax, rax
-    jz     .pool592
-.loop592:
+    jz     .pool597
+.loop597:
     sub     rsp, 16
     call    stack_pop_addr
     mov     qword [rbp - 32], rax
@@ -88956,16 +89106,16 @@ func.330: ; string.index
     call    stack_push_addr
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
-    call    func.329 ; string.split_at
+    call    func.330 ; string.split_at
     call    func.2 ; swp
     call    func.5 ; pop
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
-    call    func.328 ; string.starts_with
+    call    func.329 ; string.starts_with
     call    stack_pop
     test    rax, rax
-    jnz     .if593
-.else593:
+    jnz     .if598
+.else598:
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
     mov     rdi, literal.1 ; 1
@@ -88973,33 +89123,33 @@ func.330: ; string.index
     call    func.7 ; +
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-    jmp    .fi593
-.if593:
+    jmp    .fi598
+.if598:
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi593:
+.fi598:
     add     rsp, 16
-    jmp     .while592
-.pool592:
+    jmp     .while597
+.pool597:
     call    func.59 ; not
     add     rsp, 16
 
     pop     rbp
     ret
 
-func.331: ; string.split
+func.332: ; string.split
     push    rbp
     mov     rbp, rsp
 
-    call    func.332 ; string.cut
+    call    func.333 ; string.cut
     call    func.5 ; pop
 
     pop     rbp
     ret
 
-func.332: ; string.cut
+func.333: ; string.cut
     push    rbp
     mov     rbp, rsp
 
@@ -89012,16 +89162,16 @@ func.332: ; string.cut
     call    stack_push_addr
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
-    call    func.330 ; string.index
+    call    func.331 ; string.index
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if594
-.else594:
+    jnz     .if599
+.else599:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.2 ; swp
-    call    func.329 ; string.split_at
+    call    func.330 ; string.split_at
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     call    func.40 ; string.&
@@ -89029,13 +89179,13 @@ func.332: ; string.cut
     call    stack_push_addr
     call    func.21 ; ptr.+
     call    func.24 ; int.*
-    call    func.329 ; string.split_at
+    call    func.330 ; string.split_at
     call    func.2 ; swp
     call    func.5 ; pop
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-    jmp    .fi594
-.if594:
+    jmp    .fi599
+.if599:
     call    func.5 ; pop
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
@@ -89043,13 +89193,13 @@ func.332: ; string.cut
     call    stack_push_addr
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi594:
+.fi599:
     add     rsp, 16
 
     pop     rbp
     ret
 
-func.333: ; string.stdin
+func.334: ; string.stdin
     push    rbp
     mov     rbp, rsp
 
@@ -89059,10 +89209,10 @@ func.333: ; string.stdin
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if595
-.else595:
-    jmp    .fi595
-.if595:
+    jnz     .if600
+.else600:
+    jmp    .fi600
+.if600:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -89093,7 +89243,7 @@ func.333: ; string.stdin
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi595:
+.fi600:
 
     pop     rbp
     ret
@@ -89109,10 +89259,10 @@ func.76: ; string.stdout
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if596
-.else596:
-    jmp    .fi596
-.if596:
+    jnz     .if601
+.else601:
+    jmp    .fi601
+.if601:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -89143,12 +89293,12 @@ func.76: ; string.stdout
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi596:
+.fi601:
 
     pop     rbp
     ret
 
-func.204: ; string.stderr
+func.205: ; string.stderr
     push    rbp
     mov     rbp, rsp
 
@@ -89159,10 +89309,10 @@ func.204: ; string.stderr
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if597
-.else597:
-    jmp    .fi597
-.if597:
+    jnz     .if602
+.else602:
+    jmp    .fi602
+.if602:
     mov     rdi, literal.76 ; "./lib/stdlib.stack"
     call    stack_push_addr
     mov     rdi, literal.23 ; ":"
@@ -89193,7 +89343,7 @@ func.204: ; string.stderr
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.36 ; sys.exit
-.fi597:
+.fi602:
 
     pop     rbp
     ret
@@ -89218,23 +89368,23 @@ func.164: ; stdlib.fopen
     call    func.72 ; string.=
     call    stack_pop
     test    rax, rax
-    jnz     .if598
-.else598:
+    jnz     .if603
+.else603:
     call    func.1 ; dup
     mov     rdi, literal.500 ; "w"
     call    stack_push_addr
     call    func.72 ; string.=
     call    stack_pop
     test    rax, rax
-    jnz     .if599
-.else599:
+    jnz     .if604
+.else604:
     call    func.48 ; pop2
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-    jmp    .fi599
-.if599:
+    jmp    .fi604
+.if604:
     call    func.5 ; pop
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
@@ -89243,21 +89393,21 @@ func.164: ; stdlib.fopen
     call    func.13 ; |
     mov     rdi, literal.502 ; 420
     call    stack_push_addr
-    call    func.334 ; sys.open
+    call    func.335 ; sys.open
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-.fi599:
-    jmp    .fi598
-.if598:
+.fi604:
+    jmp    .fi603
+.if603:
     call    func.5 ; pop
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     mov     rdi, literal.502 ; 420
     call    stack_push_addr
-    call    func.334 ; sys.open
+    call    func.335 ; sys.open
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-.fi598:
+.fi603:
 
     pop     rbp
     ret
@@ -89266,7 +89416,7 @@ func.166: ; stdlib.fclose
     push    rbp
     mov     rbp, rsp
 
-    call    func.335 ; sys.close
+    call    func.336 ; sys.close
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.19 ; =
@@ -89274,7 +89424,7 @@ func.166: ; stdlib.fclose
     pop     rbp
     ret
 
-func.336: ; stdlib.fread
+func.337: ; stdlib.fread
     push    rbp
     mov     rbp, rsp
 
@@ -89285,7 +89435,7 @@ func.336: ; stdlib.fread
     mov     qword [rbp - 8], rax
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
-    call    func.326 ; string.memory-needed
+    call    func.327 ; string.memory-needed
     call    func.20 ; ptr.alloc
     call    func.1 ; dup
     mov     rdi, qword [rbp - 8]
@@ -89293,15 +89443,15 @@ func.336: ; stdlib.fread
     call    func.2 ; swp
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
-    call    func.337 ; sys.read
+    call    func.338 ; sys.read
     call    func.1 ; dup
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if600
-.else600:
+    jnz     .if605
+.else605:
     call    func.2 ; swp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
@@ -89342,14 +89492,14 @@ func.336: ; stdlib.fread
     call    func.49 ; string.*
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-    jmp    .fi600
-.if600:
+    jmp    .fi605
+.if605:
     call    func.48 ; pop2
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi600:
+.fi605:
     add     rsp, 16
 
     pop     rbp
@@ -89366,12 +89516,12 @@ func.165: ; stdlib.fread.<eof>
     call    stack_push_addr
     mov     rdi, literal.503 ; 1024
     call    stack_push_addr
-    call    func.336 ; stdlib.fread
+    call    func.337 ; stdlib.fread
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if601
-.else601:
+    jnz     .if606
+.else606:
     call    func.1 ; dup
     call    func.40 ; string.&
     mov     rdi, literal.0 ; 0
@@ -89384,55 +89534,55 @@ func.165: ; stdlib.fread.<eof>
     call    func.54 ; <=
     call    stack_pop
     test    rax, rax
-    jnz     .if602
-.else602:
+    jnz     .if607
+.else607:
     mov     rdi, literal.503 ; 1024
     call    stack_push_addr
     call    func.47 ; >=
     call    stack_pop
     test    rax, rax
-    jnz     .if603
-.else603:
+    jnz     .if608
+.else608:
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-    jmp    .fi603
-.if603:
+    jmp    .fi608
+.if608:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.165 ; stdlib.fread.<eof>
     call    func.59 ; not
     call    stack_pop
     test    rax, rax
-    jnz     .if604
-.else604:
+    jnz     .if609
+.else609:
     call    func.33 ; string.concat
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-    jmp    .fi604
-.if604:
+    jmp    .fi609
+.if609:
     call    func.48 ; pop2
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi604:
-.fi603:
-    jmp    .fi602
-.if602:
+.fi609:
+.fi608:
+    jmp    .fi607
+.if607:
     call    func.48 ; pop2
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi602:
-    jmp    .fi601
-.if601:
+.fi607:
+    jmp    .fi606
+.if606:
     call    func.5 ; pop
     mov     rdi, literal.27 ; ""
     call    stack_push_addr
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi601:
+.fi606:
     add     rsp, 8
 
     pop     rbp
@@ -89457,7 +89607,7 @@ func.35: ; stdlib.fwrite
     call    stack_push_addr
     call    func.21 ; ptr.+
     call    func.24 ; int.*
-    call    func.338 ; sys.write
+    call    func.339 ; sys.write
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.47 ; >=
@@ -89612,8 +89762,8 @@ func.142: ; array.get
     call    func.54 ; <=
     call    stack_pop
     test    rax, rax
-    jnz     .if605
-.else605:
+    jnz     .if610
+.else610:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.94 ; array.&
@@ -89649,21 +89799,21 @@ func.142: ; array.get
     call    func.21 ; ptr.+
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-    jmp    .fi605
-.if605:
+    jmp    .fi610
+.if610:
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.23 ; int.&
     call    func.26 ; ptr.*
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi605:
+.fi610:
     add     rsp, 16
 
     pop     rbp
     ret
 
-func.240: ; array.copy
+func.241: ; array.copy
     push    rbp
     mov     rbp, rsp
 
@@ -89687,7 +89837,7 @@ func.240: ; array.copy
     pop     rbp
     ret
 
-func.234: ; array.last
+func.235: ; array.last
     push    rbp
     mov     rbp, rsp
 
@@ -89706,26 +89856,26 @@ func.234: ; array.last
     call    func.54 ; <=
     call    stack_pop
     test    rax, rax
-    jnz     .if606
-.else606:
+    jnz     .if611
+.else611:
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.8 ; -
     call    func.142 ; array.get
-    jmp    .fi606
-.if606:
+    jmp    .fi611
+.if611:
     call    func.48 ; pop2
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.23 ; int.&
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi606:
+.fi611:
 
     pop     rbp
     ret
 
-func.227: ; array.pop
+func.228: ; array.pop
     push    rbp
     mov     rbp, rsp
 
@@ -89744,23 +89894,23 @@ func.227: ; array.pop
     call    func.54 ; <=
     call    stack_pop
     test    rax, rax
-    jnz     .if607
-.else607:
+    jnz     .if612
+.else612:
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.8 ; -
     call    func.170 ; array.delete
-    jmp    .fi607
-.if607:
+    jmp    .fi612
+.if612:
     call    func.48 ; pop2
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-.fi607:
+.fi612:
 
     pop     rbp
     ret
 
-func.339: ; array.=
+func.340: ; array.=
     push    rbp
     mov     rbp, rsp
 
@@ -89792,12 +89942,12 @@ func.339: ; array.=
     call    func.19 ; =
     call    stack_pop
     test    rax, rax
-    jnz     .if608
-.else608:
+    jnz     .if613
+.else613:
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-    jmp    .fi608
-.if608:
+    jmp    .fi613
+.if613:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.94 ; array.&
@@ -89840,11 +89990,11 @@ func.339: ; array.=
     call    func.7 ; +
     call    func.21 ; ptr.+
     call    func.24 ; int.*
-    call    func.315 ; ptr.memcmp
+    call    func.316 ; ptr.memcmp
     mov     rdi, literal.0 ; 0
     call    stack_push_addr
     call    func.19 ; =
-.fi608:
+.fi613:
     add     rsp, 16
 
     pop     rbp
@@ -89881,20 +90031,20 @@ func.177: ; array.insert
     call    func.85 ; array.append
     call    stack_pop
     test    rax, rax
-    jnz     .if609
-.else609:
+    jnz     .if614
+.else614:
     call    func.5 ; pop
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-    jmp    .fi609
-.if609:
+    jmp    .fi614
+.if614:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     call    func.3 ; rot
     call    func.171 ; array.insert_many
-.fi609:
+.fi614:
     add     rsp, 24
 
     pop     rbp
@@ -89926,12 +90076,12 @@ func.171: ; array.insert_many
     call    func.54 ; <=
     call    stack_pop
     test    rax, rax
-    jnz     .if610
-.else610:
+    jnz     .if615
+.else615:
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-    jmp    .fi610
-.if610:
+    jmp    .fi615
+.if615:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.94 ; array.&
@@ -90002,7 +90152,7 @@ func.171: ; array.insert_many
     call    func.21 ; ptr.+
     call    func.24 ; int.*
     call    func.9 ; *
-    call    func.314 ; ptr.realloc
+    call    func.315 ; ptr.realloc
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.2 ; swp
@@ -90324,7 +90474,7 @@ func.171: ; array.insert_many
     call    func.5 ; pop
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-.fi610:
+.fi615:
     add     rsp, 24
 
     pop     rbp
@@ -90354,12 +90504,12 @@ func.170: ; array.delete
     call    func.18 ; <
     call    stack_pop
     test    rax, rax
-    jnz     .if611
-.else611:
+    jnz     .if616
+.else616:
     mov     rdi, literal.86 ; false
     call    stack_push_addr
-    jmp    .fi611
-.if611:
+    jmp    .fi616
+.if616:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.94 ; array.&
@@ -90493,7 +90643,7 @@ func.170: ; array.delete
     call    func.5 ; pop
     mov     rdi, literal.87 ; true
     call    stack_push_addr
-.fi611:
+.fi616:
     add     rsp, 16
 
     pop     rbp
@@ -90553,10 +90703,10 @@ func.85: ; array.append
     call    func.54 ; <=
     call    stack_pop
     test    rax, rax
-    jnz     .if612
-.else612:
-    jmp    .fi612
-.if612:
+    jnz     .if617
+.else617:
+    jmp    .fi617
+.if617:
     call    func.1 ; dup
     call    func.94 ; array.&
     mov     rdi, literal.0 ; 0
@@ -90573,14 +90723,14 @@ func.85: ; array.append
     call    func.54 ; <=
     call    stack_pop
     test    rax, rax
-    jnz     .if613
-.else613:
-    jmp    .fi613
-.if613:
+    jnz     .if618
+.else618:
+    jmp    .fi618
+.if618:
     call    func.5 ; pop
     mov     rdi, literal.504 ; 32
     call    stack_push_addr
-.fi613:
+.fi618:
     call    func.3 ; rot
     call    func.2 ; swp
     call    func.53 ; dup2
@@ -90643,7 +90793,7 @@ func.85: ; array.append
     call    func.26 ; ptr.*
     call    func.4 ; rot4
     call    func.4 ; rot4
-    call    func.314 ; ptr.realloc
+    call    func.315 ; ptr.realloc
     call    func.2 ; swp
     call    func.1 ; dup
     call    func.3 ; rot
@@ -90667,7 +90817,7 @@ func.85: ; array.append
     call    stack_push_addr
     call    func.22 ; ptr.@
     call    func.5 ; pop
-.fi612:
+.fi617:
     call    func.1 ; dup
     call    func.94 ; array.&
     mov     rdi, literal.8 ; 8
@@ -90752,7 +90902,7 @@ func.85: ; array.append
     pop     rbp
     ret
 
-func.340: ; array.swap
+func.341: ; array.swap
     push    rbp
     mov     rbp, rsp
 
@@ -90780,243 +90930,6 @@ func.340: ; array.swap
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     mov     rdi, qword [rbp - 16]
-    call    stack_push_addr
-    call    func.142 ; array.get
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if614
-.else614:
-    jmp    .fi614
-.if614:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi614:
-    call    func.53 ; dup2
-    mov     rdi, qword [rbp - 8]
-    call    stack_push_addr
-    call    func.94 ; array.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.24 ; int.*
-    call    func.22 ; ptr.@
-    call    func.5 ; pop
-    mov     rdi, qword [rbp - 8]
-    call    stack_push_addr
-    mov     rdi, qword [rbp - 24]
-    call    stack_push_addr
-    call    func.142 ; array.get
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if615
-.else615:
-    jmp    .fi615
-.if615:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi615:
-    call    func.53 ; dup2
-    mov     rdi, qword [rbp - 8]
-    call    stack_push_addr
-    call    func.94 ; array.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.24 ; int.*
-    call    func.22 ; ptr.@
-    call    func.5 ; pop
-    call    func.2 ; swp
-    call    func.5 ; pop
-    call    func.2 ; swp
-    mov     rdi, qword [rbp - 8]
-    call    stack_push_addr
-    call    func.94 ; array.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.24 ; int.*
-    call    func.22 ; ptr.@
-    call    func.5 ; pop
-    add     rsp, 24
-
-    pop     rbp
-    ret
-
-func.341: ; array.sort<int>
-    push    rbp
-    mov     rbp, rsp
-
-    sub     rsp, 8
-    call    stack_pop_addr
-    mov     qword [rbp - 8], rax
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-.while616:
-    call    func.1 ; dup
-    mov     rdi, qword [rbp - 8]
-    call    stack_push_addr
-    call    func.94 ; array.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.24 ; int.*
-    call    func.18 ; <
-    call    stack_pop
-    test    rax, rax
-    jz     .pool616
-.loop616:
-    call    func.1 ; dup
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.7 ; +
-.while617:
-    call    func.1 ; dup
-    mov     rdi, qword [rbp - 8]
-    call    stack_push_addr
-    call    func.94 ; array.&
-    mov     rdi, literal.8 ; 8
-    call    stack_push_addr
-    mov     rdi, literal.0 ; 0
-    call    stack_push_addr
-    call    func.7 ; +
-    call    func.21 ; ptr.+
-    call    func.24 ; int.*
-    call    func.18 ; <
-    call    stack_pop
-    test    rax, rax
-    jz     .pool617
-.loop617:
-    sub     rsp, 16
-    call    stack_pop_addr
-    mov     qword [rbp - 24], rax
-    call    stack_pop_addr
-    mov     qword [rbp - 16], rax
-    mov     rdi, qword [rbp - 8]
-    call    stack_push_addr
-    mov     rdi, qword [rbp - 16]
-    call    stack_push_addr
-    call    func.142 ; array.get
-    call    func.59 ; not
-    call    stack_pop
-    test    rax, rax
-    jnz     .if618
-.else618:
-    jmp    .fi618
-.if618:
-    mov     rdi, literal.76 ; "./lib/stdlib.stack"
-    call    stack_push_addr
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.77 ; 636
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.23 ; ":"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.78 ; 36
-    call    stack_push_addr
-    call    func.34 ; int.show
-    call    func.33 ; string.concat
-    mov     rdi, literal.25 ; ": "
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.26 ; "panic!\n"
-    call    stack_push_addr
-    call    func.33 ; string.concat
-    mov     rdi, literal.2 ; 2
-    call    stack_push_addr
-    call    func.2 ; swp
-    call    func.35 ; stdlib.fwrite
-    call    func.5 ; pop
-    mov     rdi, literal.1 ; 1
-    call    stack_push_addr
-    call    func.36 ; sys.exit
-.fi618:
-    call    func.24 ; int.*
-    mov     rdi, qword [rbp - 8]
-    call    stack_push_addr
-    mov     rdi, qword [rbp - 24]
     call    stack_push_addr
     call    func.142 ; array.get
     call    func.59 ; not
@@ -91057,6 +90970,243 @@ func.341: ; array.sort<int>
     call    stack_push_addr
     call    func.36 ; sys.exit
 .fi619:
+    call    func.53 ; dup2
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    call    func.94 ; array.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    call    func.22 ; ptr.@
+    call    func.5 ; pop
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 24]
+    call    stack_push_addr
+    call    func.142 ; array.get
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if620
+.else620:
+    jmp    .fi620
+.if620:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi620:
+    call    func.53 ; dup2
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    call    func.94 ; array.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    call    func.22 ; ptr.@
+    call    func.5 ; pop
+    call    func.2 ; swp
+    call    func.5 ; pop
+    call    func.2 ; swp
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    call    func.94 ; array.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    call    func.22 ; ptr.@
+    call    func.5 ; pop
+    add     rsp, 24
+
+    pop     rbp
+    ret
+
+func.342: ; array.sort<int>
+    push    rbp
+    mov     rbp, rsp
+
+    sub     rsp, 8
+    call    stack_pop_addr
+    mov     qword [rbp - 8], rax
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+.while621:
+    call    func.1 ; dup
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    call    func.94 ; array.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    call    func.18 ; <
+    call    stack_pop
+    test    rax, rax
+    jz     .pool621
+.loop621:
+    call    func.1 ; dup
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.7 ; +
+.while622:
+    call    func.1 ; dup
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    call    func.94 ; array.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.24 ; int.*
+    call    func.18 ; <
+    call    stack_pop
+    test    rax, rax
+    jz     .pool622
+.loop622:
+    sub     rsp, 16
+    call    stack_pop_addr
+    mov     qword [rbp - 24], rax
+    call    stack_pop_addr
+    mov     qword [rbp - 16], rax
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 16]
+    call    stack_push_addr
+    call    func.142 ; array.get
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if623
+.else623:
+    jmp    .fi623
+.if623:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi623:
+    call    func.24 ; int.*
+    mov     rdi, qword [rbp - 8]
+    call    stack_push_addr
+    mov     rdi, qword [rbp - 24]
+    call    stack_push_addr
+    call    func.142 ; array.get
+    call    func.59 ; not
+    call    stack_pop
+    test    rax, rax
+    jnz     .if624
+.else624:
+    jmp    .fi624
+.if624:
+    mov     rdi, literal.76 ; "./lib/stdlib.stack"
+    call    stack_push_addr
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.77 ; 636
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.23 ; ":"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.78 ; 36
+    call    stack_push_addr
+    call    func.34 ; int.show
+    call    func.33 ; string.concat
+    mov     rdi, literal.25 ; ": "
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.26 ; "panic!\n"
+    call    stack_push_addr
+    call    func.33 ; string.concat
+    mov     rdi, literal.2 ; 2
+    call    stack_push_addr
+    call    func.2 ; swp
+    call    func.35 ; stdlib.fwrite
+    call    func.5 ; pop
+    mov     rdi, literal.1 ; 1
+    call    stack_push_addr
+    call    func.36 ; sys.exit
+.fi624:
     call    func.24 ; int.*
     call    func.8 ; -
     mov     rdi, literal.0 ; 0
@@ -91064,18 +91214,18 @@ func.341: ; array.sort<int>
     call    func.17 ; >
     call    stack_pop
     test    rax, rax
-    jnz     .if620
-.else620:
-    jmp    .fi620
-.if620:
+    jnz     .if625
+.else625:
+    jmp    .fi625
+.if625:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
-    call    func.340 ; array.swap
-.fi620:
+    call    func.341 ; array.swap
+.fi625:
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     mov     rdi, qword [rbp - 24]
@@ -91084,21 +91234,21 @@ func.341: ; array.sort<int>
     call    stack_push_addr
     call    func.7 ; +
     add     rsp, 16
-    jmp     .while617
-.pool617:
+    jmp     .while622
+.pool622:
     call    func.5 ; pop
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
     call    func.7 ; +
-    jmp     .while616
-.pool616:
+    jmp     .while621
+.pool621:
     call    func.5 ; pop
     add     rsp, 8
 
     pop     rbp
     ret
 
-func.342: ; byte.ispunct'
+func.343: ; byte.ispunct'
     push    rbp
     mov     rbp, rsp
 
@@ -91274,7 +91424,7 @@ func.342: ; byte.ispunct'
     pop     rbp
     ret
 
-func.316: ; byte.init
+func.317: ; byte.init
     push    rbp
     mov     rbp, rsp
 
@@ -91310,7 +91460,7 @@ func.61: ; byte.isdigit
     pop     rbp
     ret
 
-func.343: ; byte.isupper
+func.344: ; byte.isupper
     push    rbp
     mov     rbp, rsp
 
@@ -91327,7 +91477,7 @@ func.343: ; byte.isupper
     pop     rbp
     ret
 
-func.344: ; byte.islower
+func.345: ; byte.islower
     push    rbp
     mov     rbp, rsp
 
@@ -91344,27 +91494,27 @@ func.344: ; byte.islower
     pop     rbp
     ret
 
-func.345: ; byte.isletter
+func.346: ; byte.isletter
     push    rbp
     mov     rbp, rsp
 
     call    func.1 ; dup
-    call    func.343 ; byte.isupper
+    call    func.344 ; byte.isupper
     call    func.2 ; swp
-    call    func.344 ; byte.islower
+    call    func.345 ; byte.islower
     call    func.58 ; or
 
     pop     rbp
     ret
 
-func.346: ; byte.isalnum
+func.347: ; byte.isalnum
     push    rbp
     mov     rbp, rsp
 
     call    func.1 ; dup
     call    func.61 ; byte.isdigit
     call    func.2 ; swp
-    call    func.345 ; byte.isletter
+    call    func.346 ; byte.isletter
     call    func.58 ; or
 
     pop     rbp
@@ -91401,9 +91551,9 @@ func.68: ; byte.isname
     mov     rbp, rsp
 
     call    func.1 ; dup
-    call    func.346 ; byte.isalnum
+    call    func.347 ; byte.isalnum
     call    func.2 ; swp
-    call    func.342 ; byte.ispunct'
+    call    func.343 ; byte.ispunct'
     call    func.58 ; or
 
     pop     rbp
@@ -91416,7 +91566,7 @@ func.63: ; byte.chr
     call    func.23 ; int.&
     mov     rdi, literal.1 ; 1
     call    stack_push_addr
-    call    func.326 ; string.memory-needed
+    call    func.327 ; string.memory-needed
     call    func.20 ; ptr.alloc
     call    func.2 ; swp
     mov     rdi, literal.1 ; 1
@@ -91478,7 +91628,7 @@ func.161: ; os.env.get
     mov     rdi, literal.86 ; false
     call    stack_push_addr
     call    func.29 ; os.env
-.while621:
+.while626:
     sub     rsp, 24
     call    stack_pop_addr
     mov     qword [rbp - 32], rax
@@ -91506,16 +91656,16 @@ func.161: ; os.env.get
     add     rsp, 24
     call    stack_pop
     test    rax, rax
-    jz     .pool621
-.loop621:
+    jz     .pool626
+.loop626:
     call    func.62 ; rot'
     call    func.48 ; pop2
     call    func.1 ; dup
     call    func.26 ; ptr.*
-    call    func.327 ; string.init.cstr
+    call    func.328 ; string.init.cstr
     mov     rdi, literal.144 ; "="
     call    stack_push_addr
-    call    func.331 ; string.split
+    call    func.332 ; string.split
     call    func.2 ; swp
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
@@ -91524,15 +91674,15 @@ func.161: ; os.env.get
     mov     rdi, literal.8 ; 8
     call    stack_push_addr
     call    func.21 ; ptr.+
-    jmp     .while621
-.pool621:
+    jmp     .while626
+.pool626:
     call    func.5 ; pop
     add     rsp, 8
 
     pop     rbp
     ret
 
-func.337: ; sys.read
+func.338: ; sys.read
     push    rbp
     mov     rbp, rsp
 
@@ -91543,7 +91693,7 @@ func.337: ; sys.read
     pop     rbp
     ret
 
-func.338: ; sys.write
+func.339: ; sys.write
     push    rbp
     mov     rbp, rsp
 
@@ -91554,7 +91704,7 @@ func.338: ; sys.write
     pop     rbp
     ret
 
-func.334: ; sys.open
+func.335: ; sys.open
     push    rbp
     mov     rbp, rsp
 
@@ -91565,7 +91715,7 @@ func.334: ; sys.open
     pop     rbp
     ret
 
-func.335: ; sys.close
+func.336: ; sys.close
     push    rbp
     mov     rbp, rsp
 
@@ -91618,7 +91768,7 @@ string.22 db 115,116,97,99,107,46,115,116,97,99,107,0,0,0,0,0
 literal.23 dq 1
           dq string.23
 string.23 db 58,0,0,0,0,0,0,0
-literal.24 dq 3871
+literal.24 dq 3862
 literal.25 dq 2
           dq string.25
 string.25 db 58,32,0,0,0,0,0,0

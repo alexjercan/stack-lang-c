@@ -1,0 +1,56 @@
+func kept () (int) in 10 end
+
+-- A conflict before any binding must not remove existing functions.
+func conflict_first (int, int) (int, int) in
+    match item kept in
+        missing_body_first
+    end
+    kept pop sentinel pop
+end
+
+-- A conflict after a successful binding must roll back that binding.
+func conflict_partial (int, int) (int, int) in
+    match kept item in
+        missing_body_partial
+    end
+    kept pop
+end
+
+-- Duplicate names must also roll back the partially initialized match.
+func duplicate (int, int) (int, int) in
+    match item item in
+        missing_body_duplicate
+    end
+    kept pop
+end
+
+-- Failed inner bindings must preserve the outer binding and stack.
+func nested (int) (int) in
+    match outer in
+        1 2 match outer inner in
+            missing_body_nested
+        end
+        pop pop outer
+    end
+end
+
+-- Successful matches must remove their local bindings when they end.
+func reuse (int) (int) in
+    match item in item end
+    match item in item end
+end
+
+func main () (int) in
+    kept
+end
+
+func sentinel () (int) in 20 end
+
+-- Two successful binds must unwind in order, even with distinct types.
+func mixed_partial (int, bool, ptr) (int, bool, ptr) in
+    match kept first second in
+        missing_body_mixed
+    end
+    match first second in first second end
+    sentinel pop
+end

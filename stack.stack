@@ -2545,6 +2545,14 @@ func stack_context.get_symbol (stack_context, string) (bool, ptr) in
     0 rot' stack_context.get_symbol'
 end
 
+func stack_context.has_data (stack_context, string) (bool) in
+    stack_context.get_symbol swp if
+        stack_context_symbol.* stack_context_symbol.kind STACK_CONTEXT_SYMBOL_DATA =
+    else
+        pop false
+    fi
+end
+
 func stack_context.showf (stack_context, stack_ast_node, string) () in -- ctx, node, msg
     swp dup -- ctx, str, node, node
     stack_ast_node.parser -- ctx, str, node, parser
@@ -2805,7 +2813,7 @@ func stack_context.typecheck.expr.name.infer' (stack_context, array, array, arra
 
         6 pick stack_context.* -- ctx, stack, args, map, i, stack.string, arg.string, ctx
         1 pick string.* -- ctx, stack, args, map, i, stack.string, arg.string, ctx, arg.string
-        stack_context.get_symbol pop not if -- ctx, stack, args, map, i, stack.string, arg.string
+        stack_context.has_data not if -- ctx, stack, args, map, i, stack.string, arg.string
             -- if arg is `a` generic
             3 pick array.* -- ctx, stack, args, map, i, stack.string, arg.string, map
             1 pick string.* -- ctx, stack, args, map, i, stack.string, arg.string, map, arg.string
@@ -2825,7 +2833,7 @@ func stack_context.typecheck.expr.name.infer' (stack_context, array, array, arra
             -- if arg is `int` non generic
             6 pick stack_context.* -- ctx, stack, args, map, i, stack.string, arg.string, ctx
             2 pick string.* -- ctx, stack, args, map, i, stack.string, arg.string, ctx, stack.string
-            stack_context.get_symbol pop not if -- ctx, stack, args, map, i, stack.string, arg.string
+            stack_context.has_data not if -- ctx, stack, args, map, i, stack.string, arg.string
                 -- if stack is `a` generic
                 pop pop false
             else
@@ -3120,45 +3128,40 @@ func stack_context.typecheck.match.showf (stack_context, stack_ast_match, array)
     pop
 end
 
-func stack_context.typecheck.match.init (int, stack_context, array, array) () in -- i, ctx, stack, binds
-    3 pick int.* -- i, ctx, stack, binds, i
-    1 pick array.* -- i, ctx, stack, binds, i, binds
-    array.count < if -- i, ctx, stack, binds
-        0 pick array.* -- i, ctx, stack, binds, binds
-        array.count -- i, ctx, stack, binds, L
-        4 pick int.* -- i, ctx, stack, binds, L, i
-        - 1 - -- i, ctx, stack, binds, L-i-1
-        1 pick array.* -- i, ctx, stack, binds, L-i-1, binds
-        swp array.get unwrap stack_ast_node.* -- i, ctx, stack, binds, bind
+func stack_context.typecheck.match.init (int, stack_context, array, array) (bool) in -- i, ctx, stack, binds
+    match index ctx stack binds in
+        index binds array.count < if
+            binds binds array.count index - 1 - array.get unwrap stack_ast_node.*
+            match bind in
+                ctx bind stack_ast_node.value stack_context.get_symbol swp if
+                    pop
+                    ctx bind "bind " bind stack_ast_node.value string.concat
+                    " is already defined\n" string.concat stack_context.showf
+                    false
+                else
+                    pop
+                    stack array.last unwrap string.*
+                    match bound_type in
+                        ctx bind stack_ast_node.value
+                        string.sizeof array.init.with_sz
+                        string.sizeof array.init.with_sz
+                        dup bound_type string.& array.append unwrap
+                        stack_context_func.init stack_context.append.func
+                        stack array.pop unwrap
 
-        3 pick stack_context.* -- i, ctx, stack, binds, bind, ctx
-        1 pick stack_ast_node.* -- i, ctx, stack, binds, bind, ctx, bind
-        stack_ast_node.value stack_context.get_symbol swp if -- i, ctx, stack, binds, bind, ptr
-            pop -- i, ctx, stack, binds, bind
-            dup stack_ast_node.value -- i, ctx, stack, binds, bind, name
-            "bind " swp string.concat " is already defined\n" string.concat -- i, ctx, stack, binds, bind, s
-            rot pop rot pop rot4 pop -- ctx, bind, s
-            stack_context.showf -- ()
+                        index 1 + ctx stack binds stack_context.typecheck.match.init
+                        dup not if
+                            -- Roll back only this binding when a later bind fails.
+                            ctx stack_context.symbols array.pop unwrap
+                            stack bound_type string.& array.append unwrap
+                        fi
+                    end
+                fi
+            end
         else
-            pop stack_ast_node.value -- i, ctx, stack, binds, name
-            2 pick array.* -- i, ctx, stack, binds, name, stack
-            array.last unwrap string.* -- i, ctx, stack, binds, name, type
-            string.sizeof array.init.with_sz string.sizeof array.init.with_sz -- ..., name, type, args, rets
-            dup rot4 string.& array.append unwrap -- ... name, args, rets
-            stack_context_func.init -- i, ctx, stack, binds, func
-
-            3 pick stack_context.* -- i, ctx, stack, binds, func, ctx
-            swp stack_context.append.func -- i, ctx, stack, binds
-
-            1 pick array.* -- i, ctx, stack, binds, stack
-            array.pop unwrap -- i, ctx, stack, binds
-
-            rot4 1 + rot4' -- i+1, ctx, stack, binds
-            stack_context.typecheck.match.init -- ()
-        fi -- ()
-    else
-        pop pop pop pop
-    fi -- ()
+            true
+        fi
+    end
 end
 
 func stack_context.typecheck.match.clear (int, stack_context, array) () in -- i, ctx, binds
@@ -3175,28 +3178,16 @@ func stack_context.typecheck.match.clear (int, stack_context, array) () in -- i,
 end
 
 func stack_context.typecheck.expr.match (stack_context, array, stack_ast_match) () in -- ctx, stack, match
-    -- ctx, stack, match
-    dup2 stack_ast_match.binds -- ctx, stack, match, stack, binds
-    array.count swp array.count -- ..., binds.L, stack.L
-    swp < if -- ctx, stack, match
-        swp stack_context.typecheck.match.showf
-    else
-        dup stack_ast_match.binds -- ctx, stack, match, binds
-        -- remove items from stack + and add them as symbols in ctx
-        swp rot4' -- match, ctx, stack, binds
-        dup3 0 rot4' -- ..., i, ctx, stack, binds
-        stack_context.typecheck.match.init -- match, ctx, stack, binds
-        pop -- match, ctx, stack
-        rot dup stack_ast_match.exprs -- ctx, stack, match, exprs
-        swp rot4' -- match, ctx, stack, exprs
-        dup3 -- ..., ctx, stack, exprs
-
-        stack_context.typecheck.exprs -- match, ctx, stack, exprs
-
-        rot4 stack_ast_match.binds -- ctx, stack, exprs, binds
-        rot' pop pop -- ctx, binds
-        0 rot' stack_context.typecheck.match.clear
-    fi -- ()
+    match ctx stack node in
+        node stack_ast_match.binds array.count stack array.count > if
+            ctx node stack stack_context.typecheck.match.showf
+        else
+            0 ctx stack node stack_ast_match.binds stack_context.typecheck.match.init if
+                ctx stack node stack_ast_match.exprs stack_context.typecheck.exprs
+                0 ctx node stack_ast_match.binds stack_context.typecheck.match.clear
+            fi
+        fi
+    end
 end
 
 func stack_context.typecheck.expr.while.has_boolean (array) (bool) in -- stack

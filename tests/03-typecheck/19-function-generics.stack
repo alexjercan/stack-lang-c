@@ -1,0 +1,10 @@
+-- Ordinary function names are not concrete types either.
+func a () (int) in 1 end
+func b () (bool) in true end
+func c () (ptr) in 0 ptr.alloc end
+func d () (int) in 2 end
+
+func main () (int) in
+    a b c d rot4 pop pop pop pop
+    0
+end

@@ -1,0 +1,42 @@
+@import "tests/04-runtime/utils"
+
+data packet (int tag, bool ready)
+
+func twice (item) (item, item) in dup end
+
+func main (int, ptr) (int) in
+    pop pop
+
+    7 match a in
+        a dup = 1 check
+    end
+
+    7 8 match b in
+        b swp 7 = 2 check 8 = 3 check
+    end
+
+    7 8 9 match c in
+        c rot 7 = 4 check 9 = 5 check 8 = 6 check
+    end
+
+    7 8 9 10 match d in
+        d rot4 7 = 7 check 10 = 8 check 9 = 9 check 8 = 10 check
+    end
+
+    7 true match a in
+        match b in
+            a b dup 7 = 11 check 7 = 12 check 13 check
+        end
+    end
+
+    false match item in
+        item twice if false else true fi 14 check
+        if false else true fi 15 check
+    end
+
+    9 true packet.init match a in
+        a dup packet.tag 9 = 16 check packet.ready 17 check
+    end
+
+    0
+end

@@ -1,0 +1,18 @@
+func same (value, value) (value) in pop end
+
+-- A local name must not let different concrete types unify.
+func repeated_bound (int, bool) (int) in
+    match value in value same end
+end
+
+-- Fixing generic inference must not weaken concrete argument checks.
+func concrete_bound (bool) (int) in
+    match a in a 1 + end
+end
+
+-- An unknown generic input cannot be assumed to be an int.
+func unproven (a) (int) in
+    match a in a 1 + end
+end
+
+func main () (int) in 0 end

@@ -453,7 +453,8 @@ shadowed by other variables in inner matches. See some examples in the
 
 The variables will be type checked against the stack. You also cannot define
 more variables than items on the stack. The body of a match can contain any
-expressions.
+expressions. Binding names such as `a`, `b`, and `c` are separate from generic
+type parameters. They do not change function type inference.
 
 ### 5.5 While
 

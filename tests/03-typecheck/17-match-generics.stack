@@ -1,0 +1,48 @@
+-- Binding names must not be confused with generic type parameters.
+func named_a (int) (int, int) in
+    match a in a dup end
+end
+
+func named_b (int, bool) (bool, int) in
+    match b in b swp end
+end
+
+func named_c (int, bool, ptr) (bool, ptr, int) in
+    match c in c rot end
+end
+
+func named_d (int, bool, ptr, int) (bool, ptr, int, int) in
+    match d in d rot4 end
+end
+
+func named_abc (int, bool, ptr) (ptr, bool, int) in
+    match a b c in c b a end
+end
+
+func nested_generic (int, bool) (bool, int, int) in
+    match a in
+        match b in
+            a b dup
+        end
+    end
+end
+
+func twice (item) (item, item) in dup end
+
+func custom_generic (bool) (bool, bool) in
+    match item in item twice end
+end
+
+-- A generic input stays generic, even when its name is also a binding.
+func generic_input (a) (a, a) in
+    match a in a dup end
+end
+
+-- Known data types must still be treated as concrete types.
+data packet (int tag, bool ready)
+
+func packet_dup (packet) (packet, packet) in
+    match a in a dup end
+end
+
+func main () (int) in 0 end
