@@ -941,6 +941,23 @@ func stack_preprocessor.run.base.consts (stack_preprocessor, stack_ast) () in --
     pop3
 end
 
+func stack_preprocessor.run.import.open_error (stack_ast_node) () in
+    match node in
+        node stack_ast_node.parser stack_parser.lexer match lexer in
+            lexer stack_lexer.filename string.stderr
+            lexer node stack_ast_node.pos stack_lexer.pos.to_lc -- line, col
+            ":" string.stderr
+            swp int.show string.stderr
+            ":" string.stderr
+            int.show string.stderr
+            ", Preprocessor error: cannot open import \"" string.stderr
+            node stack_ast_node.value string.stderr
+            "\"\n" string.stderr
+        end
+    end
+    1 sys.exit
+end
+
 func stack_preprocessor.run.import (int, stack_preprocessor, stack_ast) () in -- i, pre, ast
     rot swp -- pre, i, ast
     dup stack_ast.features dup array.count rot4 dup rot < if -- pre ast array<feat> i
@@ -976,6 +993,11 @@ func stack_preprocessor.run.import (int, stack_preprocessor, stack_ast) () in --
                 match pre ast i path in
                     pre path stack_preprocessor.imports.contains not if
                         path "r" stdlib.fopen unwrap -- fd
+                        dup 0 < if
+                            ast stack_ast.features i array.get unwrap stack_ast_feature.*
+                            stack_ast_feature.feature stack_ast_import.* stack_ast_import.name
+                            stack_preprocessor.run.import.open_error
+                        fi
                         dup stdlib.fread.<eof> unwrap -- fd, string
                         swp stdlib.fclose unwrap -- string
 
