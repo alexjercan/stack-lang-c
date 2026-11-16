@@ -1,0 +1,7 @@
+@import "tests/05-preprocessor/modules/const-cross"
+
+const LOCAL_START REMOTE_STEP
+
+func main () (int) in
+    LOCAL_START
+end

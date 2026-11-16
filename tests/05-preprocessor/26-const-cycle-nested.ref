@@ -1,0 +1,1 @@
+tests/05-preprocessor/26-const-cycle-nested.stack:1:7, Preprocessor error: cyclic constant N1 -> N2 -> N3 -> N4 -> N5 -> N1

@@ -1,0 +1,8 @@
+const ENTRY rec.second.offset
+const int.sizeof rec.second.offset
+
+data rec (int first, int second)
+
+func main () (int) in
+    0
+end

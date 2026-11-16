@@ -1,0 +1,1 @@
+tests/05-preprocessor/23-const-cycle-mutual.stack:1:7, Preprocessor error: cyclic constant PING -> PONG -> PING

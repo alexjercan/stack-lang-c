@@ -1,0 +1,74 @@
+const TOP
+    3
+    1
+    +
+    3
+    2
+    +
+    +
+    3
+    1
+    +
+    +
+
+const LEFT
+    3
+    1
+    +
+
+const RIGHT
+    3
+    2
+    +
+
+const BASE
+    3
+
+const BOTTOM
+    3
+
+const EMPTY
+
+const NAMED
+    "NAMED"
+    named
+
+const BOUND
+    0
+    MATCH BOUND
+        3
+
+func named
+    ret0: int
+    body:
+        5
+
+func main
+    ret0: int
+    body:
+        3
+        1
+        +
+        3
+        2
+        +
+        +
+        3
+        1
+        +
+        +
+        "NAMED"
+        named
+        0
+        MATCH BOUND
+            3
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

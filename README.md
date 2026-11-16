@@ -152,6 +152,10 @@ const <name> <body>
 
 will be expanded as as `<body>` in the place where it is used.
 
+Constant definitions must be acyclic. A constant cannot use itself directly or
+through other constants, including constants generated from data types. A
+later redefinition does not make an earlier cyclic definition valid.
+
 ## 3.4. Imports
 
 Import macros were added to keep the code organized into modules.

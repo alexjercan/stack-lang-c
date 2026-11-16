@@ -1,0 +1,1 @@
+tests/05-preprocessor/40-data-cycle-setter.stack:4:15, Preprocessor error: cyclic constant box.value.set -> ptr.@ -> box.value.set

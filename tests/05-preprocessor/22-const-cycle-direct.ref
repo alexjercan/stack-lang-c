@@ -1,0 +1,1 @@
+tests/05-preprocessor/22-const-cycle-direct.stack:1:7, Preprocessor error: cyclic constant SELF -> SELF

@@ -1,0 +1,1 @@
+tests/05-preprocessor/32-const-cycle-redefined.stack:1:7, Preprocessor error: cyclic constant A -> A

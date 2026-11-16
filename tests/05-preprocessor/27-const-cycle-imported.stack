@@ -1,0 +1,5 @@
+@import "tests/05-preprocessor/modules/const-cycle"
+
+func main () (int) in
+    0
+end

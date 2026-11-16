@@ -1,0 +1,1 @@
+tests/05-preprocessor/38-data-cycle-init.stack:4:6, Preprocessor error: cyclic constant box.init -> ptr.alloc -> box.init

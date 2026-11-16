@@ -1,0 +1,1 @@
+tests/05-preprocessor/modules/const-shadow.stack:1:7, Preprocessor error: cyclic constant SHADOW -> SHADOW

@@ -1,0 +1,9 @@
+const N1 true if 0 else N2 fi
+const N2 true if N3 fi
+const N3 1 match x in x N4 end
+const N4 while N5 loop pool
+const N5 while false loop N1 pool
+
+func main () (int) in
+    0
+end

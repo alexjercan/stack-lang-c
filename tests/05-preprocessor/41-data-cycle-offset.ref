@@ -1,0 +1,1 @@
+tests/05-preprocessor/41-data-cycle-offset.stack:4:26, Preprocessor error: cyclic constant rec.second.offset -> int.sizeof -> rec.second.offset

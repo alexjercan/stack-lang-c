@@ -1,0 +1,14 @@
+const TOP LEFT RIGHT + LEFT +
+const LEFT BASE 1 + EMPTY
+const RIGHT EMPTY BASE 2 + EMPTY
+const BASE EMPTY BOTTOM EMPTY
+const BOTTOM 3
+const EMPTY
+const NAMED "NAMED" named
+const BOUND 0 match BOUND in BASE end
+
+func named () (int) in 5 end
+
+func main () (int) in
+    TOP NAMED BOUND
+end

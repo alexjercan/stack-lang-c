@@ -1,0 +1,1 @@
+tests/05-preprocessor/33-const-cycle-redefined-empty.stack:1:7, Preprocessor error: cyclic constant HOLE -> HOLE

@@ -1,0 +1,1 @@
+tests/05-preprocessor/25-const-cycle-chain.stack:2:7, Preprocessor error: cyclic constant FIRST -> SECOND -> THIRD -> FIRST

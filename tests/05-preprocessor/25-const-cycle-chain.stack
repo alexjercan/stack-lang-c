@@ -1,0 +1,8 @@
+const ENTRY 0 FIRST +
+const FIRST 1 SECOND
+const SECOND THIRD 2
+const THIRD FIRST
+
+func main () (int) in
+    ENTRY
+end

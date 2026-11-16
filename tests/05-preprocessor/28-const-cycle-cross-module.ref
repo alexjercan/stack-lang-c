@@ -1,0 +1,1 @@
+tests/05-preprocessor/28-const-cycle-cross-module.stack:3:7, Preprocessor error: cyclic constant LOCAL_START -> REMOTE_STEP -> LOCAL_START

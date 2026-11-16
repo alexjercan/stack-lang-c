@@ -1,0 +1,1 @@
+tests/05-preprocessor/35-data-cycle-direct.stack:1:6, Preprocessor error: cyclic constant node.sizeof -> node.sizeof

@@ -1,0 +1,1 @@
+tests/05-preprocessor/modules/const-cycle.stack:1:7, Preprocessor error: cyclic constant MODULE_LOOP_A -> MODULE_LOOP_B -> MODULE_LOOP_A

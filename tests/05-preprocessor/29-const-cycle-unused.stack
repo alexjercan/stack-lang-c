@@ -1,0 +1,7 @@
+const USED 7
+const UNUSED_A UNUSED_B
+const UNUSED_B UNUSED_A
+
+func main () (int) in
+    USED
+end

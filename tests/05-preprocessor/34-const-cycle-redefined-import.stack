@@ -1,0 +1,7 @@
+const SHADOW 1
+
+@import "tests/05-preprocessor/modules/const-shadow"
+
+func main () (int) in
+    SHADOW
+end

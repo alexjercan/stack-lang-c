@@ -1,0 +1,1 @@
+tests/05-preprocessor/24-const-cycle-literal.stack:1:7, Preprocessor error: cyclic constant COUNT -> COUNT

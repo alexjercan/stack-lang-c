@@ -1,0 +1,1 @@
+tests/05-preprocessor/39-data-cycle-getter.stack:1:15, Preprocessor error: cyclic constant box.& -> box.&

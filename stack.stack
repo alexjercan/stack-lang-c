@@ -1510,6 +1510,12 @@ func stack_preprocessor.run.expand.special (int, stack_preprocessor, stack_ast) 
     fi -- ()
 end
 
+func stack_preprocessor.run.generate.data.name (stack_ast_node, string) (stack_ast_node) in -- source, value
+    match source value in
+        source stack_ast_node.parser value source stack_ast_node.pos stack_ast_node.init
+    end
+end
+
 func stack_preprocessor.run.generate.data.sizeof (int, stack_parser, stack_ast_data) (array) in -- i, parser, data
     dup stack_ast_data.fields -- i, parser, data array<field>
     rot4 swp dup2 array.count < if -- parser, data, i, array
@@ -1561,14 +1567,11 @@ func stack_preprocessor.run.generate.data.offset (int, stack_parser, stack_ast_d
         stack_ast_node.value -- parser, i, node, data, name
         swp rot4' -- parser, data, i, node, name
         "." string.concat -- parser, data, i, node, name.
-        swp -- parser, data, i, name, node
-        stack_ast_node.value -- parser, data, i, name. name
-        string.concat -- parser, data, i, name.name
-        "." string.concat STACK_OFFSET string.concat -- parser, data, i, name.offset
-
-        rot4 dup rot -- data, i, parser, name.offset, parser
-        0 stack_ast_node.init -- data, i, parser, node
-        swp rot4' -- parser, data, i, node
+        swp dup rot' -- parser, data, i, node, name., node
+        stack_ast_node.value -- parser, data, i, node, name. name
+        string.concat -- parser, data, i, node, name.name
+        "." string.concat STACK_OFFSET string.concat -- parser, data, i, node, name.offset
+        stack_preprocessor.run.generate.data.name -- parser, data, i, node
 
         rot4' -- node, parser, data, i
         dup 0 = if -- node, parser, data, i
@@ -1662,10 +1665,8 @@ func stack_preprocessor.run.generate.data.const (stack_ast, stack_ast_data, stac
     swp -- ast, parser, data
 
     dup2 -- ..., parser, data
-    dup stack_ast_data.name stack_ast_node.value "." string.concat STACK_SIZEOF string.concat -- ..., parser, data, s
-    rot dup rot4' -- ..., parser, data, s, parser
-    swp 0 -- ..., parser, data, parser, s, 0
-    stack_ast_node.init -- ..., parser, data, node
+    dup stack_ast_data.name dup stack_ast_node.value "." string.concat STACK_SIZEOF string.concat -- ..., parser, data, name, s
+    stack_preprocessor.run.generate.data.name -- ..., parser, data, node
     dup3 pop -- ..., parser, data, node parser, data
     0 rot' stack_preprocessor.run.generate.data.sizeof -- ..., parser, data, node, exprs
     stack_ast_const.init -- ... parser, data, const
@@ -1692,13 +1693,10 @@ func stack_preprocessor.run.generate.data.getters' (int, stack_parser, stack_ast
         stack_ast_node.value -- parser, i, node, data, name
         swp rot4' -- parser, data, i, node, name
         "." string.concat -- parser, data, i, node, name.
-        swp -- parser, data, i, name, node
-        stack_ast_node.value -- parser, data, i, name. name
-        string.concat -- parser, data, i, name.name
-
-        rot4 dup rot -- data, i, parser, name.name, parser
-        0 stack_ast_node.init -- data, i, parser, node
-        swp rot4' -- parser, data, i, node
+        swp dup rot' -- parser, data, i, node, name., node
+        stack_ast_node.value -- parser, data, i, node, name. name
+        string.concat -- parser, data, i, node, name.name
+        stack_preprocessor.run.generate.data.name -- parser, data, i, node
 
         rot4' swp -- node, parser, i, data
 
@@ -1790,14 +1788,11 @@ func stack_preprocessor.run.generate.data.setters' (int, stack_parser, stack_ast
         stack_ast_node.value -- parser, i, node, data, name
         swp rot4' -- parser, data, i, node, name
         "." string.concat -- parser, data, i, node, name.
-        swp -- parser, data, i, name, node
-        stack_ast_node.value -- parser, data, i, name. name
-        string.concat -- parser, data, i, name.name
-        ".set" string.concat -- parser, data, i, name.name.set
-
-        rot4 dup rot -- data, i, parser, name.name, parser
-        0 stack_ast_node.init -- data, i, parser, node
-        swp rot4' -- parser, data, i, node
+        swp dup rot' -- parser, data, i, node, name., node
+        stack_ast_node.value -- parser, data, i, node, name. name
+        string.concat -- parser, data, i, node, name.name
+        ".set" string.concat -- parser, data, i, node, name.name.set
+        stack_preprocessor.run.generate.data.name -- parser, data, i, node
 
         rot4' swp -- node, parser, i, data
 
@@ -2147,10 +2142,8 @@ func stack_preprocessor.run.generate.data.init (stack_ast, stack_ast_data, stack
     swp -- ast, parser, data
 
     dup2 -- ..., parser, data
-    dup stack_ast_data.name stack_ast_node.value "." string.concat STACK_INIT string.concat -- ..., parser, data, s
-    rot dup rot4' -- ..., parser, data, s, parser
-    swp 0 -- ..., parser, data, parser, s, 0
-    stack_ast_node.init -- ..., parser, data, node
+    dup stack_ast_data.name dup stack_ast_node.value "." string.concat STACK_INIT string.concat -- ..., parser, data, name, s
+    stack_preprocessor.run.generate.data.name -- ..., parser, data, node
     dup3 pop -- ..., parser, data, node parser, data
     0 rot' stack_preprocessor.run.generate.data.init' -- ..., parser, data, node, exprs
 
@@ -2232,8 +2225,149 @@ func stack_preprocessor.run.generate.data (int, stack_preprocessor, stack_ast) (
     fi -- ()
 end
 
+data stack_const_graph (array consts, array states, array path) -- array<ptr>, array<int>, array<int>
+
+const STACK_CONST_UNVISITED 0
+const STACK_CONST_ACTIVE 1
+const STACK_CONST_DONE 2
+
+func stack_const_graph.init.with_ast (stack_ast) (stack_const_graph) in -- ast
+    stack_ast.features match features in
+        ptr.sizeof array.init.with_sz int.sizeof array.init.with_sz 0 while -- consts, states, i
+            dup features array.count < loop
+            dup features swp array.get unwrap stack_ast_feature.* match consts states i feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_CONST = if
+                    consts feat stack_ast_feature.feature ptr.& array.append unwrap
+                    states STACK_CONST_UNVISITED int.& array.append unwrap
+                fi
+                consts states i 1 +
+            end
+        pool pop
+        int.sizeof array.init.with_sz stack_const_graph.init
+    end
+end
+
+func stack_const_graph.get (stack_const_graph, int) (stack_ast_const) in -- graph, i
+    swp stack_const_graph.consts swp array.get unwrap ptr.* stack_ast_const.*
+end
+
+func stack_const_graph.name (stack_const_graph, int) (string) in -- graph, i
+    stack_const_graph.get stack_ast_const.name stack_ast_node.value
+end
+
+func stack_const_graph.status (stack_const_graph, int) (int) in -- graph, i
+    swp stack_const_graph.states swp array.get unwrap int.*
+end
+
+func stack_const_graph.mark (stack_const_graph, int, int) () in -- graph, i, status
+    match graph i status in
+        graph stack_const_graph.states i array.get unwrap status int.& int.sizeof ptr.@ pop
+    end
+end
+
+func stack_const_graph.index (stack_const_graph, string) (int, bool) in -- graph, name
+    match graph name in
+        graph stack_const_graph.consts array.count match count in
+            0 while
+                dup count < if dup graph swp stack_const_graph.name name string.= not else false fi
+            loop 1 + pool
+            dup count <
+        end
+    end
+end
+
+func stack_const_graph.cycle.error (stack_const_graph, int) () in -- graph, i
+    match graph i in
+        graph i stack_const_graph.get stack_ast_const.name match node in
+            node stack_ast_node.parser stack_parser.lexer match lexer in
+                lexer stack_lexer.filename string.stderr
+                lexer node stack_ast_node.pos stack_lexer.pos.to_lc -- line, col
+                ":" string.stderr
+                swp int.show string.stderr
+                ":" string.stderr
+                int.show string.stderr
+            end
+        end
+        ", Preprocessor error: cyclic constant " string.stderr
+        graph stack_const_graph.path match path in
+            0 while dup path swp array.get unwrap int.* i = not loop 1 + pool
+            while dup path array.count < loop
+                graph over path swp array.get unwrap int.* stack_const_graph.name string.stderr
+                " -> " string.stderr
+                1 +
+            pool pop
+        end
+        graph i stack_const_graph.name string.stderr
+        "\n" string.stderr
+    end
+    1 sys.exit
+end
+
+func stack_const_graph.visit.name (stack_const_graph, stack_ast_node) () in -- graph, node
+    match graph node in
+        graph node stack_ast_node.value stack_const_graph.index if
+            match j in
+                graph j stack_const_graph.status STACK_CONST_ACTIVE = if
+                    graph j stack_const_graph.cycle.error
+                fi
+                graph j stack_const_graph.visit
+            end
+        else pop fi
+    end
+end
+
+func stack_const_graph.visit.exprs (stack_const_graph, array) () in -- graph, array<expr>
+    match graph exprs in
+        0 while dup exprs array.count < loop
+            dup exprs swp array.get unwrap stack_ast_expr.* match expr in
+                expr stack_ast_expr.kind
+                dup STACK_AST_EXPR_NAME = if
+                    graph expr stack_ast_expr.expr stack_ast_node.* stack_const_graph.visit.name
+                else dup STACK_AST_EXPR_COND = if
+                    expr stack_ast_expr.expr stack_ast_cond.* match cond in
+                        graph cond stack_ast_cond.if_ stack_const_graph.visit.exprs
+                        graph cond stack_ast_cond.else_ stack_const_graph.visit.exprs
+                    end
+                else dup STACK_AST_EXPR_MATCH = if
+                    graph expr stack_ast_expr.expr stack_ast_match.* stack_ast_match.exprs stack_const_graph.visit.exprs
+                else dup STACK_AST_EXPR_WHILE = if
+                    expr stack_ast_expr.expr stack_ast_while.* match while' in
+                        graph while' stack_ast_while.while_ stack_const_graph.visit.exprs
+                        graph while' stack_ast_while.exprs stack_const_graph.visit.exprs
+                    end
+                fi fi fi fi
+                pop
+            end
+            1 +
+        pool pop
+    end
+end
+
+func stack_const_graph.visit (stack_const_graph, int) () in -- graph, i
+    match graph i in
+        graph i stack_const_graph.status STACK_CONST_UNVISITED = if
+            graph i STACK_CONST_ACTIVE stack_const_graph.mark
+            graph stack_const_graph.path i int.& array.append unwrap
+            graph graph i stack_const_graph.get stack_ast_const.exprs stack_const_graph.visit.exprs
+            graph stack_const_graph.path array.pop unwrap
+            graph i STACK_CONST_DONE stack_const_graph.mark
+        fi
+    end
+end
+
+func stack_preprocessor.run.check.consts (stack_ast) () in -- ast
+    stack_const_graph.init.with_ast match graph in
+        0 while dup graph stack_const_graph.consts array.count < loop
+            graph over stack_const_graph.visit
+            1 +
+        pool pop
+    end
+end
+
 func stack_preprocessor.run' (stack_preprocessor, stack_ast) () in -- pre, ast
     dup2 0 rot' stack_preprocessor.run.generate.data -- pre, ast
+
+    dup stack_preprocessor.run.check.consts -- pre, ast
 
     dup2 0 rot' stack_preprocessor.run.expand.consts -- pre, ast
     dup2 0 rot' stack_preprocessor.run.expand.funcs -- pre, ast

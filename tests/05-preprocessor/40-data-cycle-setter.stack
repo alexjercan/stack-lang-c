@@ -1,0 +1,8 @@
+const ENTRY box.value.set
+const ptr.@ box.value.set
+
+data box (int value)
+
+func main () (int) in
+    0
+end
