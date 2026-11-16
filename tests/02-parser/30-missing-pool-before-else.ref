@@ -1,0 +1,1 @@
+tests/02-parser/30-missing-pool-before-else.stack:5:5, Parser error: expected expression or 'pool', got 'else'

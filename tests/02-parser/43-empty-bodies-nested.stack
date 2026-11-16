@@ -1,0 +1,32 @@
+func empty () (int) in
+end
+
+func main () (int) in
+    true if
+    else
+    fi
+    true if
+        while
+            true loop
+            pool
+    else
+        1 match value in
+        end
+    fi
+    while
+        true loop
+        false if
+        fi
+    pool
+    1 2 match a b in
+        a b = if
+        else
+            while
+                false loop
+                1 match c in
+                end
+            pool
+        fi
+    end
+    0
+end

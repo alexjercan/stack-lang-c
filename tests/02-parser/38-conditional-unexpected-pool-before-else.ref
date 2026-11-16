@@ -1,0 +1,1 @@
+tests/02-parser/38-conditional-unexpected-pool-before-else.stack:4:5, Parser error: expected expression, 'else', or 'fi', got 'pool'

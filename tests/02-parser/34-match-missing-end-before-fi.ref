@@ -1,0 +1,1 @@
+tests/02-parser/34-match-missing-end-before-fi.stack:5:5, Parser error: expected expression or 'end', got 'fi'

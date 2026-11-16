@@ -1,0 +1,1 @@
+tests/02-parser/31-match-missing-in-eof.stack:3:1, Parser error: expected 'in' before end of file

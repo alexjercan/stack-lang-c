@@ -1,0 +1,1 @@
+tests/02-parser/42-string-newline-in-function-body.stack:2:5, Lexical Error: String contains new line character

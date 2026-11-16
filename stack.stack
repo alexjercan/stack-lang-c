@@ -53,6 +53,28 @@ func stack_token_kind.map (int) (string) in
     else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- (string)
 end
 
+func stack_token_kind.describe (int) (string) in
+    dup STACK_TOKEN_EOF = if pop "end of file"
+    else
+        dup STACK_TOKEN_FUNC = if pop "func"
+        else dup STACK_TOKEN_IN = if pop "in"
+        else dup STACK_TOKEN_END = if pop "end"
+        else dup STACK_TOKEN_IF = if pop "if"
+        else dup STACK_TOKEN_ELSE = if pop "else"
+        else dup STACK_TOKEN_FI = if pop "fi"
+        else dup STACK_TOKEN_DATA = if pop "data"
+        else dup STACK_TOKEN_IMPORT = if pop "@import"
+        else dup STACK_TOKEN_CONST = if pop "const"
+        else dup STACK_TOKEN_MATCH = if pop "match"
+        else dup STACK_TOKEN_WHILE = if pop "while"
+        else dup STACK_TOKEN_LOOP = if pop "loop"
+        else dup STACK_TOKEN_POOL = if pop "pool"
+        else stack_token_kind.map
+        fi fi fi fi fi fi fi fi fi fi fi fi fi
+        "'" swp string.concat "'" string.concat
+    fi
+end
+
 const STACK_ILLEGAL_NO_ERROR    0
 const STACK_ILLEGAL_INVALID     1
 const STACK_ILLEGAL_STRING_NULL 2
@@ -277,14 +299,41 @@ func stack_parser.read (stack_parser) (stack_token) in
     stack_parser.tok
 end
 
+func stack_parser.parse.exprs.error (stack_parser, string) () in
+    match parser message in
+        parser stack_parser.lexer match lexer in
+            lexer stack_lexer.filename string.stderr
+            lexer parser stack_parser.peek stack_token.pos stack_lexer.pos.to_lc -- line, col
+            ":" string.stderr
+            swp int.show string.stderr
+            ":" string.stderr
+            int.show string.stderr
+            ", Parser error: " string.stderr
+            message string.stderr
+        end
+    end
+    1 sys.exit
+end
+
+func stack_parser.parse.exprs.unexpected (stack_parser, int, int) () in
+    match parser stop1 stop2 in
+        parser "expected expression"
+        stop1 stop2 = if
+            " or " string.concat stop1 stack_token_kind.describe string.concat
+        else
+            ", " string.concat stop1 stack_token_kind.describe string.concat
+            ", or " string.concat stop2 stack_token_kind.describe string.concat
+        fi
+        ", got " string.concat
+        parser stack_parser.peek stack_token.kind stack_token_kind.describe string.concat
+        "\n" string.concat stack_parser.parse.exprs.error
+    end
+end
+
 func stack_parser.parse.exprs.until (stack_parser, int, array) (array) in
-    rot' dup2 swp stack_parser.peek stack_token.kind = if -- arr p kind
-        pop stack_parser.read pop -- array
-    else
-        swp dup stack_parser.parse.expr unwrap -- arr kind p expr
-        rot4 dup rot stack_ast_expr.& array.append unwrap -- kind parser arr
-        rot' swp rot stack_parser.parse.exprs.until -- array
-    fi -- array
+    match parser stop exprs in
+        parser stop stop exprs stack_parser.parse.exprs.until2
+    end
 end
 
 func stack_parser.parse.exprs.while (stack_parser, array) (array) in -- parser, array<expr>
@@ -297,14 +346,27 @@ func stack_parser.parse.exprs.while (stack_parser, array) (array) in -- parser, 
 end
 
 func stack_parser.parse.exprs.until2 (stack_parser, int, int, array) (array) in
-    rot4' dup3 rot dup stack_parser.peek stack_token.kind rot4 =
-    swp dup stack_parser.peek stack_token.kind rot4 = rot or if -- arr, parser, k1, k2, parser
-        pop3 stack_parser.read pop -- array
-    else
-        pop rot4 rot4 dup stack_parser.parse.expr unwrap -- k1, k2, array, parser, expr
-        rot dup rot stack_ast_expr.& array.append unwrap -- k1, k2, parser, array
-        swp rot4' stack_parser.parse.exprs.until2 -- array
-    fi -- array
+    match parser stop1 stop2 exprs in
+        while
+            parser stack_parser.peek stack_token.kind stop1 =
+            parser stack_parser.peek stack_token.kind stop2 = or not
+        loop
+            parser stack_parser.peek stack_token.kind STACK_TOKEN_ILLEGAL = if
+                parser stack_parser.illegal.showf
+                1 sys.exit
+            fi
+
+            parser stack_parser.parse.expr if
+                exprs swp stack_ast_expr.& array.append unwrap
+            else
+                pop -- Discard the dummy expression from the failed parse.
+                parser stop1 stop2 stack_parser.parse.exprs.unexpected
+            fi
+        pool
+
+        parser stack_parser.read pop -- Consume the accepted terminator exactly once.
+        exprs
+    end
 end
 
 func stack_parser.parse.names.until' (stack_parser, array) (array) in
@@ -365,10 +427,14 @@ func stack_parser.parse.names.until.in (stack_parser, array) (array) in
     dup STACK_TOKEN_IN = if -- arr, parser, kind
         pop2
     else dup STACK_TOKEN_EOF = if -- arr, parser, kind
-        todo pop2
-    else
+        pop dup "expected 'in' before end of file\n" stack_parser.parse.exprs.error
+        pop
+    else dup STACK_TOKEN_NAME = if
         pop swp stack_parser.parse.names.until.in
-    fi fi -- array
+    else
+        pop dup "expected 'in' after match bindings\n" stack_parser.parse.exprs.error
+        pop
+    fi fi fi -- array
 end
 
 func stack_parser.parse.match (stack_parser) (stack_ast_match) in
@@ -400,27 +466,27 @@ func stack_parser.parse.while (stack_parser) (stack_ast_while) in
 end
 
 func stack_parser.illegal.showf (stack_parser) () in
-    dup stack_parser.lexer stack_lexer.filename string.stdout ":" string.stdout
+    dup stack_parser.lexer stack_lexer.filename string.stderr ":" string.stderr
 
     dup dup stack_parser.lexer swp stack_parser.peek stack_token.pos -- parser, lexer, pos
     stack_lexer.pos.to_lc -- parser, line, col
-    swp int.show string.stdout ":" string.stdout int.show string.stdout
-    ", " string.stdout "Lexical Error: " string.stdout
+    swp int.show string.stderr ":" string.stderr int.show string.stderr
+    ", " string.stderr "Lexical Error: " string.stderr
 
     dup stack_parser.peek dup stack_token.err -- parser, tok, err
     dup STACK_ILLEGAL_INVALID = if -- parser, tok, err
-        "Invalid character: " string.stdout pop2
+        "Invalid character: " string.stderr pop2
     else dup STACK_ILLEGAL_STRING_NULL = if
-        "String contains null character" string.stdout pop2
+        "String contains null character" string.stderr pop2
     else dup STACK_ILLEGAL_STRING_\N = if
-        "String contains new line character" string.stdout pop2
+        "String contains new line character" string.stderr pop2
     else dup STACK_ILLEGAL_STRING_EOF = if
-        "Unterminated string" string.stdout pop2
+        "Unterminated string" string.stderr pop2
     else
         panic pop2
     fi fi fi fi -- parser
 
-    "\n" string.stdout
+    "\n" string.stderr
 
     pop
 end

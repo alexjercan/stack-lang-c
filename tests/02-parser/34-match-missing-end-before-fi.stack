@@ -1,0 +1,6 @@
+func main () (int) in
+    true if
+        1 match value in
+            value
+    fi
+end

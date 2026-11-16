@@ -1,0 +1,1 @@
+tests/02-parser/37-comma-in-function-body.stack:2:7, Parser error: expected expression or 'end', got ','

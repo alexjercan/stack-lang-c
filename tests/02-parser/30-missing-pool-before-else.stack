@@ -1,0 +1,8 @@
+func main () (int) in
+    true if
+        while
+            true loop
+    else
+        0
+    fi
+end

@@ -1,0 +1,1 @@
+tests/02-parser/28-missing-pool-before-end.stack:4:1, Parser error: expected expression or 'pool', got 'end'

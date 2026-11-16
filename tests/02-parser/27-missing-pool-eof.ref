@@ -1,0 +1,1 @@
+tests/02-parser/27-missing-pool-eof.stack:4:1, Parser error: expected expression or 'pool', got end of file

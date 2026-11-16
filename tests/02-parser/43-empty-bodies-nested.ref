@@ -1,0 +1,46 @@
+func empty
+    ret0: int
+    body:
+
+func main
+    ret0: int
+    body:
+        true
+        IF
+        ELSE
+        FI
+        true
+        IF
+            WHILE
+                true
+            LOOP
+            POOL
+        ELSE
+            1
+            MATCH value
+        FI
+        WHILE
+            true
+        LOOP
+            false
+            IF
+            ELSE
+            FI
+        POOL
+        1
+        2
+        MATCH a b
+            a
+            b
+            =
+            IF
+            ELSE
+                WHILE
+                    false
+                LOOP
+                    1
+                    MATCH c
+                POOL
+            FI
+        0
+

@@ -53,6 +53,11 @@ analyzer() {
         if [[ "$exec_arg" == "--typecheck" && -s "$ref_path" ]]; then
             expected_status=1
         fi
+        # Negative parser/lexer cases can specify their expected exit status.
+        status_path="${ref_path%.ref}.status"
+        if [[ -f "$status_path" ]]; then
+            read -r expected_status < "$status_path"
+        fi
         diff_output=$(
             {
                 ./"$MAIN" "$exec_arg" "$file_path" 2>&1

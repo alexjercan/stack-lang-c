@@ -1,0 +1,1 @@
+tests/02-parser/40-missing-function-end-before-func.stack:4:1, Parser error: expected expression or 'end', got 'func'

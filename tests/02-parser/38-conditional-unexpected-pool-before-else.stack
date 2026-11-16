@@ -1,0 +1,8 @@
+func main () (int) in
+    true if
+        0
+    pool
+    else
+        1
+    fi
+end

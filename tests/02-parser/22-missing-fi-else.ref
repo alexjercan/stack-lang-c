@@ -1,0 +1,1 @@
+tests/02-parser/22-missing-fi-else.stack:6:1, Parser error: expected expression or 'fi', got end of file

@@ -1,0 +1,4 @@
+func main () (int) in
+    1 2 match first second
+    0
+end

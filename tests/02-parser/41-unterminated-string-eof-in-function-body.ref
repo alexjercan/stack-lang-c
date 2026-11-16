@@ -1,0 +1,1 @@
+tests/02-parser/41-unterminated-string-eof-in-function-body.stack:2:5, Lexical Error: Unterminated string

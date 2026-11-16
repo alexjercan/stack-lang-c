@@ -1,0 +1,1 @@
+tests/02-parser/39-loop-body-unexpected-loop.stack:4:9, Parser error: expected expression or 'pool', got 'loop'

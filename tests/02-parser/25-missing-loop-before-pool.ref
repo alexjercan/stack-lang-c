@@ -1,0 +1,1 @@
+tests/02-parser/25-missing-loop-before-pool.stack:4:5, Parser error: expected expression or 'loop', got 'pool'

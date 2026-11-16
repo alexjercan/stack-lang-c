@@ -1,0 +1,6 @@
+func main () (int) in
+    0
+
+func other () (int) in
+    1
+end

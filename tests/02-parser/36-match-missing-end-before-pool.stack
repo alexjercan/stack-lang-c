@@ -1,0 +1,7 @@
+func main () (int) in
+    while
+        true loop
+        1 match value in
+            value
+    pool
+end
