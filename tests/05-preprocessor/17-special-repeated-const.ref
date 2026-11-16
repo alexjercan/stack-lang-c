@@ -1,0 +1,41 @@
+const POS
+    __line__
+    __col__
+
+const WRAP
+    9
+    __line__
+    __col__
+
+const FILE
+    __file__
+
+func main
+    ret0: int
+    body:
+        6
+        5
+        7
+        7
+        7
+        11
+        9
+        8
+        5
+        9
+        9
+        3
+        9
+        8
+        "tests/05-preprocessor/17-special-repeated-const.stack"
+        0
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

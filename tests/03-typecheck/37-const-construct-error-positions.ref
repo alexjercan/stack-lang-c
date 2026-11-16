@@ -1,0 +1,5 @@
+tests/03-typecheck/37-const-construct-error-positions.stack:6:7, Semantic error: expected type (bool) but got (int)
+tests/03-typecheck/37-const-construct-error-positions.stack:7:7, Semantic error: expected type (bool) but got (int)
+tests/03-typecheck/37-const-construct-error-positions.stack:8:5, Semantic error: expected type (bool) but got (int)
+tests/03-typecheck/37-const-construct-error-positions.stack:9:5, Semantic error: bind main is already defined
+tests/03-typecheck/37-const-construct-error-positions.stack:10:8, Semantic error: bind main is already defined

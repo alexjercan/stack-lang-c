@@ -1,0 +1,6 @@
+const POS_HERE __file__ __line__ __col__
+const POS_NESTED true if __line__ else __col__ fi
+
+func positions.self () (string, int, int) in
+    POS_HERE
+end

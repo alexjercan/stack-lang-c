@@ -1,0 +1,91 @@
+const BRANCH
+    IF
+        __line__
+    ELSE
+        __col__
+    FI
+
+const BOUND
+    MATCH x
+        x
+        __line__
+
+const SPIN
+    WHILE
+        __col__
+    LOOP
+        __line__
+    POOL
+
+const DEEP
+    true
+    IF
+        MATCH x
+            x
+            __line__
+    ELSE
+        WHILE
+            __col__
+        LOOP
+            __line__
+        POOL
+    FI
+
+func main
+    ret0: int
+    body:
+        IF
+            7
+        ELSE
+            5
+        FI
+        IF
+            8
+        ELSE
+            7
+        FI
+        MATCH x
+            x
+            9
+        MATCH x
+            x
+            9
+        WHILE
+            5
+        LOOP
+            10
+        POOL
+        true
+        IF
+            MATCH x
+                x
+                11
+        ELSE
+            WHILE
+                3
+            LOOP
+                11
+            POOL
+        FI
+        true
+        IF
+            MATCH x
+                x
+                12
+        ELSE
+            WHILE
+                6
+            LOOP
+                12
+            POOL
+        FI
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

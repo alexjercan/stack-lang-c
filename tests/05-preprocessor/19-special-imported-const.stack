@@ -1,0 +1,8 @@
+@import "tests/05-preprocessor/modules/positions"
+@import "tests/05-preprocessor/modules/positions-user"
+
+func main () (int) in
+    POS_HERE
+       POS_NESTED
+  POS_HERE
+end

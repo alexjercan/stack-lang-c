@@ -1,0 +1,10 @@
+const MISSING missing.func
+const NESTED true if missing.nested fi
+
+func main () (int) in
+    MISSING
+      MISSING
+    NESTED
+       NESTED
+    0
+end

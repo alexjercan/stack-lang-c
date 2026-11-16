@@ -1,0 +1,13 @@
+const BRANCH if __line__ else __col__ fi
+const BOUND match x in x __line__ end
+const SPIN while __col__ loop __line__ pool
+const DEEP true if BOUND else SPIN fi
+
+func main () (int) in
+    BRANCH
+      BRANCH
+    BOUND BOUND
+    SPIN
+  DEEP
+     DEEP
+end

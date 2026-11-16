@@ -1,0 +1,6 @@
+const REMOTE_MISSING remote.missing
+const REMOTE_CHECK if fi
+
+func remote.user () () in
+    REMOTE_MISSING
+end

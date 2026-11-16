@@ -1,0 +1,7 @@
+@import "tests/05-preprocessor/modules/position-errors"
+
+func main () (int) in
+    REMOTE_MISSING
+    0 REMOTE_CHECK
+  REMOTE_MISSING
+end

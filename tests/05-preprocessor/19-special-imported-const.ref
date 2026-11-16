@@ -1,0 +1,69 @@
+@import "tests/05-preprocessor/modules/positions"
+
+@import "tests/05-preprocessor/modules/positions-user"
+
+func main
+    ret0: int
+    body:
+        "tests/05-preprocessor/19-special-imported-const.stack"
+        5
+        5
+        true
+        IF
+            6
+        ELSE
+            8
+        FI
+        "tests/05-preprocessor/19-special-imported-const.stack"
+        7
+        3
+
+const POS_HERE
+    __file__
+    __line__
+    __col__
+
+const POS_NESTED
+    true
+    IF
+        __line__
+    ELSE
+        __col__
+    FI
+
+func positions.self
+    ret0: string
+    ret1: int
+    ret2: int
+    body:
+        "tests/05-preprocessor/modules/positions.stack"
+        5
+        5
+
+@import "tests/05-preprocessor/modules/positions"
+
+func positions.user
+    ret0: string
+    ret1: int
+    ret2: int
+    ret3: int
+    body:
+        "tests/05-preprocessor/modules/positions-user.stack"
+        4
+        7
+        true
+        IF
+            5
+        ELSE
+            5
+        FI
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+
