@@ -1,0 +1,79 @@
+@import "stdlib"
+@import "tests/04-runtime/utils"
+
+-- Check the byte at index i of a string.
+func expect.byte (string, int, int, int) () in -- s, i, byte, case
+    match s i b n in
+        s i string.!! b = n check
+    end
+end
+
+-- String literals in this file hold raw control and non-ASCII bytes.
+func main (int, ptr) (int) in
+    pop pop
+
+    "ab" match s in
+        s string.len 3 = 1 check
+        s 0 BYTE_a 2 expect.byte
+        s 1 26 3 expect.byte
+        s 2 BYTE_b 4 expect.byte
+    end
+
+    "" match s in
+        s string.len 1 = 5 check
+        s 0 13 6 expect.byte
+    end
+
+    "" match s in
+        s string.len 1 = 7 check
+        s 0 8 8 expect.byte
+    end
+
+    "	" match s in
+        s string.len 1 = 9 check
+        s 0 9 10 expect.byte
+    end
+
+    -- Other legal C0 bytes: 1 to 31 without LF.
+    "	" match s in
+        s string.len 30 = 11 check
+        0 while dup 30 < loop -- i
+            match i in
+                s i i 1 + i 9 >= if 1 + fi 12 expect.byte
+                i 1 +
+            end
+        pool pop
+    end
+
+    "" match s in
+        s string.len 1 = 13 check
+        s 0 127 14 expect.byte
+    end
+
+    "€ÿ" match s in
+        s string.len 2 = 15 check
+        s 0 128 16 expect.byte
+        s 1 255 17 expect.byte
+    end
+
+    "q\"x\\yz" match s in
+        s string.len 7 = 18 check
+        s 0 113 19 expect.byte
+        s 1 BYTE_QUOTE 20 expect.byte
+        s 2 120 21 expect.byte
+        s 3 BYTE_\ 22 expect.byte
+        s 4 121 23 expect.byte
+        s 5 26 24 expect.byte
+        s 6 BYTE_z 25 expect.byte
+    end
+
+    "" string.len 0 = 26 check
+
+    "\n\t" match s in
+        s string.len 2 = 27 check
+        s 0 10 28 expect.byte
+        s 1 9 29 expect.byte
+    end
+
+    0
+end

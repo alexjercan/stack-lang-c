@@ -62,6 +62,8 @@ nix develop --command bash scripts/checker.sh --all
 Run one stage with `--lexer`, `--parser`, `--preprocessor`, `--typecheck`,
 `--io`, `--import`, or `--runtime`. Add `--no-build` to use the existing `out/slc`.
 
+Runtime tests check that generated assembly contains only printable ASCII.
+
 ```fish
 nix develop --command bash scripts/checker.sh --preprocessor --no-build -v
 ```

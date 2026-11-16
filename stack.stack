@@ -3944,12 +3944,34 @@ func stack_assembler.emit.expr.boolean (stack_assembler, stack_ast_node) () in -
     pop
 end
 
+-- Keep printable ASCII and write all other bytes as \xHH.
+func stack_assembler.comment.escape (string) (string) in -- s
+    match s in
+        "" 0 while -- result, i
+            dup s string.len < loop -- result, i
+            match r i in
+                s i string.!! match b in
+                    b BYTE_SPACE >= b BYTE_~ <= and if
+                        r s i 1 string.substr string.concat
+                    else
+                        r "\\x" string.concat
+                        "0123456789ABCDEF" b 16 / 1 string.substr string.concat
+                        "0123456789ABCDEF" b 16 % 1 string.substr string.concat
+                    fi
+                end
+                i 1 +
+            end
+        pool -- result, i
+        pop
+    end
+end
+
 func stack_assembler.emit.expr.string (stack_assembler, stack_ast_node) () in -- asm, string
     swp dup rot -- asm, asm, node
     stack_ast_node.value dup2 -- asm, asm, value, asm, value
     STACK_LITERAL_STRING swp stack_literal.init -- asm, asm, value, asm, stack_literal
     stack_assembler.literal.name -- asm, asm, value, s
-    "    mov     rdi, " swp string.concat " ; " string.concat swp string.concat emit
+    "    mov     rdi, " swp string.concat " ; " string.concat swp stack_assembler.comment.escape string.concat emit
 
     dup "    call    stack_push_addr" emit
 

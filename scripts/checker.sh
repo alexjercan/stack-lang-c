@@ -117,6 +117,15 @@ modes_analyzer() {
     PASSED_TESTS=$((PASSED_TESTS + passed))
 }
 
+asm_check() {
+    local asm_path=$1
+    if LC_ALL=C grep -q '[^ -~]' "$asm_path"; then
+        echo "Assembly contains bytes outside printable ASCII"
+        return 1
+    fi
+    return 0
+}
+
 runtime_analyzer() {
     local work_dir
     work_dir=$(mktemp -d) || return 1
@@ -131,6 +140,7 @@ runtime_analyzer() {
         echo -n "Testing $file_name ... "
 
         if timeout 30 "$MAIN" --assembler "$file_path" > "$work_dir/main.asm" 2> "$work_dir/log" &&
+            asm_check "$work_dir/main.asm" >> "$work_dir/log" &&
             fasm "$work_dir/main.asm" "$work_dir/main.o" >> "$work_dir/log" 2>&1 &&
             ld "$work_dir/main.o" -o "$work_dir/main" >> "$work_dir/log" 2>&1 &&
             timeout 10 "$work_dir/main" >> "$work_dir/log" 2>&1; then
