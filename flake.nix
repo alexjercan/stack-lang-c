@@ -27,7 +27,6 @@
           makeFlags = ["PREFIX=$(out)"];
 
           nativeBuildInputs = with pkgs; [
-            clang
             fasm
           ];
 
@@ -43,7 +42,6 @@
             name = "env-shell";
 
             nativeBuildInputs = with pkgs; [
-              clang
               fasm
               valgrind
             ];
