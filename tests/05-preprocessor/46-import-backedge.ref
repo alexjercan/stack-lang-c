@@ -1,0 +1,92 @@
+@import "tests/05-preprocessor/modules/once-back"
+
+const HOME_VALUE
+    7
+
+data home
+    v: int
+
+func main
+    ret0: int
+    body:
+        7
+        back.get
+        +
+
+@import "tests/05-preprocessor/46-import-backedge"
+
+func back.get
+    ret0: int
+    body:
+        3
+        0
+        8
+        +
+        ptr.alloc
+        dup
+        rot
+        rot
+        0
+        ptr.+
+        swp
+        int.&
+        8
+        ptr.@
+        pop
+        home.*
+        home.&
+        0
+        ptr.+
+        int.*
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+
+const home.sizeof
+    0
+    8
+    +
+
+const home.v.offset
+    0
+
+const home.init
+    0
+    8
+    +
+    ptr.alloc
+    dup
+    rot
+    rot
+    0
+    ptr.+
+    swp
+    int.&
+    8
+    ptr.@
+    pop
+    home.*
+
+const home.v
+    home.&
+    0
+    ptr.+
+    int.*
+
+const home.v.set
+    swp
+    home.&
+    0
+    ptr.+
+    swp
+    int.&
+    8
+    ptr.@
+    pop
+

@@ -393,6 +393,18 @@ func stdlib.fclose (int) (bool) in -- fd
     sys.close 0 =
 end
 
+func stdlib.fidentity (int) (int, int, bool) in -- fd
+    match fd in
+        STAT_SIZE ptr.alloc match buf in
+            fd buf sys.fstat 0 = if
+                buf STAT_DEV_OFF ptr.+ int.* buf STAT_INO_OFF ptr.+ int.* true
+            else
+                0 0 false
+            fi
+        end
+    end -- dev, ino, ok
+end
+
 func stdlib.fread (int, int) (string, bool) in -- fd, L
     match fd L in
         L string.memory-needed ptr.alloc -- ptr

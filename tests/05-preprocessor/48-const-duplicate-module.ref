@@ -1,0 +1,1 @@
+tests/05-preprocessor/modules/dup-const.stack:1:7, Preprocessor error: duplicate constant DUP_VALUE, first defined at tests/05-preprocessor/48-const-duplicate-module.stack:1:7

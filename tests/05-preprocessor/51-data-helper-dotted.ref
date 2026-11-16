@@ -1,0 +1,1 @@
+tests/05-preprocessor/51-data-helper-dotted.stack:2:15, Preprocessor error: duplicate constant a.b.c.offset, conflicts with data helper generated at tests/05-preprocessor/51-data-helper-dotted.stack:1:13

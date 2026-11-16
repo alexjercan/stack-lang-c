@@ -1,0 +1,1 @@
+tests/05-preprocessor/modules/dup-data.stack:1:6, Semantic error: data dup.rec is redefined

@@ -1,0 +1,23 @@
+@import "tests/04-runtime/utils"
+@import "tests/04-runtime/modules/once-record"
+@import "tests/04-runtime/modules/once-record"
+@import "tests/04-runtime/modules/once-user"
+@import "./tests/04-runtime/08-import-once"
+
+func main (int, ptr) (int) in
+    pop pop
+
+    once.inner.sizeof 16 = 1 check
+    once.record.sizeof 24 = 2 check
+    once.record.i.offset 8 = 3 check
+
+    1 2 3 once.record.make match r in
+        r once.user.sum 6 = 4 check
+        r 10 20 once.inner.init once.record.i.set
+        r 5 once.record.x.set
+        r once.record.i once.inner.b 20 = 5 check
+        r once.user.sum 35 = 6 check
+    end
+
+    0
+end

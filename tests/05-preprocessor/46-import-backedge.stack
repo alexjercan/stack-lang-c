@@ -1,0 +1,9 @@
+@import "tests/05-preprocessor/modules/once-back"
+
+const HOME_VALUE 7
+
+data home (int v)
+
+func main () (int) in
+    HOME_VALUE back.get +
+end

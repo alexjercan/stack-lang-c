@@ -1,0 +1,4 @@
+data a (int b.c)
+data a.b (int c)
+
+func main () (int) in 0 end

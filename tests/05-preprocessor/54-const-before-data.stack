@@ -1,0 +1,5 @@
+const rec.sizeof 7
+
+data rec (int x)
+
+func main () (int) in 0 end

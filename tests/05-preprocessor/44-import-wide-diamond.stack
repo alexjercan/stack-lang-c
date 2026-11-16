@@ -1,0 +1,7 @@
+@import "tests/05-preprocessor/modules/once-left"
+@import "tests/05-preprocessor/modules/once-right"
+@import "tests/05-preprocessor/modules/once-wide"
+
+func main () (int) in
+    left.get right.get wide.get + +
+end

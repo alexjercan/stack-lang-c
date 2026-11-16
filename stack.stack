@@ -972,33 +972,39 @@ func stack_ast.dump (stack_ast) () in stack_ast.features 0 swp stack_ast.dump' e
 
 -- STACK PREPROCESSOR
 
-data stack_preprocessor (array imports) -- array<string>
+data stack_file_id (int dev, int ino)
 
-func stack_preprocessor.init.empty () (stack_preprocessor) in
-    string.sizeof array.init.with_sz stack_preprocessor.init
-end
-
-func stack_preprocessor.imports.contains (stack_preprocessor, string) (bool) in
-    swp stack_preprocessor.imports -- string, array<string>
-    match path imports in
-        false 0 while -- ok, i
-            dup imports array.count < loop -- ok, i
-            dup imports swp -- ok, i, arr, i
-            array.get unwrap string.* -- ok, i, item
-            path string.= if -- ok, i
-                swp pop true swp
-            fi -- ok, i
-
-            1 + -- ok, i+1
-        pool -- ok, i
-        pop
+func stack_file_id.= (stack_file_id, stack_file_id) (bool) in
+    match a b in
+        a stack_file_id.dev b stack_file_id.dev =
+        a stack_file_id.ino b stack_file_id.ino = and
     end
 end
 
-func stack_preprocessor.imports.append (stack_preprocessor, string) (bool) in
-    swp stack_preprocessor.imports -- string, array<string>
-    swp string.& -- array<string>, ptr
-    array.append -- bool
+data stack_preprocessor (array files, stack_ast user, stack_ast generated) -- array<stack_file_id>
+
+func stack_preprocessor.init.with_main (stack_file_id) (stack_preprocessor) in
+    match id in
+        stack_file_id.sizeof array.init.with_sz
+        stack_ast.init.empty
+        stack_ast.init.empty
+        stack_preprocessor.init
+        dup id stack_preprocessor.files.register unwrap
+    end
+end
+
+func stack_preprocessor.files.register (stack_preprocessor, stack_file_id) (bool) in -- pre, id
+    match pre id in
+        pre stack_preprocessor.files match files in
+            true 0 while dup files array.count < loop -- new, i
+                dup files swp array.get unwrap stack_file_id.* id stack_file_id.= if
+                    swp pop false swp
+                fi
+                1 +
+            pool pop
+            dup if files id stack_file_id.& array.append unwrap fi
+        end
+    end
 end
 
 func stack_home () (string) in
@@ -1061,8 +1067,8 @@ func stack_preprocessor.run.base.consts (stack_preprocessor, stack_ast) () in --
     pop3
 end
 
-func stack_preprocessor.run.import.error (stack_ast_node, string) () in -- node, action
-    match node action in
+func stack_ast_node.location.stderr (stack_ast_node) () in -- node
+    match node in
         node stack_ast_node.parser stack_parser.lexer match lexer in
             lexer stack_lexer.filename string.stderr
             lexer node stack_ast_node.pos stack_lexer.pos.to_lc -- line, col
@@ -1070,91 +1076,73 @@ func stack_preprocessor.run.import.error (stack_ast_node, string) () in -- node,
             swp int.show string.stderr
             ":" string.stderr
             int.show string.stderr
-            ", Preprocessor error: cannot " string.stderr
-            action string.stderr
-            " import \"" string.stderr
-            node stack_ast_node.value string.stderr
-            "\"\n" string.stderr
         end
+    end
+end
+
+func stack_preprocessor.run.import.error (stack_ast_node, string) () in -- node, action
+    match node action in
+        node stack_ast_node.location.stderr
+        ", Preprocessor error: cannot " string.stderr
+        action string.stderr
+        " import \"" string.stderr
+        node stack_ast_node.value string.stderr
+        "\"\n" string.stderr
     end
     1 sys.exit
 end
 
-func stack_preprocessor.run.import.node (stack_ast, int) (stack_ast_node) in -- ast, i
-    swp stack_ast.features swp array.get unwrap stack_ast_feature.*
-    stack_ast_feature.feature stack_ast_import.* stack_ast_import.name
-end
-
-func stack_preprocessor.run.import.read (stack_ast_node, int) (string) in -- node, fd
-    match node fd in
-        fd 0 < if node "open" stack_preprocessor.run.import.error fi
-        fd stdlib.fread.<eof> not if node "read" stack_preprocessor.run.import.error fi
-        fd stdlib.fclose not if node "close" stack_preprocessor.run.import.error fi
+func stack_preprocessor.run.import.open (stack_ast_node) (string, int) in -- node
+    match node in
+        node stack_ast_node.value "." string.concat STACK_EXT string.concat match name in
+            name "r" stdlib.fopen unwrap match fd in
+                fd 0 >= if
+                    name fd
+                else
+                    stack_home "/lib/" string.concat name string.concat match path in
+                        path path "r" stdlib.fopen unwrap
+                    end
+                fi
+            end
+        end
     end
 end
 
-func stack_preprocessor.run.import (int, stack_preprocessor, stack_ast) () in -- i, pre, ast
-    rot swp -- pre, i, ast
-    dup stack_ast.features dup array.count rot4 dup rot < if -- pre ast array<feat> i
-        dup2 array.get unwrap stack_ast_feature.* dup stack_ast_feature.kind rot4 pop -- pre, ast, i, feat, kind
-        dup STACK_AST_FEATURE_IMPORT = if -- pre, ast, i, feat, kind
-            pop stack_ast_feature.feature stack_ast_import.* stack_ast_import.name stack_ast_node.value -- pre ast i filename
-            "." string.concat STACK_EXT string.concat -- filename.stack
+func stack_preprocessor.run.import.file (stack_preprocessor, stack_ast, stack_ast_node) () in -- pre, ast, node
+    match pre ast node in
+        node stack_preprocessor.run.import.open match path fd in
+            fd 0 < if node "open" stack_preprocessor.run.import.error fi
+            fd stdlib.fidentity match dev ino ok in
+                ok not if fd stdlib.fclose pop node "stat" stack_preprocessor.run.import.error fi
+                pre dev ino stack_file_id.init stack_preprocessor.files.register if
+                    fd stdlib.fread.<eof> match source ok' in
+                        ok' not if fd stdlib.fclose pop node "read" stack_preprocessor.run.import.error fi
+                        fd stdlib.fclose not if node "close" stack_preprocessor.run.import.error fi
+                        source path stack_lexer.init.with_buffer
+                        stack_parser.init.with_lexer
+                        stack_parser.parse unwrap
+                        pre ast rot stack_preprocessor.run.module
+                    end
+                else
+                    fd stdlib.fclose not if node "close" stack_preprocessor.run.import.error fi
+                fi
+            end
+        end
+    end
+end
 
-            dup "r" stdlib.fopen unwrap -- pre ast i filename fd
-            dup 0 >= if -- pre ast i filename.stack fd
-                match pre ast i path fd in
-                    pre ast i path
-                    ast i stack_preprocessor.run.import.node fd stack_preprocessor.run.import.read
-                end -- pre, ast, i, filename, string
-
-                match pre ast i path str in
-                    pre path stack_preprocessor.imports.contains not if
-                        str path stack_lexer.init.with_buffer -- stack_lexer
-                        stack_parser.init.with_lexer -- stack_parser
-                        stack_parser.parse unwrap -- ast'
-
-                        pre dup2 swp -- ast' pre pre ast'
-                        stack_preprocessor.run' pop -- ast'
-
-                        ast swp stack_ast.append -- ()
-                        pre path stack_preprocessor.imports.append unwrap -- ()
-                    fi
-
-                    i pre ast
-                end
-            else
-                pop -- pre ast i filename.stack
-
-                stack_home "/lib" string.concat "/" string.concat swp string.concat -- pre ast i path
-                match pre ast i path in
-                    pre path stack_preprocessor.imports.contains not if
-                        ast i stack_preprocessor.run.import.node
-                        path "r" stdlib.fopen unwrap -- node, fd
-                        stack_preprocessor.run.import.read -- string
-
-                        path stack_lexer.init.with_buffer -- stack_lexer
-                        stack_parser.init.with_lexer -- stack_parser
-                        stack_parser.parse unwrap -- ast'
-
-                        pre dup2 swp -- ast' pre pre ast'
-                        stack_preprocessor.run' pop -- ast'
-
-                        ast swp stack_ast.append -- ()
-                        pre path stack_preprocessor.imports.append unwrap -- ()
-                    fi
-
-                    i pre ast
-                end
-            fi -- i, pre, ast
-        else
-            pop pop rot'
-        fi -- i, pre, ast
-
-        rot 1 + rot' stack_preprocessor.run.import
-    else
-        pop pop pop pop
-    fi -- ()
+func stack_preprocessor.run.import (stack_preprocessor, stack_ast) () in -- pre, ast
+    match pre ast in
+        0 while dup ast stack_ast.features array.count < loop
+            dup ast stack_ast.features swp array.get unwrap stack_ast_feature.* match feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_IMPORT = if
+                    pre ast feat stack_ast_feature.feature stack_ast_import.* stack_ast_import.name
+                    stack_preprocessor.run.import.file
+                fi
+            end
+            1 +
+        pool pop
+    end
 end
 
 func stack_preprocessor.run.expand.clone.node (stack_ast_node, stack_ast_node) (stack_ast_node) in -- node, use
@@ -2201,32 +2189,23 @@ func stack_preprocessor.run.generate.data.setters (stack_ast, stack_ast_data, st
     pop2
 end
 
-func stack_preprocessor.run.generate.data (int, stack_preprocessor, stack_ast) () in -- i, pre, ast
-    rot swp -- pre, i, ast
-    dup stack_ast.features dup array.count rot4 dup rot < if -- pre ast array<feat> i
-        dup2 array.get unwrap stack_ast_feature.* dup stack_ast_feature.kind rot4 pop -- pre, ast, i, feat, kind
-        dup STACK_AST_FEATURE_DATA = if -- pre, ast, i, feat, kind
-            pop stack_ast_feature.feature -- pre, ast, i, ptr
-            stack_ast_data.* -- pre, ast, i, data
-            rot swp -- pre, i, ast, data
-
-            "" __file__ stack_lexer.init.with_buffer -- lexer
-            stack_parser.init.with_lexer -- pre, i, ast, data, parser
-
-            dup3 stack_preprocessor.run.generate.data.const -- ...
-            dup3 stack_preprocessor.run.generate.data.init -- ...
-            dup3 stack_preprocessor.run.generate.data.getters -- ...
-            dup3 stack_preprocessor.run.generate.data.setters -- ...
-
-            pop2 swp
-        else
-            pop2
-        fi -- pre, ast, i
-
-        1 + rot' stack_preprocessor.run.generate.data -- ()
-    else
-        pop pop pop pop
-    fi -- ()
+func stack_preprocessor.run.generate.data (stack_ast, stack_ast) () in -- source, helpers
+    match source helpers in
+        0 while dup source stack_ast.features array.count < loop
+            dup source stack_ast.features swp array.get unwrap stack_ast_feature.* match feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_DATA = if
+                    "" __file__ stack_lexer.init.with_buffer stack_parser.init.with_lexer
+                    feat stack_ast_feature.feature stack_ast_data.* match parser d in
+                        helpers d parser stack_preprocessor.run.generate.data.const
+                        helpers d parser stack_preprocessor.run.generate.data.init
+                        helpers d parser stack_preprocessor.run.generate.data.getters
+                        helpers d parser stack_preprocessor.run.generate.data.setters
+                    end
+                fi
+            end
+            1 +
+        pool pop
+    end
 end
 
 data stack_const_graph (array consts, array states, array path) -- array<ptr>, array<int>, array<int>
@@ -2282,16 +2261,7 @@ end
 
 func stack_const_graph.cycle.error (stack_const_graph, int) () in -- graph, i
     match graph i in
-        graph i stack_const_graph.get stack_ast_const.name match node in
-            node stack_ast_node.parser stack_parser.lexer match lexer in
-                lexer stack_lexer.filename string.stderr
-                lexer node stack_ast_node.pos stack_lexer.pos.to_lc -- line, col
-                ":" string.stderr
-                swp int.show string.stderr
-                ":" string.stderr
-                int.show string.stderr
-            end
-        end
+        graph i stack_const_graph.get stack_ast_const.name stack_ast_node.location.stderr
         ", Preprocessor error: cyclic constant " string.stderr
         graph stack_const_graph.path match path in
             0 while dup path swp array.get unwrap int.* i = not loop 1 + pool
@@ -2368,27 +2338,116 @@ func stack_preprocessor.run.check.consts (stack_ast) () in -- ast
     end
 end
 
-func stack_preprocessor.run' (stack_preprocessor, stack_ast) () in -- pre, ast
-    dup2 0 rot' stack_preprocessor.run.generate.data -- pre, ast
+func stack_preprocessor.run.check.original (stack_ast, stack_ast) () in -- source, helpers
+    match source helpers in
+        stack_ast.init.empty
+        dup source stack_ast.append
+        dup helpers stack_ast.append
+        stack_preprocessor.run.check.consts
+    end
+end
 
-    dup stack_preprocessor.run.check.consts -- pre, ast
+func stack_const_graph.duplicate.error (stack_const_graph, int, int, int, int) () in -- graph, i, j, builtins, generated
+    match graph i j builtins generated in
+        graph i stack_const_graph.get stack_ast_const.name stack_ast_node.location.stderr
+        ", Preprocessor error: duplicate constant " string.stderr
+        graph i stack_const_graph.name string.stderr
+        j builtins < if
+            ", already defined as builtin" string.stderr
+        else
+            j generated < if ", conflicts with data helper generated at " else ", first defined at " fi string.stderr
+            graph j stack_const_graph.get stack_ast_const.name stack_ast_node.location.stderr
+        fi
+        "\n" string.stderr
+    end
+    1 sys.exit
+end
 
-    dup2 0 rot' stack_preprocessor.run.expand.consts -- pre, ast
-    dup2 0 rot' stack_preprocessor.run.expand.funcs -- pre, ast
+func stack_preprocessor.data.duplicated (stack_preprocessor) (bool) in -- pre
+    stack_preprocessor.user stack_ast.features match features in
+        string.sizeof array.init.with_sz match names in
+            names STACK_DATA_INT string.& array.append unwrap
+            names STACK_DATA_PTR string.& array.append unwrap
+            names STACK_DATA_BOOL string.& array.append unwrap
+            false 0 while dup features array.count < loop -- found, i
+                dup features swp array.get unwrap stack_ast_feature.* match feat in
+                    feat stack_ast_feature.kind STACK_AST_FEATURE_DATA = if
+                        feat stack_ast_feature.feature stack_ast_data.* stack_ast_data.name stack_ast_node.value match name in
+                            0 while dup names array.count < loop
+                                dup names swp array.get unwrap string.* name string.= if
+                                    rot pop true rot'
+                                fi
+                                1 +
+                            pool pop
+                            names name string.& array.append unwrap
+                        end
+                    fi
+                end
+                1 +
+            pool pop
+        end
+    end
+end
 
-    dup2 0 rot' stack_preprocessor.run.expand.special -- pre, ast
+func stack_preprocessor.run.check.duplicates (stack_preprocessor, stack_ast) () in -- pre, builtins
+    match pre builtins in
+        stack_ast.init.empty match table in
+            table builtins stack_ast.append
+            table stack_ast.features array.count 0 +
+            table pre stack_preprocessor.generated stack_ast.append
+            table stack_ast.features array.count 0 +
+            table pre stack_preprocessor.user stack_ast.append
+            table stack_const_graph.init.with_ast
+        end
+        match nb ng graph in
+            pre stack_preprocessor.data.duplicated if ng else nb fi
+            while dup graph stack_const_graph.consts array.count < loop
+                dup graph swp stack_const_graph.name graph swp stack_const_graph.index pop match i j in
+                    i j = not if graph i j nb ng stack_const_graph.duplicate.error fi
+                    i
+                end
+                1 +
+            pool pop
+        end
+    end
+end
 
-    pop2
+func stack_preprocessor.run.module (stack_preprocessor, stack_ast, stack_ast) () in -- pre, ast, module
+    match pre ast module in
+        stack_ast.init.empty match helpers in
+            module helpers stack_preprocessor.run.generate.data
+            module helpers stack_preprocessor.run.check.original
+            pre stack_preprocessor.user module stack_ast.append
+            pre stack_preprocessor.generated helpers stack_ast.append
+            ast module stack_ast.append
+            ast helpers stack_ast.append
+        end
+    end
 end
 
 func stack_preprocessor.run (stack_preprocessor, stack_ast) () in -- pre, ast
-    dup2 0 rot' stack_preprocessor.run.import -- pre, ast
+    match pre ast in
+        stack_ast.init.empty stack_ast.init.empty stack_ast.init.empty match source helpers builtins in
+            source ast stack_ast.append
+            source helpers stack_preprocessor.run.generate.data
+            pre stack_preprocessor.user source stack_ast.append
+            pre stack_preprocessor.generated helpers stack_ast.append
 
-    dup2 stack_preprocessor.run.base.consts -- pre, ast
+            pre ast stack_preprocessor.run.import
+            source helpers stack_preprocessor.run.check.original
 
-    dup2 stack_preprocessor.run' -- pre, ast
+            pre builtins stack_preprocessor.run.base.consts
+            ast builtins stack_ast.append
+            ast helpers stack_ast.append
 
-    pop2
+            pre builtins stack_preprocessor.run.check.duplicates
+            ast stack_preprocessor.run.check.consts
+
+            0 pre ast stack_preprocessor.run.expand.consts
+            0 pre ast stack_preprocessor.run.expand.funcs
+            0 pre ast stack_preprocessor.run.expand.special
+        end
+    end
 end
 
 -- STACK TYPECHECK
@@ -4422,7 +4481,7 @@ func stack_io.error (string) () in -- message
     1 sys.exit
 end
 
-func stack_io.read.source (string) (string) in -- filename
+func stack_io.read.source (string) (string, stack_file_id) in -- filename
     match filename in
         filename string.len 0 = if
             STDIN "standard input"
@@ -4431,10 +4490,24 @@ func stack_io.read.source (string) (string) in -- filename
             "source file \"" filename string.concat "\"" string.concat
         fi -- fd, source
 
-        match fd source in
+        filename string.len 0 > -- fd, source, owned
+
+        match fd source owned in
             fd 0 < if "cannot open " source string.concat stack_io.error fi
-            fd stdlib.fread.<eof> not if "cannot read " source string.concat stack_io.error fi
-            fd stdlib.fclose not if "cannot close " source string.concat stack_io.error fi
+            fd stdlib.fidentity match dev ino ok in
+                ok not if
+                    owned if fd stdlib.fclose pop fi
+                    "cannot stat " source string.concat stack_io.error
+                fi
+                fd stdlib.fread.<eof> not if
+                    owned if fd stdlib.fclose pop fi
+                    "cannot read " source string.concat stack_io.error
+                fi
+                owned if
+                    fd stdlib.fclose not if "cannot close " source string.concat stack_io.error fi
+                fi
+                dev ino stack_file_id.init
+            end
         end
     end
 end
@@ -4442,7 +4515,8 @@ end
 func main (int, ptr) (int) in -- argc, argv
     stack_args.parse -- args
 
-    dup stack_args.filename stack_io.read.source -- args, string
+    dup stack_args.filename stack_io.read.source -- args, string, id
+    stack_preprocessor.init.with_main rot' -- pre, args, string
     swp dup stack_args.filename -- string, args, fname
     dup string.len 0 = if pop "stdin" fi -- string, args, fname
     swp rot' -- args, string, filename
@@ -4462,8 +4536,8 @@ func main (int, ptr) (int) in -- argc, argv
         0 sys.exit swp
     fi swp -- args, stack_ast
 
-    stack_preprocessor.init.empty -- args, ast, pre
-    dup2 swp stack_preprocessor.run pop -- args, ast
+    rot dup rot4' -- pre, args, ast, pre
+    over stack_preprocessor.run -- pre, args, ast
 
     swp dup stack_args.preprocessor if -- stack_ast, args
         swp dup stack_ast.dump -- args, stack_lexer
@@ -4490,7 +4564,7 @@ func main (int, ptr) (int) in -- argc, argv
     -- TODO: fasm stage
     -- TODO: ld stage
 
-    pop
+    pop2
 
     0
 end

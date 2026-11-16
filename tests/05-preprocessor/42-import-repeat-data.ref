@@ -1,0 +1,99 @@
+@import "tests/05-preprocessor/modules/once-data"
+
+@import "tests/05-preprocessor/modules/once-data"
+
+@import "./tests/05-preprocessor/modules/once-data"
+
+func main
+    ret0: int
+    body:
+        1
+        once.get
+        +
+
+const ONCE_VALUE
+    1
+
+data once
+    v: int
+
+func once.get
+    ret0: int
+    body:
+        2
+        0
+        8
+        +
+        ptr.alloc
+        dup
+        rot
+        rot
+        0
+        ptr.+
+        swp
+        int.&
+        8
+        ptr.@
+        pop
+        once.*
+        once.&
+        0
+        ptr.+
+        int.*
+
+func once.file
+    ret0: string
+    body:
+        "tests/05-preprocessor/modules/once-data.stack"
+
+const once.sizeof
+    0
+    8
+    +
+
+const once.v.offset
+    0
+
+const once.init
+    0
+    8
+    +
+    ptr.alloc
+    dup
+    rot
+    rot
+    0
+    ptr.+
+    swp
+    int.&
+    8
+    ptr.@
+    pop
+    once.*
+
+const once.v
+    once.&
+    0
+    ptr.+
+    int.*
+
+const once.v.set
+    swp
+    once.&
+    0
+    ptr.+
+    swp
+    int.&
+    8
+    ptr.@
+    pop
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

@@ -1,0 +1,5 @@
+const bool.sizeof 1
+
+func main () (int) in
+    0
+end

@@ -1,0 +1,3 @@
+@import "tests/05-preprocessor/46-import-backedge"
+
+func back.get () (int) in 3 home.init home.v end

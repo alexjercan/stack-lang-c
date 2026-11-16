@@ -1,0 +1,9 @@
+const ONCE_VALUE 1
+
+data once (int v)
+
+func once.get () (int) in
+    2 once.init once.v
+end
+
+func once.file () (string) in __file__ end

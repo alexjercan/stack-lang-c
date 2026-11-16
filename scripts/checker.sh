@@ -84,6 +84,39 @@ analyzer() {
     PASSED_TESTS=$((PASSED_TESTS + passed))
 }
 
+modes_analyzer() {
+    local tests_dir=$TESTS_DIR/$1 work_dir passed=0 total=0 status_path file_path expected_status mode status
+    [[ -x "$MAIN" ]] || return 1
+    work_dir=$(mktemp -d) || return 1
+
+    echo "Running later-stage checks for $1 negative tests"
+    for status_path in "$tests_dir"/*.status; do
+        file_path="${status_path%.status}.$EXT"
+        read -r expected_status < "$status_path"
+        for mode in --typecheck --assembler; do
+            total=$((total + 1))
+            echo -n "Testing $(basename "$file_path") $mode ... "
+            timeout 30 ./"$MAIN" "$mode" "$file_path" > "$work_dir/out" 2> "$work_dir/err"
+            status=$?
+            if [[ "$status" -eq "$expected_status" && ! -s "$work_dir/out" ]] &&
+                diff "$work_dir/err" "${status_path%.status}.ref" > /dev/null; then
+                echo "PASSED"
+                passed=$((passed + 1))
+            else
+                echo "FAILED (exit status $status, expected $expected_status)"
+                if [[ "$VERBOSE" -eq 1 ]]; then
+                    diff "$work_dir/err" "${status_path%.status}.ref"
+                fi
+            fi
+        done
+    done
+
+    rm -rf "$work_dir"
+    echo "Passed $passed/$total later-stage checks"
+    TOTAL_TESTS=$((TOTAL_TESTS + total))
+    PASSED_TESTS=$((PASSED_TESTS + passed))
+}
+
 runtime_analyzer() {
     local work_dir
     work_dir=$(mktemp -d) || return 1
@@ -157,6 +190,10 @@ io_analyzer() {
         "$MAIN" --typecheck < "$IO_DIR/valid.$EXT"
     io_check "unreadable stdin" 1 "I/O error: cannot read standard input" "$out" \
         "$MAIN" --typecheck 0> /dev/null
+    io_check "closed stdin" 1 "I/O error: cannot stat standard input" "$out" \
+        "$MAIN" --typecheck 0<&-
+    io_check "closed stdin with file" 0 "" "$out" \
+        "$MAIN" --typecheck "$IO_DIR/valid.$EXT" 0<&-
     io_check "directory import" 1 "$IO_DIR/import.$EXT:1:9, Preprocessor error: cannot read import \"$IO_DIR/lib\"" "$out" \
         "$MAIN" --typecheck "$IO_DIR/import.$EXT"
     io_check "full output" 1 "I/O error: cannot write assembly output" /dev/full \
@@ -168,8 +205,112 @@ io_analyzer() {
     PASSED_TESTS=$((PASSED_TESTS + IO_PASSED))
 }
 
+import_case() {
+    local name=$1 expected_status=$2 expected_stderr=$3 status ok=1 spec count
+    shift 3
+    local specs=()
+    while [[ $# -gt 0 && "$1" != "--" ]]; do
+        specs+=("$1")
+        shift
+    done
+    shift
+    IMPORT_TOTAL=$((IMPORT_TOTAL + 1))
+    echo -n "Testing $name ... "
+
+    (cd "$IMPORT_DIR/work" && timeout 30 "$@") > "$IMPORT_DIR/out" 2> "$IMPORT_DIR/err"
+    status=$?
+    [[ "$status" -eq "$expected_status" ]] || ok=0
+    [[ "$(< "$IMPORT_DIR/err")" == "$expected_stderr" ]] || ok=0
+    for spec in "${specs[@]}"; do
+        if [[ "$spec" == "empty" ]]; then
+            [[ -s "$IMPORT_DIR/out" ]] && ok=0
+        else
+            count=$(grep -cxF -- "${spec#*:}" "$IMPORT_DIR/out")
+            [[ "$count" -eq "${spec%%:*}" ]] || ok=0
+        fi
+    done
+
+    if [[ "$ok" -eq 1 ]]; then
+        echo "PASSED"
+        IMPORT_PASSED=$((IMPORT_PASSED + 1))
+    else
+        echo "FAILED (exit status $status, expected $expected_status)"
+        if [[ "$VERBOSE" -eq 1 ]]; then
+            while IFS= read -r line; do printf '%s\n' "$line"; done < "$IMPORT_DIR/err"
+        fi
+    fi
+}
+
+import_analyzer() {
+    local slc work mode
+    slc=$(realpath -e "$MAIN") || return 1
+    IMPORT_DIR=$(mktemp -d) || return 1
+    IMPORT_TOTAL=0
+    IMPORT_PASSED=0
+    work="$IMPORT_DIR/work"
+    mkdir -p "$work/sub" "$work/home/lib"
+
+    printf 'const MOD_VALUE 1\n\ndata mod.rec (int v)\n\nfunc mod.get () (int) in MOD_VALUE mod.rec.init mod.rec.v end\n\nfunc mod.file () (string) in __file__ end\n' > "$work/mod.$EXT"
+    ln -s "mod.$EXT" "$work/link.$EXT"
+    ln "$work/mod.$EXT" "$work/hard.$EXT"
+    cp "$work/mod.$EXT" "$work/copy.$EXT"
+    printf '@import "mod"\n@import "./mod"\n@import "sub/../mod"\n@import "%s/mod"\n@import "link"\n@import "hard"\n@import "main"\n@import "%s/main"\n\nfunc main () (int) in mod.get 42 + end\n' "$work" "$work" > "$work/main.$EXT"
+    ln -s "main.$EXT" "$work/mainlink.$EXT"
+    printf '@import "mod"\n@import "copy"\n\nfunc main () (int) in 0 end\n' > "$work/copied.$EXT"
+
+    printf 'data fb.rec (int v)\n\nfunc fb.get () (int) in 2 fb.rec.init fb.rec.v end\n\nfunc fb.file () (string) in __file__ end\n' > "$work/home/lib/fb.$EXT"
+    printf '@import "fb"\n@import "home/lib/fb"\n@import "%s/home/lib/fb"\n\nfunc main () (int) in fb.get end\n' "$work" > "$work/fallback.$EXT"
+
+    printf 'const D_VALUE 2\n' > "$work/dc.$EXT"
+    printf '@import "dc"\n\nconst D_VALUE 1\n\nfunc main () (int) in D_VALUE end\n' > "$work/dconst.$EXT"
+    printf 'func d.f () (int) in 1 end\n' > "$work/df.$EXT"
+    printf '@import "df"\n\nfunc d.f () (int) in 2 end\n\nfunc main () (int) in d.f end\n' > "$work/dfunc.$EXT"
+    printf 'data d.rec (int v)\n' > "$work/dd.$EXT"
+    printf '@import "dd"\n\ndata d.rec (int v)\n\nfunc main () (int) in 0 end\n' > "$work/ddata.$EXT"
+
+    local once=("1:func main" "1:data mod.rec" "1:func mod.get" "1:const mod.rec.sizeof" "1:const MOD_VALUE")
+
+    echo "Running import identity tests"
+    import_case "aliases preprocessor" 0 "" "${once[@]}" '1:        "mod.stack"' -- \
+        "$slc" --preprocessor "main.$EXT"
+    import_case "aliases typecheck" 0 "" empty -- \
+        "$slc" --typecheck "main.$EXT"
+    import_case "aliases executable" 43 "" -- \
+        bash -c '"$0" --assembler main.stack > m.asm && fasm m.asm m.o > /dev/null && ld m.o -o m && ./m' "$slc"
+    import_case "absolute main" 0 "" "${once[@]}" -- \
+        "$slc" --preprocessor "$work/main.$EXT"
+    import_case "symlink main" 0 "" "${once[@]}" -- \
+        "$slc" --preprocessor "mainlink.$EXT"
+    import_case "file stdin main" 0 "" "${once[@]}" -- \
+        bash -c '"$0" --preprocessor < main.stack' "$slc"
+    import_case "pipe stdin main" 1 "main.$EXT:10:6, Semantic error: func main is redefined" empty -- \
+        bash -c 'cat main.stack | "$0" --typecheck' "$slc"
+    import_case "fallback alias" 0 "" "1:data fb.rec" "1:func fb.get" "1:const fb.rec.sizeof" \
+        "1:        \"$work/home/lib/fb.stack\"" -- \
+        env STACK_HOME="$work/home" "$slc" --preprocessor "fallback.$EXT"
+    for mode in --preprocessor --typecheck --assembler; do
+        import_case "copied file $mode" 1 \
+            "copy.$EXT:1:7, Preprocessor error: duplicate constant MOD_VALUE, first defined at mod.$EXT:1:7" empty -- \
+            "$slc" "$mode" "copied.$EXT"
+        import_case "duplicate const $mode" 1 \
+            "dc.$EXT:1:7, Preprocessor error: duplicate constant D_VALUE, first defined at dconst.$EXT:3:7" empty -- \
+            "$slc" "$mode" "dconst.$EXT"
+    done
+    for mode in --typecheck --assembler; do
+        import_case "duplicate func $mode" 1 "df.$EXT:1:6, Semantic error: func d.f is redefined" empty -- \
+            "$slc" "$mode" "dfunc.$EXT"
+        import_case "duplicate data $mode" 1 "dd.$EXT:1:6, Semantic error: data d.rec is redefined" empty -- \
+            "$slc" "$mode" "ddata.$EXT"
+    done
+
+    rm -rf "$IMPORT_DIR"
+    echo "Passed $IMPORT_PASSED/$IMPORT_TOTAL import identity tests"
+    TOTAL_TESTS=$((TOTAL_TESTS + IMPORT_TOTAL))
+    PASSED_TESTS=$((PASSED_TESTS + IMPORT_PASSED))
+}
+
 usage() {
-    echo "Usage: $0 [--all | --lexer | --parser | --preprocessor | --typecheck | --io | --runtime] [--no-build] [--memcheck] [--main <main>] [-h | --help]"
+    echo "Usage: $0 [--all | --lexer | --parser | --preprocessor | --typecheck | --io | --import | --runtime] [--no-build] [--memcheck] [--main <main>] [-h | --help]"
     echo
     echo "Options:"
     echo "  --all           Enable 'all' mode."
@@ -178,6 +319,7 @@ usage() {
     echo "  --preprocessor  Enable 'preprocessor' mode."
     echo "  --typecheck     Enable 'typecheck' mode."
     echo "  --io            Enable 'io' mode."
+    echo "  --import        Check import identity with links and temporary paths."
     echo "  --runtime       Compile, assemble, link, and run executable tests."
     echo "  --no-build      Use the existing compiler without rebuilding."
     echo "  --memcheck      Enable memory check."
@@ -211,6 +353,10 @@ main() {
                 ;;
             --io)
                 ARG1="io"
+                shift
+                ;;
+            --import)
+                ARG1="import"
                 shift
                 ;;
             --runtime)
@@ -269,6 +415,7 @@ main() {
         echo -e "\e[33mTesting the preprocessor\e[0m"
         # Fallback imports resolve to fixture modules, not the host STACK_HOME.
         STACK_HOME="$TESTS_DIR/05-preprocessor/home" analyzer "05-preprocessor" "--preprocessor" "$MEMCHECK" "$VERBOSE"
+        STACK_HOME="$TESTS_DIR/05-preprocessor/home" modes_analyzer "05-preprocessor" || return 1
     fi
 
     if [[ "$ARG1" == "typecheck" || "$ARG1" == "all" ]]; then
@@ -278,6 +425,10 @@ main() {
 
     if [[ "$ARG1" == "io" || "$ARG1" == "all" ]]; then
         io_analyzer || return 1
+    fi
+
+    if [[ "$ARG1" == "import" || "$ARG1" == "all" ]]; then
+        import_analyzer || return 1
     fi
 
     if [[ "$ARG1" == "runtime" || "$ARG1" == "all" ]]; then

@@ -1,0 +1,1 @@
+tests/05-preprocessor/53-data-helper-init-field.stack:1:15, Preprocessor error: duplicate constant own.init, conflicts with data helper generated at tests/05-preprocessor/53-data-helper-init-field.stack:1:6

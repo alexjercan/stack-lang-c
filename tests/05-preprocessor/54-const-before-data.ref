@@ -1,0 +1,1 @@
+tests/05-preprocessor/54-const-before-data.stack:1:7, Preprocessor error: duplicate constant rec.sizeof, conflicts with data helper generated at tests/05-preprocessor/54-const-before-data.stack:3:6

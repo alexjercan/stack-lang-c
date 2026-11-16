@@ -1,0 +1,7 @@
+@import "tests/05-preprocessor/modules/once-data"
+@import "tests/05-preprocessor/modules/once-data"
+@import "./tests/05-preprocessor/modules/once-data"
+
+func main () (int) in
+    ONCE_VALUE once.get +
+end

@@ -1,0 +1,7 @@
+const DUP_VALUE 1
+
+@import "tests/05-preprocessor/modules/dup-const"
+
+func main () (int) in
+    DUP_VALUE
+end

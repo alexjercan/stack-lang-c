@@ -1,0 +1,6 @@
+@import "./tests/04-runtime/modules/once-record"
+@import "tests/04-runtime/utils"
+
+func once.user.sum (once.record) (int) in
+    match r in r once.record.x r once.record.i once.inner.a r once.record.i once.inner.b + + end
+end

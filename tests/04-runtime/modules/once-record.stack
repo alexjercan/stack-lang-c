@@ -1,0 +1,9 @@
+@import "tests/04-runtime/modules/once-record"
+@import "tests/04-runtime/08-import-once"
+
+data once.inner (int a, int b)
+data once.record (int x, once.inner i)
+
+func once.record.make (int, int, int) (once.record) in
+    match x a b in x a b once.inner.init once.record.init end
+end

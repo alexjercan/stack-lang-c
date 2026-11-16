@@ -1,0 +1,7 @@
+data dup (int v)
+
+const dup.sizeof 8
+
+func main () (int) in
+    0
+end

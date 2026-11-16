@@ -1,0 +1,5 @@
+@import "tests/05-preprocessor/modules/once-mid"
+
+func main () (int) in
+    MID_VALUE once.get +
+end

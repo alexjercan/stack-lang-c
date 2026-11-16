@@ -1,0 +1,5 @@
+@import "tests/05-preprocessor/modules/once-cycle-b"
+
+data cyc.a (int v)
+
+func cyc.a.get () (int) in 4 cyc.a.init cyc.a.v end

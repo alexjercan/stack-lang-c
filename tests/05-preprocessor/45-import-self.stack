@@ -1,0 +1,10 @@
+@import "tests/05-preprocessor/45-import-self"
+@import "./tests/05-preprocessor/45-import-self"
+
+const SELF_VALUE 6
+
+data self (int v)
+
+func main () (int) in
+    SELF_VALUE self.init self.v
+end

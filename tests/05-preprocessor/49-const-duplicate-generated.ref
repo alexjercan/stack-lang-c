@@ -1,0 +1,1 @@
+tests/05-preprocessor/49-const-duplicate-generated.stack:3:7, Preprocessor error: duplicate constant dup.sizeof, conflicts with data helper generated at tests/05-preprocessor/49-const-duplicate-generated.stack:1:6

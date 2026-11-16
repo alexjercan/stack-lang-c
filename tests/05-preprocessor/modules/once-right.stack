@@ -1,0 +1,3 @@
+@import "./tests/05-preprocessor/modules/once-data"
+
+func right.get () (int) in once.get end

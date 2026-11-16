@@ -60,7 +60,7 @@ nix develop --command bash scripts/checker.sh --all
 ```
 
 Run one stage with `--lexer`, `--parser`, `--preprocessor`, `--typecheck`,
-`--io`, or `--runtime`. Add `--no-build` to use the existing `out/slc`.
+`--io`, `--import`, or `--runtime`. Add `--no-build` to use the existing `out/slc`.
 
 ```fish
 nix develop --command bash scripts/checker.sh --preprocessor --no-build -v
@@ -152,9 +152,16 @@ const <name> <body>
 
 will be expanded as as `<body>` in the place where it is used.
 
+Constant names are unique in the whole program. A constant may not be defined
+twice, in the same file or in different files. A constant may not use the name
+of a builtin constant (for example `int.sizeof`) or of a constant generated
+from a data type (for example `<type>.sizeof`). Generated names are reserved
+regardless of the order of the declarations.
+
 Constant definitions must be acyclic. A constant cannot use itself directly or
-through other constants, including constants generated from data types. A
-later redefinition does not make an earlier cyclic definition valid.
+through other constants, including constants generated from data types. The
+preprocessor checks the original definitions of each file for cycles before it
+checks for duplicate names.
 
 ## 3.4. Imports
 
@@ -177,6 +184,21 @@ Supports setting the path by using the `STACK_HOME` environment variable.
 ```console
 export STACK_HOME=.
 ```
+
+Each file is loaded only one time per compilation. The compiler identifies a
+file by the device and inode of the open file. Different paths to the same file
+(`mod`, `./mod`, an absolute path, a symbolic link, or a hard link) are one
+file. The main input file is also registered, so an import of the main file is
+ignored. Repeated imports, diamond imports, and import cycles do not load a
+file again. Diagnostics and `__file__` use the path that loaded the file first.
+
+When the main input is read from standard input, the compiler uses the file
+behind descriptor 0. If standard input is redirected from a file, an import of
+that file is ignored. If standard input is a pipe, the piped source is a
+different file from every import.
+
+Two different files that define the same function, data type, or constant are
+an error, also when they have the same content.
 
 ## 4. Stack Data Types
 

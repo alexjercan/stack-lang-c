@@ -1,0 +1,1 @@
+tests/05-preprocessor/50-const-duplicate-builtin.stack:1:7, Preprocessor error: duplicate constant bool.sizeof, already defined as builtin

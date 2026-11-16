@@ -1,0 +1,4 @@
+@import "tests/05-preprocessor/modules/once-left"
+@import "tests/05-preprocessor/modules/once-data"
+
+func wide.get () (int) in left.get end
