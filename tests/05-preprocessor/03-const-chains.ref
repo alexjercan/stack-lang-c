@@ -1,0 +1,47 @@
+const FIRST
+    2
+    +
+    1
+
+const SECOND
+    2
+    +
+
+const THIRD
+    2
+
+const LOW
+    7
+
+const MID
+    7
+    7
+
+const HIGH
+    7
+    7
+    0
+    7
+    7
+
+func main
+    ret0: int
+    body:
+        2
+        +
+        1
+        7
+        7
+        0
+        7
+        7
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

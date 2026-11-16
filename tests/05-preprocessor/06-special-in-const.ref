@@ -1,0 +1,32 @@
+const HERE
+    __line__
+    __col__
+
+const INNER
+    __col__
+
+const WRAPPED
+    0
+    __col__
+
+const WHERE
+    __file__
+
+func main
+    ret0: int
+    body:
+        7
+        5
+        0
+        9
+        "tests/05-preprocessor/06-special-in-const.stack"
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

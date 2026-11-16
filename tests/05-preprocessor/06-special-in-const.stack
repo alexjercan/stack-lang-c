@@ -1,0 +1,10 @@
+const HERE __line__ __col__
+const INNER __col__
+const WRAPPED 0 INNER
+const WHERE __file__
+
+func main () (int) in
+    HERE
+        WRAPPED
+   WHERE
+end

@@ -1,0 +1,7 @@
+@import "tests/05-preprocessor/modules/consts"
+
+const MAIN_VAL 20
+
+func main () (int) in
+    MODULE_VAL MODULE_FILE
+end

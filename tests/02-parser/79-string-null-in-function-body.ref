@@ -1,0 +1,1 @@
+tests/02-parser/79-string-null-in-function-body.stack:2:5, Lexical Error: String contains null character

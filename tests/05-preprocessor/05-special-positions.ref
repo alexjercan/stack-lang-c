@@ -1,0 +1,38 @@
+func main
+    ret0: int
+    body:
+        "tests/05-preprocessor/05-special-positions.stack"
+        2
+        23
+        3
+        3
+        true
+        IF
+            4
+        ELSE
+            27
+        FI
+        1
+        MATCH x
+            5
+            27
+        WHILE
+            6
+        LOOP
+            true
+            IF
+                17
+            ELSE
+            FI
+        POOL
+        2
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

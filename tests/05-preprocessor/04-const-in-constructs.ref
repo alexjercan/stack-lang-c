@@ -1,0 +1,62 @@
+const N
+    3
+
+const T
+    true
+
+const CHOOSE
+    IF
+        3
+    ELSE
+        3
+        3
+    FI
+
+const BODY
+    MATCH x
+        x
+        3
+
+func main
+    ret0: int
+    body:
+        true
+        IF
+            true
+            IF
+                3
+            ELSE
+                3
+            FI
+        ELSE
+            3
+        FI
+        3
+        MATCH a
+            a
+            3
+        WHILE
+            true
+        LOOP
+            3
+        POOL
+        true
+        IF
+            3
+        ELSE
+            3
+            3
+        FI
+        MATCH x
+            x
+            3
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

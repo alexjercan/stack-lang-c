@@ -1,0 +1,15 @@
+const N 3
+const T true
+const CHOOSE if N else N N fi
+const BODY match x in x N end
+
+func main () (int) in
+    T if
+        T if N else N fi
+    else
+        N
+    fi
+    N match a in a N end
+    while T loop N pool
+    T CHOOSE BODY
+end

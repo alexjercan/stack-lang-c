@@ -1,0 +1,28 @@
+@import "fallback"
+
+@import "tests/05-preprocessor/home/lib/fallback"
+
+func main
+    ret0: int
+    body:
+        4
+
+const FALLBACK_VAL
+    4
+
+func fallback.where
+    ret0: string
+    ret1: int
+    body:
+        "tests/05-preprocessor/home/lib/fallback.stack"
+        4
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

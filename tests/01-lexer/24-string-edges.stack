@@ -1,0 +1,2 @@
+"" "a b" "\\" "\q" "x\"y" "\t\n" "-- not a comment" "(,)"
+"a"b"c" x"y"

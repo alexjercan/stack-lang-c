@@ -1,0 +1,6 @@
+@import "fallback"
+@import "tests/05-preprocessor/home/lib/fallback"
+
+func main () (int) in
+    FALLBACK_VAL
+end

@@ -1,0 +1,19 @@
+data unit
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+
+const unit.sizeof
+    0
+
+const unit.init
+    0
+    ptr.alloc
+    unit.*
+

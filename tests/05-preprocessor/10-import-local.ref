@@ -1,0 +1,38 @@
+@import "tests/05-preprocessor/modules/consts"
+
+const MAIN_VAL
+    20
+
+func main
+    ret0: int
+    body:
+        10
+        "tests/05-preprocessor/10-import-local.stack"
+
+const MODULE_VAL
+    10
+
+const MODULE_FILE
+    __file__
+
+func module.file
+    ret0: string
+    body:
+        "tests/05-preprocessor/modules/consts.stack"
+
+func module.line
+    ret0: int
+    ret1: int
+    body:
+        7
+        20
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

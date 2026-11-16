@@ -1,0 +1,1 @@
+tests/05-preprocessor/modules/parse-error.stack:3:1, Parser error: expected expression or 'end', got end of file

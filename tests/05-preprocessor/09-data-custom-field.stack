@@ -1,0 +1,2 @@
+data inner (int a)
+data outer (inner i, ptr p)

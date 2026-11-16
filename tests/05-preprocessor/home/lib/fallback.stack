@@ -1,0 +1,5 @@
+const FALLBACK_VAL 4
+
+func fallback.where () (string, int) in
+    __file__ __line__
+end

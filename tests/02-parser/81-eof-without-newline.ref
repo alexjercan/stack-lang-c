@@ -1,0 +1,1 @@
+tests/02-parser/81-eof-without-newline.stack:2:6, Parser error: expected expression or 'end', got end of file

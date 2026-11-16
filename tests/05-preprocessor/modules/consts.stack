@@ -1,0 +1,8 @@
+const MODULE_VAL 10
+const MODULE_FILE __file__
+
+func module.file () (string) in __file__ end
+
+func module.line () (int, int) in
+    __line__ MAIN_VAL
+end

@@ -1,0 +1,158 @@
+data inner
+    a: int
+
+data outer
+    i: inner
+    p: ptr
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+
+const inner.sizeof
+    0
+    8
+    +
+
+const inner.a.offset
+    0
+
+const inner.init
+    0
+    8
+    +
+    ptr.alloc
+    dup
+    rot
+    rot
+    0
+    ptr.+
+    swp
+    int.&
+    8
+    ptr.@
+    pop
+    inner.*
+
+const inner.a
+    inner.&
+    0
+    ptr.+
+    int.*
+
+const inner.a.set
+    swp
+    inner.&
+    0
+    ptr.+
+    swp
+    int.&
+    8
+    ptr.@
+    pop
+
+const outer.sizeof
+    0
+    8
+    +
+    0
+    8
+    +
+    +
+
+const outer.p.offset
+    0
+    8
+    +
+    0
+    +
+
+const outer.i.offset
+    0
+
+const outer.init
+    0
+    8
+    +
+    0
+    8
+    +
+    +
+    ptr.alloc
+    dup
+    rot
+    rot
+    0
+    8
+    +
+    0
+    +
+    ptr.+
+    swp
+    ptr.&
+    8
+    ptr.@
+    pop
+    dup
+    rot
+    rot
+    0
+    ptr.+
+    swp
+    inner.&
+    0
+    8
+    +
+    ptr.@
+    pop
+    outer.*
+
+const outer.p
+    outer.&
+    0
+    8
+    +
+    0
+    +
+    ptr.+
+    ptr.*
+
+const outer.i
+    outer.&
+    0
+    ptr.+
+    inner.*
+
+const outer.p.set
+    swp
+    outer.&
+    0
+    8
+    +
+    0
+    +
+    ptr.+
+    swp
+    ptr.&
+    8
+    ptr.@
+    pop
+
+const outer.i.set
+    swp
+    outer.&
+    0
+    ptr.+
+    swp
+    inner.&
+    0
+    8
+    +
+    ptr.@
+    pop
+

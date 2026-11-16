@@ -1,0 +1,7 @@
+-- leading comment
+a -- b c
+d--e --f
+--
+	-- tab-indented comment
+"x" -- after a string
+g -- final comment without newline

@@ -1,0 +1,28 @@
+@import "tests/05-preprocessor/modules/cycle-a"
+
+func main
+    ret0: int
+    body:
+        1
+        2
+        +
+
+@import "tests/05-preprocessor/modules/cycle-b"
+
+const CYCLE_A
+    1
+
+@import "tests/05-preprocessor/modules/cycle-a"
+
+const CYCLE_B
+    2
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

@@ -1,0 +1,45 @@
+@import "tests/04-runtime/utils"
+
+data inner (int a, int b)
+data record (int x, bool y, inner i, ptr p)
+data unit ()
+
+func main (int, ptr) (int) in
+    pop pop
+
+    record.sizeof 40 = 1 check
+    record.x.offset 0 = 2 check
+    record.y.offset 8 = 3 check
+    record.i.offset 16 = 4 check
+    record.p.offset 32 = 5 check
+    unit.sizeof 0 = 6 check
+
+    7 int.& 11 17 inner.init 13 int.&
+    match marker in_ p in
+        -5 true in_ p record.init
+        match r in
+            r record.x -5 = 7 check
+            r record.y 8 check
+            r record.i inner.a 11 = 9 check
+            r record.i inner.b 17 = 10 check
+            r record.p int.* 13 = 11 check
+
+            r 42 record.x.set
+            r false record.y.set
+            r 99 101 inner.init record.i.set
+            r marker record.p.set
+
+            r record.x 42 = 12 check
+            r record.y if false else true fi 13 check
+            r record.i inner.a 99 = 14 check
+            r record.i inner.b 101 = 15 check
+            r record.p int.* 7 = 16 check
+
+            -- Data fields are copied into the record, not shared.
+            in_ inner.a 11 = 17 check
+            in_ inner.b 17 = 18 check
+        end
+    end
+
+    0
+end

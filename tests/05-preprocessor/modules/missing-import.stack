@@ -1,0 +1,3 @@
+func ok () (int) in 0 end
+
+  @import "tests/05-preprocessor/modules/does-not-exist"

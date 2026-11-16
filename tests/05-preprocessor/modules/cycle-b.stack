@@ -1,0 +1,3 @@
+@import "tests/05-preprocessor/modules/cycle-a"
+
+const CYCLE_B 2

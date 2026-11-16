@@ -1,0 +1,5 @@
+data pt (int x, bool y)
+
+func main () (int) in
+    pt.sizeof pt.x.offset pt.y.offset
+end

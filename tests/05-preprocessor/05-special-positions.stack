@@ -1,0 +1,10 @@
+func main () (int) in
+    __file__ __line__ __col__
+  __col__ __line__
+    true if __line__ else __col__ fi
+    1 match x in __line__ __col__ end
+    while __line__ loop
+        true if __col__ fi
+    pool
+	__col__
+end

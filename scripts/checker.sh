@@ -53,7 +53,7 @@ analyzer() {
         if [[ "$exec_arg" == "--typecheck" && -s "$ref_path" ]]; then
             expected_status=1
         fi
-        # Negative parser/lexer cases can specify their expected exit status.
+        # Negative cases can specify their expected exit status.
         status_path="${ref_path%.ref}.status"
         if [[ -f "$status_path" ]]; then
             read -r expected_status < "$status_path"
@@ -169,12 +169,13 @@ io_analyzer() {
 }
 
 usage() {
-    echo "Usage: $0 [--all | --lexer | --parser | --typecheck | --io | --runtime] [--no-build] [--memcheck] [--main <main>] [-h | --help]"
+    echo "Usage: $0 [--all | --lexer | --parser | --preprocessor | --typecheck | --io | --runtime] [--no-build] [--memcheck] [--main <main>] [-h | --help]"
     echo
     echo "Options:"
     echo "  --all           Enable 'all' mode."
     echo "  --lexer         Enable 'lexer' mode."
     echo "  --parser        Enable 'parser' mode."
+    echo "  --preprocessor  Enable 'preprocessor' mode."
     echo "  --typecheck     Enable 'typecheck' mode."
     echo "  --io            Enable 'io' mode."
     echo "  --runtime       Compile, assemble, link, and run executable tests."
@@ -198,6 +199,10 @@ main() {
                 ;;
             --parser)
                 ARG1="parser"
+                shift
+                ;;
+            --preprocessor)
+                ARG1="preprocessor"
                 shift
                 ;;
             --typecheck)
@@ -258,6 +263,12 @@ main() {
     if [[ "$ARG1" == "parser" || "$ARG1" == "all" ]]; then
         echo -e "\e[33mTesting the parser\e[0m"
         analyzer "02-parser" "--parser" "$MEMCHECK" "$VERBOSE"
+    fi
+
+    if [[ "$ARG1" == "preprocessor" || "$ARG1" == "all" ]]; then
+        echo -e "\e[33mTesting the preprocessor\e[0m"
+        # Fallback imports resolve to fixture modules, not the host STACK_HOME.
+        STACK_HOME="$TESTS_DIR/05-preprocessor/home" analyzer "05-preprocessor" "--preprocessor" "$MEMCHECK" "$VERBOSE"
     fi
 
     if [[ "$ARG1" == "typecheck" || "$ARG1" == "all" ]]; then

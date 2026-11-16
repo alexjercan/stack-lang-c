@@ -1,0 +1,48 @@
+const ANSWER
+    42
+
+const MIXED
+    -1
+    true
+    "s"
+    dup
+
+const NOTHING
+
+func main
+    ret0: int
+    body:
+        42
+        -1
+        true
+        "s"
+        dup
+        pop2
+        pop
+        42
+        ANSWER.x
+        answer
+        +
+
+func other
+    ret0: int
+    ret1: int
+    ret2: bool
+    ret3: string
+    body:
+        42
+        -1
+        true
+        "s"
+        dup
+        pop
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

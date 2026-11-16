@@ -1,0 +1,7 @@
+@import "tests/05-preprocessor/modules/diamond-left"
+@import "tests/05-preprocessor/modules/diamond-right"
+@import "tests/05-preprocessor/modules/diamond-left"
+
+func main () (int) in
+    LEFT RIGHT BASE + +
+end

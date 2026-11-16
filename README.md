@@ -59,6 +59,13 @@ Run the test suite from the repository root:
 nix develop --command bash scripts/checker.sh --all
 ```
 
+Run one stage with `--lexer`, `--parser`, `--preprocessor`, `--typecheck`,
+`--io`, or `--runtime`. Add `--no-build` to use the existing `out/slc`.
+
+```fish
+nix develop --command bash scripts/checker.sh --preprocessor --no-build -v
+```
+
 ## 3. Stack
 
 The stack in a `Stack` program is an array with a fixed size. The stack is used

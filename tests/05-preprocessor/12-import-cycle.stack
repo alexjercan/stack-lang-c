@@ -1,0 +1,5 @@
+@import "tests/05-preprocessor/modules/cycle-a"
+
+func main () (int) in
+    CYCLE_A CYCLE_B +
+end

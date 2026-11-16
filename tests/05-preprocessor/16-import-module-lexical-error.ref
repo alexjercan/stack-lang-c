@@ -1,0 +1,1 @@
+tests/05-preprocessor/modules/lexical-error.stack:2:11, Lexical Error: String contains new line character

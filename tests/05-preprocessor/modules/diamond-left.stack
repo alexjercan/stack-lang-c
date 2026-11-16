@@ -1,0 +1,3 @@
+@import "tests/05-preprocessor/modules/diamond-base"
+
+const LEFT 1

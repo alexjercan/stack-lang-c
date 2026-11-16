@@ -1,0 +1,12 @@
+const ANSWER 42
+const MIXED -1 true "s" dup
+const NOTHING
+
+func main () (int) in
+    ANSWER MIXED NOTHING pop2 pop
+    ANSWER ANSWER.x answer +
+end
+
+func other () (int, int, bool, string) in
+    ANSWER MIXED pop
+end

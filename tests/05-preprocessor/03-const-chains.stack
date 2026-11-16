@@ -1,0 +1,11 @@
+const FIRST SECOND 1
+const SECOND THIRD +
+const THIRD 2
+
+const LOW 7
+const MID LOW LOW
+const HIGH MID 0 MID
+
+func main () (int) in
+    FIRST HIGH
+end
