@@ -675,7 +675,7 @@ func.15: ; >>
     call    stack_pop
     pop     rcx
 
-    shr     ax, cl
+    sar     rax, cl
     mov     rdi, rax
     call    stack_push
 
@@ -700,7 +700,7 @@ func.16: ; <<
     call    stack_pop
     pop     rcx
 
-    shl     ax, cl
+    shl     rax, cl
     mov     rdi, rax
     call    stack_push
 
@@ -85790,7 +85790,7 @@ func.304: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.263 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.434 ; "    shr     ax, cl"
+    mov     rdi, literal.434 ; "    sar     rax, cl"
     call    stack_push_addr
     call    func.263 ; emit
     call    func.1 ; dup
@@ -85899,7 +85899,7 @@ func.304: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.263 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.436 ; "    shl     ax, cl"
+    mov     rdi, literal.436 ; "    shl     rax, cl"
     call    stack_push_addr
     call    func.263 ; emit
     call    func.1 ; dup
@@ -92812,15 +92812,15 @@ string.432 db 59,32,115,104,114,0,0,0
 literal.433 dq 15
           dq string.433
 string.433 db 32,32,32,32,112,111,112,32,32,32,32,32,114,99,120,0
-literal.434 dq 18
+literal.434 dq 19
           dq string.434
-string.434 db 32,32,32,32,115,104,114,32,32,32,32,32,97,120,44,32,99,108,0,0,0,0,0,0
+string.434 db 32,32,32,32,115,97,114,32,32,32,32,32,114,97,120,44,32,99,108,0,0,0,0,0
 literal.435 dq 5
           dq string.435
 string.435 db 59,32,115,104,108,0,0,0
-literal.436 dq 18
+literal.436 dq 19
           dq string.436
-string.436 db 32,32,32,32,115,104,108,32,32,32,32,32,97,120,44,32,99,108,0,0,0,0,0,0
+string.436 db 32,32,32,32,115,104,108,32,32,32,32,32,114,97,120,44,32,99,108,0,0,0,0,0
 literal.437 dq 14
           dq string.437
 string.437 db 59,32,103,114,101,97,116,101,114,32,116,104,97,110,0,0

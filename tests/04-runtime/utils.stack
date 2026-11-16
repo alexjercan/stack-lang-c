@@ -1,0 +1,6 @@
+@import "linux"
+
+-- Each failed check exits with its case number.
+func check (bool, int) () in
+    swp if pop else sys.exit fi
+end

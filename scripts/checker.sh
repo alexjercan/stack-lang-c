@@ -13,6 +13,7 @@ EXT=stack
 ARG1="all"
 MEMCHECK=0
 VERBOSE=0
+BUILD=1
 
 analyzer() {
     if [ "$#" -ne 4 ]; then
@@ -65,13 +66,49 @@ analyzer() {
     PASSED_TESTS=$((PASSED_TESTS + passed))
 }
 
+runtime_analyzer() {
+    local work_dir
+    work_dir=$(mktemp -d) || return 1
+    local passed=0 total=0 file_path file_name
+
+    echo "Running executable tests for 04-runtime"
+    for file_path in "$TESTS_DIR"/04-runtime/*."$EXT"; do
+        # Shared helpers are modules, not executable tests.
+        [[ "$(basename "$file_path")" == "utils.$EXT" ]] && continue
+        total=$((total + 1))
+        file_name=$(basename "$file_path")
+        echo -n "Testing $file_name ... "
+
+        if timeout 30 "$MAIN" --assembler "$file_path" > "$work_dir/main.asm" 2> "$work_dir/log" &&
+            fasm "$work_dir/main.asm" "$work_dir/main.o" >> "$work_dir/log" 2>&1 &&
+            ld "$work_dir/main.o" -o "$work_dir/main" >> "$work_dir/log" 2>&1 &&
+            timeout 10 "$work_dir/main" >> "$work_dir/log" 2>&1; then
+            echo "PASSED"
+            passed=$((passed + 1))
+        else
+            echo "FAILED (compiler, assembler, linker, or executable exited with $?)"
+            if [[ "$VERBOSE" -eq 1 ]]; then
+                while IFS= read -r line; do printf '%s\n' "$line"; done < "$work_dir/log"
+            fi
+        fi
+    done
+
+    rm -rf "$work_dir"
+    echo "Passed $passed/$total executable tests"
+    TOTAL_TESTS=$((TOTAL_TESTS + total))
+    PASSED_TESTS=$((PASSED_TESTS + passed))
+}
+
 usage() {
-    echo "Usage: $0 [--all | --lexer | --parser] [--memcheck] [--main <main>] [-h | --help]"
+    echo "Usage: $0 [--all | --lexer | --parser | --typecheck | --runtime] [--no-build] [--memcheck] [--main <main>] [-h | --help]"
     echo
     echo "Options:"
     echo "  --all           Enable 'all' mode."
     echo "  --lexer         Enable 'lexer' mode."
     echo "  --parser        Enable 'parser' mode."
+    echo "  --typecheck     Enable 'typecheck' mode."
+    echo "  --runtime       Compile, assemble, link, and run executable tests."
+    echo "  --no-build      Use the existing compiler without rebuilding."
     echo "  --memcheck      Enable memory check."
     echo "  -v, --verbose   Show more details in case of errors."
     echo "  --main <main>   Switch to a different main. Default is 'main'"
@@ -79,8 +116,6 @@ usage() {
 }
 
 main() {
-    make clean && make
-
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --all)
@@ -97,6 +132,14 @@ main() {
                 ;;
             --typecheck)
                 ARG1="typecheck"
+                shift
+                ;;
+            --runtime)
+                ARG1="runtime"
+                shift
+                ;;
+            --no-build)
+                BUILD=0
                 shift
                 ;;
             --memcheck)
@@ -129,6 +172,10 @@ main() {
         esac
     done
 
+    if [[ "$BUILD" -eq 1 ]]; then
+        make clean && make || return 1
+    fi
+
     if [[ "$ARG1" == "lexer" || "$ARG1" == "all" ]]; then
         echo -e "\e[33mTesting the lexical analyzer\e[0m"
         analyzer "01-lexer" "--lexer" "$MEMCHECK" "$VERBOSE"
@@ -142,6 +189,10 @@ main() {
     if [[ "$ARG1" == "typecheck" || "$ARG1" == "all" ]]; then
         echo -e "\e[33mTesting the typechecker\e[0m"
         analyzer "03-typecheck" "--typecheck" "$MEMCHECK" "$VERBOSE"
+    fi
+
+    if [[ "$ARG1" == "runtime" || "$ARG1" == "all" ]]; then
+        runtime_analyzer || return 1
     fi
 
     if [ $PASSED_TESTS -eq $TOTAL_TESTS ]; then

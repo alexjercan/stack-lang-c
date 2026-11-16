@@ -4918,7 +4918,7 @@ func stack_assembler.emit.keywords (stack_assembler) () in
     dup "    call    stack_pop" emit
     dup "    pop     rcx" emit
     dup "" emit
-    dup "    shr     ax, cl" emit
+    dup "    sar     rax, cl" emit
     dup "    mov     rdi, rax" emit
     dup "    call    stack_push" emit
     dup "" emit
@@ -4944,7 +4944,7 @@ func stack_assembler.emit.keywords (stack_assembler) () in
     dup "    call    stack_pop" emit
     dup "    pop     rcx" emit
     dup "" emit
-    dup "    shl     ax, cl" emit
+    dup "    shl     rax, cl" emit
     dup "    mov     rdi, rax" emit
     dup "    call    stack_push" emit
     dup "" emit

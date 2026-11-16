@@ -51,6 +51,14 @@ To compile a `Stack` program using the `slc` compiler:
 slc [ -o main ] main.stack
 ```
 
+### Running tests
+
+Run the test suite from the repository root:
+
+```fish
+nix develop --command bash scripts/checker.sh --all
+```
+
 ## 3. Stack
 
 The stack in a `Stack` program is an array with a fixed size. The stack is used

@@ -1,0 +1,35 @@
+@import "tests/04-runtime/utils"
+
+func main (int, ptr) (int) in
+    pop pop
+
+    -- Left shifts must use all 64 bits, not just the low 16 bits.
+    1 0 << 1 = 1 check
+    1 1 << 2 = 2 check
+    32768 1 << 65536 = 3 check
+    65536 1 << 131072 = 4 check
+    1 16 << 65536 = 5 check
+    1 32 << 4294967296 = 6 check
+    1 62 << 4611686018427387904 = 7 check
+    1 63 << -9223372036854775808 = 8 check
+    0 63 << 0 = 9 check
+    -1 1 << -2 = 10 check
+    4611686018427387904 2 << 0 = 11 check
+    -9223372036854775808 1 << 0 = 12 check
+
+    -- Right shifts must use all 64 bits and preserve the sign.
+    65536 1 >> 32768 = 13 check
+    4294967296 16 >> 65536 = 14 check
+    4294967296 32 >> 1 = 15 check
+    9223372036854775807 63 >> 0 = 16 check
+    -8 1 >> -4 = 17 check
+    -7 1 >> -4 = 18 check
+    -1 1 >> -1 = 19 check
+    -9223372036854775808 1 >> -4611686018427387904 = 20 check
+    -9223372036854775808 63 >> -1 = 21 check
+    -8 0 >> -8 = 22 check
+    0 63 >> 0 = 23 check
+    8 1 >> 4 = 24 check
+
+    0
+end
