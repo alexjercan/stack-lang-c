@@ -1,0 +1,1 @@
+tests/02-parser/88-invalid-del.stack:2:1, Lexical Error: Invalid character: byte 127

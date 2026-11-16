@@ -1,0 +1,1 @@
+tests/02-parser/87-invalid-null.stack:1:1, Lexical Error: Invalid character: byte 0

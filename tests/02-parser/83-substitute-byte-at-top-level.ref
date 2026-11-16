@@ -1,1 +1,1 @@
-tests/02-parser/83-substitute-byte-at-top-level.stack:4:1, Lexical Error: Invalid character: 
+tests/02-parser/83-substitute-byte-at-top-level.stack:4:1, Lexical Error: Invalid character: byte 26

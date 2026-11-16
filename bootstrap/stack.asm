@@ -8880,10 +8880,19 @@ func.86: ; stack_parser.illegal.showf
 .fi101:
     jmp    .fi100
 .if100:
-    mov     rdi, literal.107 ; "Invalid character: "
+    mov     rdi, literal.107 ; "Invalid character: byte "
     call    stack_push_addr
     call    func.84 ; string.stderr
-    call    func.49 ; pop2
+    call    func.5 ; pop
+    call    func.39 ; stack_token.&
+    mov     rdi, literal.8 ; 8
+    call    stack_push_addr
+    mov     rdi, literal.0 ; 0
+    call    stack_push_addr
+    call    func.7 ; +
+    call    func.21 ; ptr.+
+    call    func.50 ; string.*
+    call    func.84 ; string.stderr
 .fi100:
     mov     rdi, literal.81 ; "\n"
     call    stack_push_addr
@@ -97634,9 +97643,9 @@ string.105 db 83,116,114,105,110,103,32,99,111,110,116,97,105,110,115,32,110,101
 literal.106 dq 30
           dq string.106
 string.106 db 83,116,114,105,110,103,32,99,111,110,116,97,105,110,115,32,110,117,108,108,32,99,104,97,114,97,99,116,101,114,0,0
-literal.107 dq 19
+literal.107 dq 24
           dq string.107
-string.107 db 73,110,118,97,108,105,100,32,99,104,97,114,97,99,116,101,114,58,32,0,0,0,0,0
+string.107 db 73,110,118,97,108,105,100,32,99,104,97,114,97,99,116,101,114,58,32,98,121,116,101,32,0,0,0,0,0,0,0,0
 literal.108 dq 588
 literal.109 dq 63
 literal.110 dq 613

@@ -1,0 +1,1 @@
+tests/02-parser/86-invalid-utf8.stack:2:5, Lexical Error: Invalid character: byte 195

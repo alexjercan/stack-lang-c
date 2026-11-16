@@ -526,7 +526,7 @@ func stack_parser.illegal.showf (stack_parser) () in
 
     dup stack_parser.peek dup stack_token.err -- parser, tok, err
     dup STACK_ILLEGAL_INVALID = if -- parser, tok, err
-        "Invalid character: " string.stderr pop2
+        "Invalid character: byte " string.stderr pop stack_token.value string.stderr
     else dup STACK_ILLEGAL_STRING_NULL = if
         "String contains null character" string.stderr pop2
     else dup STACK_ILLEGAL_STRING_\N = if
