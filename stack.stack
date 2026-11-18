@@ -1526,7 +1526,7 @@ end
 
 func stack_const_graph.mark (stack_const_graph, int, int) () in -- graph, i, status
     match graph i status in
-        graph stack_const_graph.states i array.get unwrap status int.& int.sizeof ptr.@ pop
+        graph stack_const_graph.states i status int.& array.set unwrap
     end
 end
 

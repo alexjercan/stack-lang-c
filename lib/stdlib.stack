@@ -476,6 +476,18 @@ func array.get (array, int) (ptr, bool) in -- a, i
     end
 end
 
+func array.set (array, int, ptr) (bool) in -- array, index, item
+    match xs i item in
+        i 0 >= i xs array.count < and if
+            xs array.items i xs array.sz * ptr.+
+            item xs array.sz ptr.@ pop
+            true
+        else
+            false
+        fi
+    end
+end
+
 func array.copy (array) (array, bool) in -- a
     dup array.sz -- a, sz
     array.init.with_sz -- a, dst

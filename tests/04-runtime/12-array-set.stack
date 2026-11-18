@@ -1,0 +1,84 @@
+@import "stdlib"
+@import "tests/04-runtime/utils"
+
+data set_record (int x, int y, ptr target)
+
+func expect.ints (array, int, int, int, int) () in
+    match xs a b c case in
+        xs array.count 3 = case check
+        xs 0 array.get unwrap int.* a = case check
+        xs 1 array.get unwrap int.* b = case check
+        xs 2 array.get unwrap int.* c = case check
+    end
+end
+
+func main () (int) in
+    int.sizeof array.init.with_sz match xs in
+        xs array.items ptr.& int.* 0 + match initial_items in
+            xs -1 ptr.null array.set not 1 check
+            xs 0 ptr.null array.set not 2 check
+            xs 1 ptr.null array.set not 3 check
+            xs array.count 0 = 4 check
+            xs array.capacity 0 = 5 check
+            xs array.items ptr.& int.* initial_items = 6 check
+        end
+
+        xs 10 int.& array.append unwrap
+        xs 20 int.& array.append unwrap
+        xs 30 int.& array.append unwrap
+        xs array.capacity 0 + xs array.items ptr.& int.* 0 + match capacity items in
+            xs 0 11 int.& array.set 7 check
+            xs 11 20 30 8 expect.ints
+            xs 1 21 int.& array.set 9 check
+            xs 11 21 30 10 expect.ints
+            xs 2 31 int.& array.set 11 check
+            xs 11 21 31 12 expect.ints
+            xs 1 22 int.& array.set 13 check
+            xs 11 22 31 14 expect.ints
+
+            xs 0 xs 0 array.get unwrap array.set 15 check
+            xs 11 22 31 16 expect.ints
+            xs 2 xs 1 array.get unwrap array.set 17 check
+            xs 11 22 22 18 expect.ints
+
+            xs -1 ptr.null array.set not 19 check
+            xs 3 ptr.null array.set not 20 check
+            xs 4 ptr.null array.set not 21 check
+            xs 9223372036854775807 ptr.null array.set not 22 check
+            xs 11 22 22 23 expect.ints
+            xs array.capacity capacity = 24 check
+            xs array.items ptr.& int.* items = 25 check
+        end
+    end
+
+    int.sizeof array.init.with_sz match xs in
+        xs 1 int.& array.append unwrap
+        xs 0 2 int.& array.set 26 check
+        xs 0 array.get unwrap int.* 2 = 27 check
+        xs array.count 1 = 28 check
+        xs 1 ptr.null array.set not 29 check
+    end
+
+    8 ptr.alloc match target in
+        set_record.sizeof array.init.with_sz match xs in
+            xs 1 2 ptr.null set_record.init set_record.& array.append unwrap
+            3 4 target set_record.init match source in
+                xs 0 source set_record.& array.set 30 check
+                xs 0 array.get unwrap set_record.* match result in
+                    result set_record.x 3 = 31 check
+                    result set_record.y 4 = 32 check
+                    result set_record.target target ptr.= 33 check
+                    source 9 set_record.x.set
+                    source 10 set_record.y.set
+                    result set_record.x 3 = 34 check
+                    result set_record.y 4 = 35 check
+                    result 11 set_record.x.set
+                    source set_record.x 9 = 36 check
+                end
+                xs array.count 1 = 37 check
+                xs 1 ptr.null array.set not 38 check
+            end
+        end
+    end
+    0
+end
