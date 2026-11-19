@@ -1,0 +1,282 @@
+@import "stdlib"
+@import "tests/04-runtime/utils"
+
+data link (int value, ptr target)
+
+func addr (ptr) (int) in ptr.& int.* 0 + end
+
+-- The 8 bytes before an allocation hold the block size and the allocated bit.
+func header (ptr) (int) in -8 ptr.+ int.* 0 + end
+
+-- Field getters alias the field, so keep the pointer value itself.
+func ptr.copy (ptr) (ptr) in addr int.& ptr.* end
+
+func poke (ptr, int) () in int.& int.sizeof ptr.@ pop end
+
+func peek (ptr) (int) in int.* 0 + end
+
+func test.alignment () () in
+    0 while dup 20 < loop
+        match n in
+            n ptr.alloc addr 8 % 0 = 1 check
+            n 3 + int.& addr 8 % 0 = 2 check
+            n 1 +
+        end
+    pool pop
+end
+
+func test.header () () in
+    0 ptr.alloc header 17 = 3 check
+    1 ptr.alloc header 17 = 4 check
+    8 ptr.alloc header 17 = 5 check
+    9 ptr.alloc header 25 = 6 check
+    17 ptr.alloc header 33 = 7 check
+end
+
+func test.zero () () in
+    0 ptr.alloc 0 ptr.alloc match a b in
+        a b ptr.= not 8 check
+        a ptr.free
+        0 ptr.alloc match c in
+            c a ptr.= 9 check
+            b c ptr.= not 10 check
+        end
+    end
+    ptr.null ptr.free
+end
+
+func test.reuse () () in
+    24 ptr.alloc 8 ptr.alloc match p _guard in
+        p 11 poke
+        p 8 ptr.+ 12 poke
+        p 16 ptr.+ 13 poke
+        p ptr.free
+        24 ptr.alloc match q in
+            q p ptr.= 11 check
+            q peek 0 = 12 check
+            q 8 ptr.+ peek 0 = 13 check
+            q 16 ptr.+ peek 0 = 14 check
+            q header 33 = 15 check
+        end
+    end
+end
+
+func test.split () () in
+    -- A 24 byte block minus 16 leaves 8, which is too small to split.
+    16 ptr.alloc 8 ptr.alloc match a _guard in
+        a ptr.free
+        8 ptr.alloc match b in
+            b a ptr.= 16 check
+            b header 25 = 17 check
+        end
+    end
+
+    -- A 48 byte block splits into 16 and 32, then 32 is used whole.
+    40 ptr.alloc 8 ptr.alloc match a _guard in
+        a ptr.free
+        8 ptr.alloc match b in
+            b a ptr.= 18 check
+            b header 17 = 19 check
+        end
+        16 ptr.alloc match c in
+            c addr a addr 16 + = 20 check
+            c header 33 = 21 check
+        end
+    end
+
+    -- A 40 byte block splits into 24 and the minimum 16.
+    32 ptr.alloc 8 ptr.alloc match a _guard in
+        a ptr.free
+        16 ptr.alloc match b in
+            b a ptr.= 22 check
+            b header 25 = 23 check
+        end
+        0 ptr.alloc match c in
+            c addr a addr 24 + = 24 check
+            c header 17 = 25 check
+        end
+    end
+end
+
+-- Free x and split its 104 byte block into adjacent blocks of 32, 32 and 40.
+func test.merge.split (ptr, int) (ptr, ptr, ptr) in
+    match x n in
+        x ptr.free
+        24 ptr.alloc 24 ptr.alloc 32 ptr.alloc match a b c in
+            a x ptr.= n check
+            b addr x addr 32 + = n 1 + check
+            c addr x addr 64 + = n 2 + check
+            c header 41 = n 3 + check
+            a b c
+        end
+    end
+end
+
+-- Only the merged 104 byte block fits 96 bytes.
+func test.merge.whole (ptr, int) () in
+    match x n in
+        96 ptr.alloc match y in
+            y x ptr.= n check
+            y header 105 = n 1 + check
+        end
+    end
+end
+
+func test.merge () () in
+    96 ptr.alloc 8 ptr.alloc match x _guard in
+        x 30 test.merge.split match a b c in
+            a ptr.free
+            c ptr.free
+            b ptr.free
+        end
+        x 34 test.merge.whole
+
+        x 40 test.merge.split match a b c in
+            c ptr.free
+            b ptr.free
+            a ptr.free
+        end
+        x 44 test.merge.whole
+
+        x 50 test.merge.split match a b c in
+            a ptr.free
+            b ptr.free
+            c ptr.free
+        end
+        x 54 test.merge.whole
+    end
+end
+
+func test.order () () in
+    24 ptr.alloc 8 ptr.alloc 24 ptr.alloc 8 ptr.alloc 24 ptr.alloc 8 ptr.alloc
+    match a _g1 b _g2 c _g3 in
+        c ptr.free
+        a ptr.free
+        b ptr.free
+        -- Live blocks keep a, b and c apart, so no merged block fits 48.
+        48 ptr.alloc addr c addr > 60 check
+        24 ptr.alloc a ptr.= 61 check
+        24 ptr.alloc b ptr.= 62 check
+        24 ptr.alloc c ptr.= 63 check
+    end
+end
+
+-- The free list is s (16), m (56), l (48). Each fit skips the small head.
+func test.first_fit () () in
+    8 ptr.alloc 8 ptr.alloc 48 ptr.alloc 8 ptr.alloc 40 ptr.alloc 8 ptr.alloc
+    match s _g1 m _g2 l _g3 in
+        l ptr.free
+        m ptr.free
+        s ptr.free
+        -- Split m after the head, keep the rest of m before l.
+        16 ptr.alloc match a in
+            a m ptr.= 111 check
+            a header 25 = 112 check
+        end
+        -- The rest of m is 32 bytes, too small to split for 16 bytes.
+        16 ptr.alloc match b in
+            b addr m addr 24 + = 113 check
+            b header 33 = 114 check
+        end
+        -- The unlink of the rest of m kept l in the list.
+        40 ptr.alloc match c in
+            c l ptr.= 115 check
+            c header 49 = 116 check
+        end
+        0 ptr.alloc s ptr.= 117 check
+    end
+end
+
+func test.chunks () () in
+    7 35 + 24 ptr.alloc match kept a in
+        -- Each loop pushes new scalar cells, so cell chunks roll over.
+        0 while dup 10000 < loop 1 + pool pop
+        24 ptr.alloc 5 6 * match b later in
+            b addr a addr - 65536 > 70 check
+            kept 42 = 71 check
+            later 30 = 72 check
+            a ptr.free
+            b ptr.free
+            56 ptr.alloc addr b addr > 73 check
+            24 ptr.alloc a ptr.= 74 check
+            24 ptr.alloc b ptr.= 75 check
+            kept 42 = 76 check
+        end
+    end
+end
+
+func test.large () () in
+    3145728 ptr.alloc 3145728 ptr.alloc match x y in
+        x header 3145737 = 80 check
+        y addr x addr 3145736 + >= 81 check
+        x 3145720 ptr.+ 82 poke
+        y 5 poke
+        x 3145720 ptr.+ peek 82 = 82 check
+        x ptr.free
+        3145728 ptr.alloc x ptr.= 83 check
+        x 3145720 ptr.+ peek 0 = 84 check
+        y peek 5 = 85 check
+    end
+    33554432 ptr.alloc match z in
+        z 33554424 ptr.+ 86 poke
+        z 33554424 ptr.+ peek 86 = 86 check
+    end
+end
+
+func test.shallow () () in
+    8 ptr.alloc match target in
+        target 77 poke
+        5 target link.init match l in
+            l link.& ptr.free
+            target peek 77 = 90 check
+            16 ptr.alloc l link.& ptr.= 91 check
+            target peek 77 = 92 check
+        end
+    end
+end
+
+func test.realloc () () in
+    16 ptr.alloc match p in
+        p 5 poke
+        p 16 32 ptr.realloc match q in
+            q p ptr.= not 100 check
+            q peek 5 = 101 check
+            p peek 5 = 102 check
+            q 6 poke
+            p peek 5 = 103 check
+        end
+        p 16 8 ptr.realloc p ptr.= 104 check
+        p 16 16 ptr.realloc p ptr.= not 105 check
+        p peek 5 = 106 check
+    end
+
+    int.sizeof array.init.with_sz match xs in
+        xs 1 int.& array.append unwrap
+        xs array.items ptr.copy match old in
+            0 while dup 40 < loop
+                xs over int.& array.append unwrap
+                1 +
+            pool pop
+            old peek 1 = 107 check
+            xs array.items old ptr.= not 108 check
+            xs 0 array.get unwrap peek 1 = 109 check
+            xs 40 array.get unwrap peek 39 = 110 check
+        end
+    end
+end
+
+func main () (int) in
+    test.alignment
+    test.header
+    test.zero
+    test.reuse
+    test.split
+    test.merge
+    test.order
+    test.first_fit
+    test.chunks
+    test.large
+    test.shallow
+    test.realloc
+    0
+end

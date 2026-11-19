@@ -1,0 +1,14 @@
+@import "stdlib"
+
+-- b merges into the free block of a, then b is freed again.
+func main () (int) in
+    32 ptr.alloc 8 ptr.alloc match x _guard in
+        x ptr.free
+        8 ptr.alloc 8 ptr.alloc match a b in
+            a ptr.free
+            b ptr.free
+            b ptr.free
+        end
+    end
+    0
+end

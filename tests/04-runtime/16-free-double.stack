@@ -1,0 +1,9 @@
+@import "stdlib"
+
+func main () (int) in
+    8 ptr.alloc match p in
+        p ptr.free
+        p ptr.free
+    end
+    0
+end

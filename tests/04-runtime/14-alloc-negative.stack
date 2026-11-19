@@ -1,0 +1,6 @@
+@import "stdlib"
+
+func main () (int) in
+    -1 ptr.alloc pop
+    0
+end

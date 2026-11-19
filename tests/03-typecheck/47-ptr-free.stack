@@ -1,0 +1,16 @@
+func free_ptr (ptr) () in
+    ptr.free
+end
+
+func free_int (int) () in
+    ptr.free
+end
+
+func free_returns_nothing (ptr) (ptr) in
+    ptr.free
+end
+
+func main () (int) in
+    8 ptr.alloc free_ptr
+    0
+end

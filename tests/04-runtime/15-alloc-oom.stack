@@ -1,0 +1,7 @@
+@import "stdlib"
+
+-- 2^62 bytes is larger than the user address space.
+func main () (int) in
+    4611686018427387904 ptr.alloc pop
+    0
+end

@@ -1839,6 +1839,15 @@ func stack_context.init.base () (stack_context) in
     stack_context_symbol.& array.append unwrap -- symbols
 
     dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_PTR_FREE -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_PTR string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
     STACK_FUNC_PTR_OFFSET -- name
     string.sizeof array.init.with_sz -- args
     dup STACK_DATA_PTR string.& array.append unwrap
@@ -3630,8 +3639,25 @@ func stack_assembler.emit.allocator (stack_assembler) () in
     dup "; memory layout" emit
     dup "stack_pos dq 0" emit
     dup "stack_end dq 0" emit
-    dup "heap_pos dq 0" emit
+    dup "heap_base dq 0" emit
+    dup "heap_top dq 0" emit
     dup "heap_end dq 0" emit
+    dup "cell_pos dq 0" emit
+    dup "cell_end dq 0" emit
+    dup "free_list dq 0" emit
+    dup "" emit
+    dup "alloc_oom_msg db 'Runtime error: out of memory', 10" emit
+    dup "alloc_oom_len = $ - alloc_oom_msg" emit
+    dup "alloc_negative_msg db 'Runtime error: negative allocation size', 10" emit
+    dup "alloc_negative_len = $ - alloc_negative_msg" emit
+    dup "alloc_invalid_msg db 'Runtime error: invalid free', 10" emit
+    dup "alloc_invalid_len = $ - alloc_invalid_msg" emit
+    dup "alloc_double_msg db 'Runtime error: double free', 10" emit
+    dup "alloc_double_len = $ - alloc_double_msg" emit
+    dup "" emit
+    dup "STACK_SIZE = 0x10000" emit
+    dup "CELL_CHUNK_SIZE = 0x10000" emit
+    dup "HEAP_GROW_SIZE = 0x100000" emit
     dup "" emit
 
     dup "section '.text' executable" emit
@@ -3647,24 +3673,26 @@ func stack_assembler.emit.allocator (stack_assembler) () in
     dup "    push    rbp                        ; save return address" emit
     dup "    mov     rbp, rsp                   ; set up stack frame" emit
     dup "" emit
-    dup "    ; allocate the stack 64K" emit
-    dup "    mov     rax, 12                    ; brk" emit
-    dup "    mov     rdi, 0                     ; increment = 0" emit
-    dup "    syscall" emit
-    dup "    mov     [stack_pos], rax           ; save the current position of the stack" emit
-    dup "    mov     [stack_end], rax           ; save the end of the stack" emit
-    dup "" emit
-    dup "    mov     rax, 12                    ; brk" emit
-    dup "    mov     rdi, 0x10000               ; 64K bytes (larger obj. will fail)" emit
-    dup "    add     rdi, [stack_end]           ; new end of the stack" emit
-    dup "    syscall" emit
-    dup "" emit
     dup "    ; initialize the heap" emit
     dup "    mov     rax, 12                    ; brk" emit
     dup "    mov     rdi, 0                     ; increment = 0" emit
     dup "    syscall" emit
-    dup "    mov     [heap_pos], rax            ; save the current position of the heap" emit
     dup "    mov     [heap_end], rax            ; save the end of the heap" emit
+    dup "    add     rax, 7" emit
+    dup "    and     rax, -8" emit
+    dup "    mov     [heap_top], rax            ; align the top of the heap" emit
+    dup "" emit
+    dup "    ; allocate the stack 64K" emit
+    dup "    mov     rdi, STACK_SIZE" emit
+    dup "    call    heap_take" emit
+    dup "    mov     [stack_pos], rax           ; save the current position of the stack" emit
+    dup "    add     rax, STACK_SIZE" emit
+    dup "    mov     [stack_end], rax           ; save the end of the stack" emit
+    dup "" emit
+    dup "    ; blocks and cell chunks come after the stack" emit
+    dup "    mov     [heap_base], rax" emit
+    dup "    mov     [cell_pos], rax" emit
+    dup "    mov     [cell_end], rax" emit
     dup "" emit
     dup "    pop     rbp                        ; restore return address" emit
     dup "    ret" emit
@@ -3700,11 +3728,21 @@ func stack_assembler.emit.allocator (stack_assembler) () in
     dup "    push    rbp                        ; save return address" emit
     dup "    mov     rbp, rsp                   ; set up stack frame" emit
     dup "" emit
+    dup "    mov     rax, qword [cell_pos]" emit
+    dup "    cmp     rax, qword [cell_end]" emit
+    dup "    jb      .push_cell" emit
+    dup "" emit
     dup "    push    rdi" emit
-    dup "    mov     rdi, 8" emit
-    dup "    call    allocate" emit
+    dup "    mov     rdi, CELL_CHUNK_SIZE" emit
+    dup "    call    heap_take                  ; start a new cell chunk" emit
     dup "    pop     rdi" emit
-    dup "    mov     [rax], rdi" emit
+    dup "    lea     rsi, [rax + CELL_CHUNK_SIZE]" emit
+    dup "    mov     qword [cell_end], rsi" emit
+    dup "" emit
+    dup ".push_cell:" emit
+    dup "    mov     qword [rax], rdi" emit
+    dup "    lea     rsi, [rax + 8]" emit
+    dup "    mov     qword [cell_pos], rsi" emit
     dup "" emit
     dup "    mov     rsi, qword [stack_pos]" emit
     dup "    mov     qword [rsi], rax" emit
@@ -3812,51 +3850,263 @@ func stack_assembler.emit.allocator (stack_assembler) () in
 
     dup ";" emit
     dup ";" emit
+    dup "; heap take" emit
+    dup ";" emit
+    dup ";   INPUT: rdi contains the size in bytes (multiple of 8)" emit
+    dup ";   OUTPUT: rax points to new memory at the top of the heap" emit
+    dup ";" emit
+    dup "heap_take:" emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    push    rcx" emit
+    dup "    push    rdx" emit
+    dup "    push    rdi" emit
+    dup "    push    r11" emit
+    dup "" emit
+    dup "    mov     rdx, qword [heap_top]" emit
+    dup "    add     rdx, rdi                   ; new top of the heap" emit
+    dup "    jc      alloc_oom" emit
+    dup "    cmp     rdx, qword [heap_end]" emit
+    dup "    jbe     .take_ok" emit
+    dup "" emit
+    dup "    mov     rdi, rdx" emit
+    dup "    add     rdi, HEAP_GROW_SIZE - 1" emit
+    dup "    jc      alloc_oom" emit
+    dup "    and     rdi, -HEAP_GROW_SIZE       ; new end of the heap" emit
+    dup "    mov     rax, 12                    ; brk" emit
+    dup "    syscall" emit
+    dup "    cmp     rax, rdi                   ; brk returns the old end on failure" emit
+    dup "    jb      alloc_oom" emit
+    dup "    mov     qword [heap_end], rax" emit
+    dup "" emit
+    dup ".take_ok:" emit
+    dup "    mov     rax, qword [heap_top]" emit
+    dup "    mov     qword [heap_top], rdx" emit
+    dup "" emit
+    dup "    pop     r11" emit
+    dup "    pop     rdi" emit
+    dup "    pop     rdx" emit
+    dup "    pop     rcx" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+
+    dup ";" emit
+    dup ";" emit
     dup "; allocate" emit
     dup ";" emit
     dup ";   INPUT: rdi contains the size in bytes" emit
-    dup ";   OUTPUT: rax points to the newly allocated memory" emit
+    dup ";   OUTPUT: rax points to the newly allocated zeroed memory" emit
+    dup ";" emit
+    dup ";   A block has an 8 byte header with the block size and bit 0 set when" emit
+    dup ";   allocated. A free block keeps the next free block in its first 8 bytes." emit
     dup ";" emit
     dup "allocate:" emit
     dup "    push    rbp                        ; save return address" emit
     dup "    mov     rbp, rsp                   ; set up stack frame" emit
-    dup "    sub     rsp, 16                    ; allocate 2 local variables" emit
+    dup "    push    rcx" emit
+    dup "    push    rdx" emit
+    dup "    push    rsi" emit
+    dup "    push    rdi" emit
+    dup "    push    r8" emit
     dup "" emit
-    dup "    ; t0 <- heap_pos" emit
-    dup "    mov     rax, qword [heap_pos]" emit
-    dup "    mov     qword [rbp - loc_0], rax" emit
+    dup "    test    rdi, rdi" emit
+    dup "    js      alloc_negative" emit
+    dup "    add     rdi, 15" emit
+    dup "    and     rdi, -8                    ; block size with header" emit
+    dup "    cmp     rdi, 16" emit
+    dup "    jae     .alloc_sized" emit
+    dup "    mov     rdi, 16                    ; at least 8 bytes of memory" emit
+    dup ".alloc_sized:" emit
     dup "" emit
-    dup "    ; t1 <- t0 + rdi" emit
-    dup "    mov     rax, qword [rbp - loc_0]" emit
-    dup "    add     rax, rdi" emit
-    dup "    mov     qword [rbp - loc_1], rax" emit
+    dup "    ; first fit in the free list" emit
+    dup "    xor     esi, esi                   ; previous free block" emit
+    dup "    mov     rax, qword [free_list]" emit
+    dup ".alloc_find:" emit
+    dup "    test    rax, rax" emit
+    dup "    jz      .alloc_fresh" emit
+    dup "    mov     rdx, qword [rax]" emit
+    dup "    cmp     rdx, rdi" emit
+    dup "    jae     .alloc_found" emit
+    dup "    mov     rsi, rax" emit
+    dup "    mov     rax, qword [rax + 8]" emit
+    dup "    jmp     .alloc_find" emit
     dup "" emit
-    dup ".alloc_do:" emit
-    dup "    ; cmp t1 <= heap_end" emit
-    dup "    mov     rax, qword [rbp - loc_1]" emit
-    dup "    cmp     rax, qword [heap_end]" emit
-    dup "    jle     .alloc_ok" emit
+    dup ".alloc_found:" emit
+    dup "    mov     rcx, qword [rax + 8]       ; next free block" emit
+    dup "    sub     rdx, rdi" emit
+    dup "    cmp     rdx, 16" emit
+    dup "    jb      .alloc_whole" emit
+    dup "    lea     r8, [rax + rdi]            ; split the rest into a free block" emit
+    dup "    mov     qword [r8], rdx" emit
+    dup "    mov     qword [r8 + 8], rcx" emit
+    dup "    mov     rcx, r8" emit
+    dup "    jmp     .alloc_unlink" emit
+    dup ".alloc_whole:" emit
+    dup "    add     rdi, rdx                   ; use the whole free block" emit
+    dup ".alloc_unlink:" emit
+    dup "    test    rsi, rsi" emit
+    dup "    jz      .alloc_head" emit
+    dup "    mov     qword [rsi + 8], rcx" emit
+    dup "    jmp     .alloc_clear" emit
+    dup ".alloc_head:" emit
+    dup "    mov     qword [free_list], rcx" emit
+    dup ".alloc_clear:" emit
+    dup "    lea     rcx, [rax + 8]" emit
+    dup "    lea     rdx, [rax + rdi]" emit
+    dup ".alloc_clear_next:" emit
+    dup "    mov     qword [rcx], 0" emit
+    dup "    add     rcx, 8" emit
+    dup "    cmp     rcx, rdx" emit
+    dup "    jb      .alloc_clear_next" emit
+    dup "    jmp     .alloc_ok" emit
     dup "" emit
-    dup "    mov     rax, 12                    ; brk" emit
-    dup "    mov     rdi, 0x10000               ; 64K bytes (larger obj. will fail)" emit
-    dup "    add     rdi, [heap_end]            ; new end of the heap" emit
-    dup "    syscall" emit
-    dup "" emit
-    dup "    mov     [heap_end], rax            ; save the new end of the heap" emit
-    dup "    jmp     .alloc_do" emit
+    dup ".alloc_fresh:" emit
+    dup "    call    heap_take                  ; new memory is already zero" emit
     dup "" emit
     dup ".alloc_ok:" emit
+    dup "    or      rdi, 1" emit
+    dup "    mov     qword [rax], rdi" emit
+    dup "    add     rax, 8" emit
     dup "" emit
-    dup "    ; heap_pos <- t1" emit
-    dup "    mov     rax, qword [rbp - loc_1]" emit
-    dup "    mov     qword [heap_pos], rax" emit
-    dup "" emit
-    dup "    ; return t0" emit
-    dup "    mov     rax, qword [rbp - loc_0]" emit
-    dup "" emit
-    dup "    add     rsp, 16                    ; deallocate local variables" emit
+    dup "    pop     r8" emit
+    dup "    pop     rdi" emit
+    dup "    pop     rsi" emit
+    dup "    pop     rdx" emit
+    dup "    pop     rcx" emit
     dup "    pop     rbp                        ; restore return address" emit
     dup "    ret" emit
+    dup "" emit
+
+    dup ";" emit
+    dup ";" emit
+    dup "; deallocate" emit
+    dup ";" emit
+    dup ";   INPUT: rdi points to memory from allocate, or is 0" emit
+    dup ";   OUTPUT: nothing" emit
+    dup ";" emit
+    dup ";   The free list is sorted by address. Adjacent free blocks are merged." emit
+    dup ";" emit
+    dup "deallocate:" emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    push    rax" emit
+    dup "    push    rcx" emit
+    dup "    push    rdx" emit
+    dup "    push    rsi" emit
+    dup "    push    rdi" emit
+    dup "    push    r8" emit
+    dup "" emit
+    dup "    test    rdi, rdi" emit
+    dup "    jz      .free_done" emit
+    dup "    test    rdi, 7" emit
+    dup "    jnz     alloc_invalid_free" emit
+    dup "    sub     rdi, 8                     ; block header" emit
+    dup "    cmp     rdi, qword [heap_base]" emit
+    dup "    jb      alloc_invalid_free" emit
+    dup "    mov     rax, qword [heap_top]" emit
+    dup "    sub     rax, rdi                   ; bytes from the block to the heap top" emit
+    dup "    jb      alloc_invalid_free" emit
+    dup "    cmp     rax, 16" emit
+    dup "    jb      alloc_invalid_free" emit
+    dup "    mov     rdx, qword [rdi]" emit
+    dup "    mov     rcx, rdx" emit
+    dup "    and     rcx, -8                    ; block size" emit
+    dup "    cmp     rcx, 16" emit
+    dup "    jb      alloc_invalid_free" emit
+    dup "    cmp     rcx, rax" emit
+    dup "    ja      alloc_invalid_free" emit
+    dup "    test    rdx, 6" emit
+    dup "    jnz     alloc_invalid_free" emit
+    dup "    test    rdx, 1" emit
+    dup "    jz      alloc_double_free" emit
+    dup "" emit
+    dup "    ; find the free blocks before and after the block" emit
+    dup "    xor     esi, esi                   ; previous free block" emit
+    dup "    mov     rax, qword [free_list]     ; next free block" emit
+    dup ".free_find:" emit
+    dup "    test    rax, rax" emit
+    dup "    jz      .free_check" emit
+    dup "    cmp     rax, rdi" emit
+    dup "    jae     .free_check" emit
+    dup "    mov     rsi, rax" emit
+    dup "    mov     rax, qword [rax + 8]" emit
+    dup "    jmp     .free_find" emit
+    dup "" emit
+    dup ".free_check:" emit
+    dup "    test    rsi, rsi" emit
+    dup "    jz      .free_check_next" emit
+    dup "    mov     rdx, qword [rsi]" emit
+    dup "    add     rdx, rsi" emit
+    dup "    cmp     rdx, rdi" emit
+    dup "    ja      alloc_double_free          ; the block is inside a free block" emit
+    dup ".free_check_next:" emit
+    dup "    test    rax, rax" emit
+    dup "    jz      .free_merge_prev" emit
+    dup "    lea     rdx, [rdi + rcx]" emit
+    dup "    cmp     rdx, rax" emit
+    dup "    ja      alloc_invalid_free         ; the block overlaps a free block" emit
+    dup "    jb      .free_merge_prev" emit
+    dup "    add     rcx, qword [rax]           ; merge with the next free block" emit
+    dup "    mov     rax, qword [rax + 8]" emit
+    dup "" emit
+    dup ".free_merge_prev:" emit
+    dup "    test    rsi, rsi" emit
+    dup "    jz      .free_head" emit
+    dup "    mov     rdx, qword [rsi]" emit
+    dup "    lea     r8, [rsi + rdx]" emit
+    dup "    cmp     r8, rdi" emit
+    dup "    jne     .free_after" emit
+    dup "    add     rdx, rcx                   ; merge with the previous free block" emit
+    dup "    mov     qword [rsi], rdx" emit
+    dup "    mov     qword [rsi + 8], rax" emit
+    dup "    jmp     .free_done" emit
+    dup ".free_after:" emit
+    dup "    mov     qword [rsi + 8], rdi" emit
+    dup "    jmp     .free_link" emit
+    dup ".free_head:" emit
+    dup "    mov     qword [free_list], rdi" emit
+    dup ".free_link:" emit
+    dup "    mov     qword [rdi], rcx" emit
+    dup "    mov     qword [rdi + 8], rax" emit
+    dup "" emit
+    dup ".free_done:" emit
+    dup "    pop     r8" emit
+    dup "    pop     rdi" emit
+    dup "    pop     rsi" emit
+    dup "    pop     rdx" emit
+    dup "    pop     rcx" emit
+    dup "    pop     rax" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+
+    dup ";" emit
+    dup ";" emit
+    dup "; allocator errors write a message and exit with status 1" emit
+    dup ";" emit
+    dup "alloc_oom:" emit
+    dup "    mov     rsi, alloc_oom_msg" emit
+    dup "    mov     rdx, alloc_oom_len" emit
+    dup "    jmp     alloc_abort" emit
+    dup "alloc_negative:" emit
+    dup "    mov     rsi, alloc_negative_msg" emit
+    dup "    mov     rdx, alloc_negative_len" emit
+    dup "    jmp     alloc_abort" emit
+    dup "alloc_invalid_free:" emit
+    dup "    mov     rsi, alloc_invalid_msg" emit
+    dup "    mov     rdx, alloc_invalid_len" emit
+    dup "    jmp     alloc_abort" emit
+    dup "alloc_double_free:" emit
+    dup "    mov     rsi, alloc_double_msg" emit
+    dup "    mov     rdx, alloc_double_len" emit
+    dup "alloc_abort:" emit
+    dup "    mov     rax, 1                     ; write" emit
+    dup "    mov     rdi, 2                     ; stderr" emit
+    dup "    syscall" emit
+    dup "    mov     rax, 60                    ; exit" emit
+    dup "    mov     rdi, 1" emit
+    dup "    syscall" emit
     dup "" emit
 
     pop
@@ -3887,6 +4137,7 @@ const STACK_FUNC_LT "<"
 const STACK_FUNC_EQ "="
 
 const STACK_FUNC_PTR_ALLOC "ptr.alloc"
+const STACK_FUNC_PTR_FREE "ptr.free"
 const STACK_FUNC_PTR_OFFSET "ptr.+"
 const STACK_FUNC_PTR_COPY "ptr.@"
 
@@ -4459,6 +4710,24 @@ func stack_assembler.emit.keywords (stack_assembler) () in
     dup "    call    stack_push" emit
     dup "" emit
     dup "    add     rsp, 16                    ; deallocate local variables" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    -- PTR FREE
+    dup ";" emit
+    dup ";" emit
+    dup "; memory free" emit
+    dup ";" emit
+    dup ";   INPUT: (ptr)" emit
+    dup ";   OUTPUT: ()" emit
+    dup dup STACK_FUNC_PTR_FREE dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "" emit
+    dup "    call    stack_pop" emit
+    dup "    mov     rdi, rax" emit
+    dup "    call    deallocate" emit
+    dup "" emit
     dup "    pop     rbp                        ; restore return address" emit
     dup "    ret" emit
     dup "" emit

@@ -1,0 +1,2 @@
+tests/03-typecheck/47-ptr-free.stack:6:5, Semantic error: func ptr.free has non matching args, expected (ptr) but got (int)
+tests/03-typecheck/47-ptr-free.stack:9:6, Semantic error: func free_returns_nothing has non matching return, expected (ptr) but got ()

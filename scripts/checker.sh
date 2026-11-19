@@ -129,7 +129,7 @@ asm_check() {
 runtime_analyzer() {
     local work_dir
     work_dir=$(mktemp -d) || return 1
-    local passed=0 total=0 file_path file_name
+    local passed=0 total=0 file_path file_name status_path expected_status status
 
     echo "Running executable tests for 04-runtime"
     for file_path in "$TESTS_DIR"/04-runtime/*."$EXT"; do
@@ -139,11 +139,26 @@ runtime_analyzer() {
         file_name=$(basename "$file_path")
         echo -n "Testing $file_name ... "
 
+        # Expected failures give the exit status and the exact stderr.
+        status_path="${file_path%."$EXT"}.status"
+        expected_status=0
+        if [[ -f "$status_path" ]]; then
+            read -r expected_status < "$status_path"
+        fi
+
         if timeout 30 "$MAIN" --assembler "$file_path" > "$work_dir/main.asm" 2> "$work_dir/log" &&
             asm_check "$work_dir/main.asm" >> "$work_dir/log" &&
             fasm "$work_dir/main.asm" "$work_dir/main.o" >> "$work_dir/log" 2>&1 &&
             ld "$work_dir/main.o" -o "$work_dir/main" >> "$work_dir/log" 2>&1 &&
-            timeout 10 "$work_dir/main" >> "$work_dir/log" 2>&1; then
+            if [[ "$expected_status" -eq 0 ]]; then
+                timeout 10 "$work_dir/main" >> "$work_dir/log" 2>&1
+            else
+                timeout 10 "$work_dir/main" > "$work_dir/out" 2> "$work_dir/err"
+                status=$?
+                cat "$work_dir/out" "$work_dir/err" >> "$work_dir/log"
+                [[ "$status" -eq "$expected_status" ]] &&
+                    diff "$work_dir/err" "${status_path%.status}.ref" >> "$work_dir/log"
+            fi; then
             echo "PASSED"
             passed=$((passed + 1))
         else

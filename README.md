@@ -14,8 +14,8 @@ Backlog:
 
 This manual describes the programming language `Stack`. Stack is a stack based
 programming language. The language uses data structures and functions to define
-programs. It includes static typing with inference and automatic memory
-management.
+programs. It includes static typing with inference and manual memory
+management with `ptr.alloc` and `ptr.free`.
 
 `Stack` programs are sets of functions with a main entrypoint. `Stack` programs
 can also define custom data types, which can be used to describe how memory
@@ -70,9 +70,31 @@ nix develop --command bash scripts/checker.sh --preprocessor --no-build -v
 
 ## 3. Stack
 
-The stack in a `Stack` program is an array with a fixed size. The stack is used
-to store pointers to data that lives on the heap. The `Stack` heap can grow
-indefinetly.
+The stack in a `Stack` program is an array with a fixed size of 64 KiB. The
+stack is used to store pointers to data that lives on the heap. The heap grows
+with `brk` until the system refuses more memory. The runtime does not give
+memory back to the operating system.
+
+The heap holds two kinds of memory:
+
+- Scalar cells. Each `int`, `bool` or `ptr` value that the runtime computes
+  goes into an 8 byte cell. Cells are in 64 KiB chunks. Cells have no header
+  and you cannot free them.
+- Blocks. Each `ptr.alloc` makes one block. An 8 byte header comes before the
+  returned pointer. The header holds the block size, with the header, and bit
+  0 is set while the block is in use. A block has at least 8 bytes of memory.
+
+Cells and block pointers are 8 byte aligned. `ptr.free` puts a block in a free
+list that is sorted by address and merges adjacent free blocks. `ptr.alloc`
+uses the first free block that is large enough. It splits off the rest when at
+least 16 bytes remain. Memory from `ptr.alloc` is always zero.
+
+These errors write a message to stderr and exit with status 1:
+
+- `Runtime error: negative allocation size`: `ptr.alloc` got a negative size.
+- `Runtime error: out of memory`: the heap cannot grow.
+- `Runtime error: invalid free` and `Runtime error: double free`: `ptr.free`
+  found a problem (see `ptr.free`).
 
 Type checking will make sure that the stack is valid for a program before
 allowing it to be compiled.
@@ -331,7 +353,7 @@ typed. It does not care about the type of the item from the stack, it will box
 it into a ptr. The decision to which type to convert it after is left to the
 developer.
 
-### 4.7. `ptr.alloc`
+### 4.7. `ptr.alloc` and `ptr.free`
 
 ```stack
 func ptr.alloc (int) (ptr) in
@@ -341,6 +363,28 @@ end
 
 The allocate function will initialize a ptr buffer with size given as argument.
 The size is given in bytes.
+
+```stack
+func ptr.free (ptr) () in
+    ...
+end
+```
+
+The free function gives a block from `ptr.alloc` back to the heap. Use the
+exact pointer that `ptr.alloc` returned. `ptr.null` does nothing. The free is
+shallow: memory that the block points to stays allocated. After the free, all
+copies of the pointer and all pointers into the block are dangling. You must
+not use them.
+
+Nothing frees memory automatically. The compiler and the standard library do
+not call `ptr.free`. `ptr.realloc` does not free the old memory, because other
+values can still point to it.
+
+The free checks are best effort. `ptr.free` stops the program for some
+pointers that are not 8 byte aligned, not in the heap (for example the initial
+items of an empty array), with a bad header, or already free. It cannot find
+all bad pointers. The result of a free of any other pointer, for example a
+pointer into a block, a scalar cell, or a made up value, is not defined.
 
 ### 4.8. `ptr.+`
 

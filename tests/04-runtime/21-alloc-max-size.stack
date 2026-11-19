@@ -1,0 +1,7 @@
+@import "stdlib"
+
+-- The largest signed size still needs a header, and the heap cannot grow.
+func main () (int) in
+    9223372036854775807 ptr.alloc pop
+    0
+end

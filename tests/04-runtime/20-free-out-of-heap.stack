@@ -1,0 +1,6 @@
+@import "stdlib"
+
+func main () (int) in
+    8 ptr.alloc 1073741824 ptr.+ ptr.free
+    0
+end
