@@ -1,0 +1,152 @@
+@import "stdlib"
+@import "tests/04-runtime/utils"
+
+data pair (int x, int y)
+
+func expect.str (string, string, int) () in
+    match got want case in got want string.= case check end
+end
+
+func test.mod () () in
+    7 3 mod 1 = 1 check
+    -7 3 mod 2 = 2 check
+    6 3 mod 0 = 3 check
+    0 5 mod 0 = 4 check
+end
+
+func test.strings () () in
+    "abc" "abc" string.= 10 check
+    "abc" "abd" string.= not 11 check
+    "abc" "ab" string.= not 12 check
+    "" "" string.= 13 check
+
+    "abc" "ab" string.starts_with 20 check
+    "abc" "abc" string.starts_with 21 check
+    "abc" "" string.starts_with 22 check
+    "ab" "abc" string.starts_with not 23 check
+    "abc" "b" string.starts_with not 24 check
+
+    "hello" 2 string.split_at match p s in
+        p "he" 30 expect.str
+        s "llo" 31 expect.str
+    end
+    "hello" 0 string.split_at match p s in
+        p "" 32 expect.str
+        s "hello" 33 expect.str
+    end
+    "hello" 5 string.split_at match p s in
+        p "hello" 34 expect.str
+        s "" 35 expect.str
+    end
+    "hello" 6 string.split_at match p s in
+        p "hello" 36 expect.str
+        s "" 37 expect.str
+    end
+
+    "a=b=c" "=" string.index 40 check 1 = 41 check
+    "a=b=c" "b=" string.index 42 check 2 = 43 check
+    "abc" "c" string.index 44 check 2 = 45 check
+    "abc" "cd" string.index not 46 check 3 = 47 check
+    "abc" "x" string.index not 48 check 3 = 49 check
+    "abc" "" string.index 50 check 0 = 51 check
+    "" "" string.index not 52 check 0 = 53 check
+    "" "a" string.index not 54 check 0 = 55 check
+
+    "key=value" "=" string.cut 60 check match k v in
+        k "key" 61 expect.str
+        v "value" 62 expect.str
+    end
+    "key" "=" string.cut not 63 check match k v in
+        k "key" 64 expect.str
+        v "" 65 expect.str
+    end
+    "a::b::c" "::" string.split match k v in
+        k "a" 66 expect.str
+        v "b::c" 67 expect.str
+    end
+
+    "abc" 0 string.!! BYTE_a = 70 check
+    "abc" 2 string.!! 99 = 71 check
+    "\n" 0 string.!! BYTE_\N = 72 check
+    "abc" 3 string.!! BYTE_NULL = 73 check
+
+    BYTE_z byte.chr "z" 74 expect.str
+    BYTE_NULL byte.chr string.len 1 = 75 check
+    BYTE_NULL byte.chr 0 string.!! BYTE_NULL = 76 check
+    "x" string.str byte.init 120 = 77 check
+end
+
+func test.files () () in
+    "/dev/null" "r" stdlib.fopen 80 check match a in
+        "/dev/null" "r" stdlib.fopen 81 check match b in
+            a stdlib.fidentity 82 check match dev ino in
+                b stdlib.fidentity 83 check
+                ino = 84 check
+                dev = 85 check
+            end
+            b stdlib.fclose 86 check
+        end
+        "/dev/zero" "r" stdlib.fopen 87 check match z in
+            a stdlib.fidentity 88 check swp pop
+            z stdlib.fidentity 89 check swp pop
+            = not 90 check
+            z stdlib.fclose 91 check
+        end
+        a stdlib.fclose 92 check
+    end
+    -1 stdlib.fidentity not 93 check 0 = 94 check 0 = 95 check
+    "/dev/null" "a" stdlib.fopen not 96 check 0 = 97 check
+    "/dev/null" "w" stdlib.fopen 98 check match fd in
+        fd "abc" stdlib.fwrite 99 check
+        fd stdlib.fclose 100 check
+    end
+    -1 "abc" stdlib.fwrite not 101 check
+    STDOUT "" stdlib.fwrite 102 check
+    -1 16 stdlib.fread not 103 check "" 104 expect.str
+    "/dev/zero" "r" stdlib.fopen 105 check match fd in
+        fd 5 stdlib.fread 106 check match s in
+            s string.len 5 = 107 check
+            s 4 string.!! 0 = 108 check
+        end
+        fd stdlib.fclose 109 check
+    end
+    "STACK_LANG_TEST_UNSET_VARIABLE" os.env.get not 110 check pop
+end
+
+func test.swap () () in
+    int.sizeof array.init.with_sz match xs in
+        xs 1 int.& array.append unwrap
+        xs 2 int.& array.append unwrap
+        xs 3 int.& array.append unwrap
+        xs 0 2 array.swap
+        xs 0 array.get unwrap peek 3 = 120 check
+        xs 2 array.get unwrap peek 1 = 121 check
+        xs 1 1 array.swap
+        xs 1 array.get unwrap peek 2 = 122 check
+        xs array.sort<int>
+        xs 0 array.get unwrap peek 1 = 123 check
+        xs 1 array.get unwrap peek 2 = 124 check
+        xs 2 array.get unwrap peek 3 = 125 check
+    end
+    pair.sizeof array.init.with_sz match xs in
+        xs 1 2 pair.init pair.& array.append unwrap
+        xs 3 4 pair.init pair.& array.append unwrap
+        xs 1 0 array.swap
+        xs 0 array.get unwrap pair.* match p in
+            p pair.x 3 = 126 check
+            p pair.y 4 = 127 check
+        end
+        xs 1 array.get unwrap pair.* match p in
+            p pair.x 1 = 128 check
+            p pair.y 2 = 129 check
+        end
+    end
+end
+
+func main () (int) in
+    test.mod
+    test.strings
+    test.files
+    test.swap
+    0
+end

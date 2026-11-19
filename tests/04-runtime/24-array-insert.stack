@@ -1,0 +1,224 @@
+@import "stdlib"
+@import "tests/04-runtime/utils"
+
+data rec (int x, int y, int z)
+
+func ints (string) (array) in
+    int.sizeof array.init.with_sz match s xs in
+        s string.len 0 > if
+            s "," string.concat while dup string.len 0 > loop
+                "," string.split match head tail in
+                    xs head int.read unwrap int.& array.append unwrap
+                    tail
+                end
+            pool pop
+        fi
+        xs
+    end
+end
+
+func ints.show (array) (string) in
+    match xs in
+        "" 0 while dup xs array.count < loop
+            match s i in
+                s i 0 > if "," string.concat fi
+                xs i array.get unwrap int.* int.show string.concat
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+func expect (array, string, int) () in
+    match xs want case in xs ints.show want string.= case check end
+end
+
+-- An array with the items 0 to n-1.
+func range (int) (array) in
+    match n in
+        int.sizeof array.init.with_sz match xs in
+            0 while dup n < loop
+                match i in xs i int.& array.append unwrap i 1 + end
+            pool pop
+            xs
+        end
+    end
+end
+
+-- Check that item i of xs is n + i - from for i in [from, to).
+func expect.run (array, int, int, int, int) () in
+    match xs from to n case in
+        from while dup to < loop
+            match i in
+                xs i array.get unwrap int.* i from - n + = case check
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+func test.bounds () () in
+    "10,20,30" ints match xs in
+        xs 0 5 int.& array.insert 1 check
+        xs "5,10,20,30" 2 expect
+        xs 4 40 int.& array.insert 3 check
+        xs "5,10,20,30,40" 4 expect
+        xs 2 15 int.& array.insert 5 check
+        xs "5,10,15,20,30,40" 6 expect
+        xs 7 99 int.& array.insert not 7 check
+        xs "5,10,15,20,30,40" 8 expect
+        xs 0 "" ints array.insert_many 9 check
+        xs 6 "" ints array.insert_many 10 check
+        xs 7 "1" ints array.insert_many not 11 check
+        xs "5,10,15,20,30,40" 12 expect
+        xs 6 "50,60" ints array.insert_many 13 check
+        xs 0 "1,2" ints array.insert_many 14 check
+        xs "1,2,5,10,15,20,30,40,50,60" 15 expect
+        xs array.capacity array.SIZE = 16 check
+    end
+    "" ints match xs in
+        xs 1 7 int.& array.insert not 17 check
+        xs 0 7 int.& array.insert 18 check
+        xs "7" 19 expect
+    end
+end
+
+-- The source is the destination.
+func test.self () () in
+    "1,2,3" ints match xs in xs 1 xs array.insert_many 20 check xs "1,1,2,3,2,3" 21 expect end
+    "1,2,3" ints match xs in xs 0 xs array.insert_many 22 check xs "1,2,3,1,2,3" 23 expect end
+    "1,2,3" ints match xs in xs 3 xs array.insert_many 24 check xs "1,2,3,1,2,3" 25 expect end
+    "1,2,3" ints match xs in xs 4 xs array.insert_many not 26 check xs "1,2,3" 27 expect end
+    "1,2,3" ints match xs in xs xs array.extend 28 check xs "1,2,3,1,2,3" 29 expect end
+    "" ints match xs in xs xs array.extend 30 check xs array.count 0 = 31 check end
+
+    -- The insert must grow the array.
+    32 range match xs in
+        xs 5 xs array.insert_many 32 check
+        xs array.count 64 = 33 check
+        xs array.capacity 64 = 34 check
+        xs 0 5 0 35 expect.run
+        xs 5 37 0 36 expect.run
+        xs 37 64 5 37 expect.run
+    end
+    20 range match xs in
+        xs xs array.extend 38 check
+        xs array.count 40 = 39 check
+        xs 0 20 0 40 expect.run
+        xs 20 40 0 41 expect.run
+    end
+end
+
+-- The item points into the items, and the insert moves it.
+func test.self_item () () in
+    "1,2,3" ints match xs in
+        xs 1 xs 2 array.get unwrap array.insert 50 check
+        xs "1,3,2,3" 51 expect
+        xs 0 xs 3 array.get unwrap array.insert 52 check
+        xs "3,1,3,2,3" 53 expect
+    end
+    32 range match xs in
+        xs 0 xs 31 array.get unwrap array.insert 54 check
+        xs array.capacity 64 = 55 check
+        xs 0 array.get unwrap int.* 31 = 56 check
+        xs 1 33 0 57 expect.run
+    end
+    -- The index and the item are the count field.
+    32 range match xs in
+        xs xs array.count xs array.count int.& array.insert 58 check
+        xs array.count 33 = 59 check
+        xs 0 33 0 60 expect.run
+    end
+end
+
+-- A header copy shares the items. The growth of xs frees them.
+func test.shared () () in
+    32 range match xs in
+        xs array.capacity xs array.count xs array.sz xs array.items array.init match ys in
+            xs ys array.extend 70 check
+            xs array.count 64 = 71 check
+            xs 0 32 0 72 expect.run
+            xs 32 64 0 73 expect.run
+        end
+    end
+    32 range match xs in
+        xs array.capacity xs array.count xs array.sz xs array.items array.init match ys in
+            xs 10 ys array.insert_many 74 check
+            xs 0 10 0 75 expect.run
+            xs 10 42 0 76 expect.run
+            xs 42 64 10 77 expect.run
+        end
+    end
+end
+
+func rec.at (array, int) (rec) in array.get unwrap rec.* end
+
+func expect.rec (rec, int, int) () in
+    match r n case in
+        r rec.x n = case check
+        r rec.y n 1 + = case check
+        r rec.z n 2 + = case check
+    end
+end
+
+func test.records () () in
+    rec.sizeof array.init.with_sz match xs in
+        0 while dup 3 < loop
+            match i in
+                xs i 10 * dup 1 + dup 1 + rec.init rec.& array.append unwrap
+                i 1 +
+            end
+        pool pop
+        xs 1 xs array.insert_many 80 check
+        xs array.count 6 = 81 check
+        xs 0 rec.at 0 82 expect.rec
+        xs 1 rec.at 0 83 expect.rec
+        xs 2 rec.at 10 84 expect.rec
+        xs 3 rec.at 20 85 expect.rec
+        xs 4 rec.at 10 86 expect.rec
+        xs 5 rec.at 20 87 expect.rec
+        xs 0 xs 5 array.get unwrap array.insert 88 check
+        xs 0 rec.at 20 89 expect.rec
+        xs 6 rec.at 20 90 expect.rec
+    end
+end
+
+func test.copy () () in
+    "1,2,3" ints match xs in
+        xs array.copy unwrap match ys in
+            ys "1,2,3" 100 expect
+            ys xs array.= 101 check
+            ys array.items xs array.items ptr.= not 102 check
+            ys 0 9 int.& array.set 103 check
+            xs "1,2,3" 104 expect
+            ys "9,2,3" 105 expect
+        end
+    end
+    "" ints array.copy unwrap match ys in
+        ys array.count 0 = 106 check
+        ys 0 4 int.& array.insert 107 check
+        ys "4" 108 expect
+    end
+end
+
+func test.delete () () in
+    40 range match xs in
+        xs 0 array.delete 110 check
+        xs 39 array.delete not 111 check
+        xs 0 39 1 112 expect.run
+        xs array.pop 113 check
+        xs array.last unwrap int.* 38 = 114 check
+        xs array.count 38 = 115 check
+    end
+end
+
+func main () (int) in
+    test.bounds
+    test.self
+    test.self_item
+    test.shared
+    test.records
+    test.copy
+    test.delete
+    0
+end

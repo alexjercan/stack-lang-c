@@ -1,0 +1,100 @@
+@import "stdlib"
+@import "tests/04-runtime/utils"
+
+-- Each test keeps a guard block after the old block, so the old block does
+-- not merge with free memory at the end of the heap.
+
+func test.grow () () in
+    16 ptr.alloc 8 ptr.alloc match p _guard in
+        p 5 poke
+        p 8 ptr.+ 6 poke
+        p 16 32 ptr.realloc match q in
+            q p ptr.= not 1 check
+            q header 41 = 2 check
+            q peek 5 = 3 check
+            q 8 ptr.+ peek 6 = 4 check
+            q 16 ptr.+ peek 0 = 5 check
+            q 24 ptr.+ peek 0 = 6 check
+            16 ptr.alloc p ptr.= 7 check
+        end
+    end
+end
+
+func test.shrink () () in
+    32 ptr.alloc 8 ptr.alloc match p _guard in
+        p 11 poke
+        p 8 ptr.+ 12 poke
+        p 16 ptr.+ 13 poke
+        p 32 16 ptr.realloc match q in
+            q p ptr.= not 10 check
+            q header 25 = 11 check
+            q peek 11 = 12 check
+            q 8 ptr.+ peek 12 = 13 check
+            32 ptr.alloc p ptr.= 14 check
+        end
+    end
+end
+
+func test.same () () in
+    16 ptr.alloc 8 ptr.alloc match p _guard in
+        p 21 poke
+        p 8 ptr.+ 22 poke
+        p 16 16 ptr.realloc match q in
+            q p ptr.= not 20 check
+            q header 25 = 21 check
+            q peek 21 = 22 check
+            q 8 ptr.+ peek 22 = 23 check
+            16 ptr.alloc p ptr.= 24 check
+        end
+    end
+end
+
+-- Only old size bytes are copied, also when the old block is larger.
+func test.old_size () () in
+    24 ptr.alloc 8 ptr.alloc match p _guard in
+        p 31 poke
+        p 8 ptr.+ 32 poke
+        p 16 ptr.+ 33 poke
+        p 8 24 ptr.realloc match q in
+            q peek 31 = 30 check
+            q 8 ptr.+ peek 0 = 31 check
+            q 16 ptr.+ peek 0 = 32 check
+            24 ptr.alloc p ptr.= 33 check
+        end
+    end
+end
+
+func test.zero () () in
+    16 ptr.alloc 8 ptr.alloc match p _guard in
+        p 41 poke
+        p 16 0 ptr.realloc match q in
+            q p ptr.= not 40 check
+            q ptr.null ptr.= not 41 check
+            q header 17 = 42 check
+            16 ptr.alloc p ptr.= 43 check
+        end
+    end
+end
+
+func test.null () () in
+    ptr.null 0 24 ptr.realloc match q in
+        q ptr.null ptr.= not 50 check
+        q header 33 = 51 check
+        q peek 0 = 52 check
+        q 16 ptr.+ peek 0 = 53 check
+    end
+    ptr.null 0 0 ptr.realloc match q in
+        q ptr.null ptr.= not 54 check
+        q header 17 = 55 check
+    end
+end
+
+func main () (int) in
+    test.grow
+    test.shrink
+    test.same
+    test.old_size
+    test.zero
+    test.null
+    0
+end

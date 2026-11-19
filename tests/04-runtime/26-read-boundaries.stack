@@ -1,0 +1,38 @@
+@import "stdlib"
+@import "tests/04-runtime/utils"
+
+-- Byte p of the fixture is 'a' + p % 26.
+const FIXTURE "tests/04-runtime/fixtures/read-4096.txt"
+
+-- Read k bytes, then read the rest of the fixture until EOF.
+func expect.rest (int, int) () in
+    match k case in
+        FIXTURE "r" stdlib.fopen case check match fd in
+            fd k stdlib.fread case check string.len k = case check
+            fd stdlib.fread.<eof> case check match s in
+                s string.len 4096 k - = case check
+                0 while dup s string.len < loop
+                    match i in
+                        s i string.!! k i + 26 mod BYTE_a + = case check
+                        i 1 +
+                    end
+                pool pop
+            end
+            fd stdlib.fread.<eof> case check string.len 0 = case check
+            fd stdlib.fclose case check
+        end
+    end
+end
+
+func main () (int) in
+    4096 1 expect.rest
+    4095 2 expect.rest
+    3073 3 expect.rest
+    3072 4 expect.rest
+    3071 5 expect.rest
+    2048 6 expect.rest
+    2047 7 expect.rest
+    1 8 expect.rest
+    0 9 expect.rest
+    0
+end

@@ -1,0 +1,10 @@
+@import "stdlib"
+
+-- ptr.realloc frees the old block.
+func main () (int) in
+    16 ptr.alloc match p in
+        p 16 32 ptr.realloc pop
+        p ptr.free
+    end
+    0
+end

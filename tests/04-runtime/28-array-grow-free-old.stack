@@ -1,0 +1,18 @@
+@import "stdlib"
+@import "tests/04-runtime/utils"
+
+-- The growth of an array frees the old items.
+func main () (int) in
+    int.sizeof array.init.with_sz match xs in
+        xs 1 int.& array.append unwrap
+        xs array.items ptr.copy match old in
+            0 while dup array.SIZE < loop
+                xs over int.& array.append unwrap
+                1 +
+            pool pop
+            xs array.capacity array.SIZE 2 * = 1 check
+            old ptr.free
+        end
+    end
+    0
+end

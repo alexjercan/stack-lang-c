@@ -1,7 +1,7 @@
 @import "stdlib"
 
--- The initial items of an array are static memory.
+-- A literal is static memory.
 func main () (int) in
-    int.sizeof array.init.with_sz array.items ptr.free
+    0 int.& ptr.free
     0
 end

@@ -5,6 +5,8 @@
 source "$(dirname -- "${BASH_SOURCE[0]}")/utils.sh" "$@"
 
 to_full() { "$@" > /dev/full; }
+# Send the file in two writes, so the first read of the compiler is short.
+split_stdin() { { head -c 10 "$1"; sleep 0.3; tail -c +11 "$1"; } | "${@:2}"; }
 
 cp -R "$here/fixtures/io" "$tmp/work" || exit 1
 mkdir "$tmp/work/directory.stack" "$tmp/work/lib.stack" || exit 1
@@ -14,6 +16,7 @@ err=$refs/io
 check "missing source" 1 "$empty" "$err/missing.err.ref" "$slc" --typecheck missing.stack
 check "directory source" 1 "$empty" "$err/directory.err.ref" "$slc" --typecheck directory.stack
 check "valid stdin" 0 "$empty" "$empty" "$slc" --typecheck < valid.stack
+check "split stdin" 0 "$empty" "$empty" split_stdin valid.stack "$slc" --typecheck
 check "unreadable stdin" 1 "$empty" "$err/unreadable-stdin.err.ref" "$slc" --typecheck 0> /dev/null
 check "closed stdin" 1 "$empty" "$err/closed-stdin.err.ref" "$slc" --typecheck 0<&-
 check "closed stdin with file" 0 "$empty" "$empty" "$slc" --typecheck valid.stack 0<&-

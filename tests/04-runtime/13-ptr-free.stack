@@ -3,18 +3,6 @@
 
 data link (int value, ptr target)
 
-func addr (ptr) (int) in ptr.& int.* 0 + end
-
--- The 8 bytes before an allocation hold the block size and the allocated bit.
-func header (ptr) (int) in -8 ptr.+ int.* 0 + end
-
--- Field getters alias the field, so keep the pointer value itself.
-func ptr.copy (ptr) (ptr) in addr int.& ptr.* end
-
-func poke (ptr, int) () in int.& int.sizeof ptr.@ pop end
-
-func peek (ptr) (int) in int.* 0 + end
-
 func test.alignment () () in
     0 while dup 20 < loop
         match n in
@@ -235,36 +223,6 @@ func test.shallow () () in
     end
 end
 
-func test.realloc () () in
-    16 ptr.alloc match p in
-        p 5 poke
-        p 16 32 ptr.realloc match q in
-            q p ptr.= not 100 check
-            q peek 5 = 101 check
-            p peek 5 = 102 check
-            q 6 poke
-            p peek 5 = 103 check
-        end
-        p 16 8 ptr.realloc p ptr.= 104 check
-        p 16 16 ptr.realloc p ptr.= not 105 check
-        p peek 5 = 106 check
-    end
-
-    int.sizeof array.init.with_sz match xs in
-        xs 1 int.& array.append unwrap
-        xs array.items ptr.copy match old in
-            0 while dup 40 < loop
-                xs over int.& array.append unwrap
-                1 +
-            pool pop
-            old peek 1 = 107 check
-            xs array.items old ptr.= not 108 check
-            xs 0 array.get unwrap peek 1 = 109 check
-            xs 40 array.get unwrap peek 39 = 110 check
-        end
-    end
-end
-
 func main () (int) in
     test.alignment
     test.header
@@ -277,6 +235,5 @@ func main () (int) in
     test.chunks
     test.large
     test.shallow
-    test.realloc
     0
 end

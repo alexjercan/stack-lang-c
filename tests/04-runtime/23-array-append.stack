@@ -1,0 +1,141 @@
+@import "stdlib"
+@import "tests/04-runtime/utils"
+
+data rec (int x, int y, int z)
+
+func at (array, int) (int) in array.get unwrap peek end
+
+-- Append n, n+1, ... until the array has count items.
+func fill (array, int, int) () in
+    match xs n count in
+        0 while dup count < loop
+            match i in xs i n + int.& array.append unwrap i 1 + end
+        pool pop
+    end
+end
+
+-- Check that item i is n + i for i in [from, to).
+func expect.run (array, int, int, int, int) () in
+    match xs from to n case in
+        from while dup to < loop
+            match i in xs i at i from - n + = case check i 1 + end
+        pool pop
+    end
+end
+
+func rec.at (array, int) (rec) in array.get unwrap rec.* end
+
+func expect.rec (rec, int, int) () in
+    match r n case in
+        r rec.x n = case check
+        r rec.y n 1 + = case check
+        r rec.z n 2 + = case check
+    end
+end
+
+func test.empty () () in
+    int.sizeof array.init.with_sz match xs in
+        xs array.count 0 = 1 check
+        xs array.capacity 0 = 2 check
+        xs array.items ptr.null ptr.= 3 check
+        xs array.last swp pop not 4 check
+        xs array.pop not 5 check
+        xs 0 array.get swp pop not 6 check
+    end
+end
+
+func test.growth () () in
+    int.sizeof array.init.with_sz match xs in
+        xs 100 int.& array.append unwrap
+        xs array.count 1 = 10 check
+        xs array.capacity array.SIZE = 11 check
+        xs array.items ptr.null ptr.= not 12 check
+        xs array.items header array.SIZE 8 * 9 + >= 13 check
+        xs 101 31 fill
+        xs array.count 32 = 14 check
+        xs array.capacity 32 = 15 check
+        xs array.items ptr.copy match old in
+            xs 132 int.& array.append unwrap
+            xs array.items old ptr.= not 16 check
+        end
+        xs array.capacity 64 = 17 check
+        xs array.items header 64 8 * 9 + >= 18 check
+        xs 133 31 fill
+        xs array.capacity 64 = 19 check
+        xs 164 int.& array.append unwrap
+        xs array.count 65 = 20 check
+        xs array.capacity 128 = 21 check
+        xs 0 65 100 22 expect.run
+    end
+end
+
+-- The item points into the items that move to a new block.
+func test.self () () in
+    int.sizeof array.init.with_sz match xs in
+        xs 0 32 fill
+        xs xs 5 array.get unwrap array.append unwrap
+        xs array.capacity 64 = 30 check
+        xs 32 at 5 = 31 check
+        xs 0 32 0 32 expect.run
+        xs 33 31 fill
+        xs array.count 64 = 33 check
+        xs xs array.last unwrap array.append unwrap
+        xs 64 at 63 = 34 check
+        xs 63 at 63 = 35 check
+        xs 0 32 0 36 expect.run
+    end
+end
+
+-- The item is the count field, which the append changes.
+func test.count () () in
+    int.sizeof array.init.with_sz match xs in
+        xs 0 32 fill
+        xs xs array.count int.& array.append unwrap
+        xs 32 at 32 = 40 check
+        xs xs array.count int.& array.append unwrap
+        xs 33 at 33 = 41 check
+        xs array.count 34 = 42 check
+    end
+end
+
+func test.records () () in
+    rec.sizeof array.init.with_sz match xs in
+        0 while dup 32 < loop
+            match i in
+                xs i 10 * dup 1 + dup 1 + rec.init rec.& array.append unwrap
+                i 1 +
+            end
+        pool pop
+        xs xs 7 array.get unwrap array.append unwrap
+        xs array.count 33 = 50 check
+        xs array.capacity 64 = 51 check
+        xs array.items header 64 24 * 9 + >= 52 check
+        xs 32 rec.at 70 53 expect.rec
+        xs 0 rec.at 0 54 expect.rec
+        xs 31 rec.at 310 55 expect.rec
+        xs 7 rec.at 70 56 expect.rec
+    end
+end
+
+-- The new capacity is an item, and the growth frees the items.
+func test.reserve () () in
+    int.sizeof array.init.with_sz match xs in
+        xs 100 int.& array.append unwrap
+        8 ptr.alloc match _guard in
+            xs xs 0 array.get unwrap int.* array.reserve'
+            xs array.capacity 100 = 60 check
+            xs array.count 1 = 61 check
+            xs 0 at 100 = 62 check
+        end
+    end
+end
+
+func main () (int) in
+    test.empty
+    test.growth
+    test.self
+    test.count
+    test.records
+    test.reserve
+    0
+end

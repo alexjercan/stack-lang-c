@@ -4,3 +4,15 @@
 func check (bool, int) () in
     swp if pop else sys.exit fi
 end
+
+func addr (ptr) (int) in ptr.& int.* 0 + end
+
+-- The 8 bytes before an allocation hold the block size and the allocated bit.
+func header (ptr) (int) in -8 ptr.+ int.* 0 + end
+
+func poke (ptr, int) () in int.& int.sizeof ptr.@ pop end
+
+func peek (ptr) (int) in int.* 0 + end
+
+-- Field getters alias the field, so keep the pointer value itself.
+func ptr.copy (ptr) (ptr) in addr int.& ptr.* end

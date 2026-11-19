@@ -49,14 +49,16 @@ func ptr.= (ptr, ptr) (bool) in
     match p1 p2 in p1 ptr.& int.* p2 ptr.& int.* = end
 end
 
-func ptr.realloc (ptr, int, int) (ptr) in -- src, osz, sz
-    dup2 > if -- src, osz, sz
-        pop2
-    else
-        ptr.alloc -- src, osz, dst
-        rot' -- dst, src, osz
-        ptr.@ -- dst
-    fi -- ptr
+func ptr.realloc (ptr, int, int) (ptr) in
+    match src old_size new_size in
+        new_size ptr.alloc
+        match dst in
+            dst src
+            old_size new_size < if old_size else new_size fi
+            ptr.@
+            src ptr.free
+        end
+    end
 end
 
 func ptr.memcmp (ptr, ptr, int) (int) in -- s1, s2, n
@@ -118,7 +120,9 @@ func abs (int) (int) in
 end
 
 func mod (int, int) (int) in
-    dup rot' % dup 0 < if + else swp pop fi
+    match x m in
+        x m % match r in r 0 < if r m + else r fi end
+    end
 end
 
 func digit.show (int) (string) in
@@ -256,54 +260,41 @@ func string.repeat (string, int) (string) in -- s, n
 end
 
 -- index a string into a byte
-func string.!! (string, int) (int) in -- s, i
-    swp -- i, s
-    string.str swp ptr.+ -- str+i
-    byte.init -- byte
+func string.!! (string, int) (int) in
+    match s i in s string.str i ptr.+ byte.init end
 end
 
 -- check if two strings are equal
-func string.= (string, string) (bool) in -- s1, s2
-    dup2 string.len swp string.len swp -- s1, s2, L1, L2
-    dup rot' = if -- s1, s2, L
-        rot' string.str swp string.str swp rot -- s1.str, s2.str, L
-        ptr.memcmp -- int
-        0 = -- bool
-    else
-        pop3 false
-    fi -- bool
+func string.= (string, string) (bool) in
+    match s1 s2 in
+        s1 string.len s2 string.len = if
+            s1 string.str s2 string.str s1 string.len ptr.memcmp 0 =
+        else
+            false
+        fi
+    end
 end
 
 -- check if a string starts with another string
-func string.starts_with (string, string) (bool) in -- string, pre
-    dup2 -- string, pre, string, pre
-    string.len swp string.len -- string, pre, pre.L, string.L
-    > if --string, pre
-        pop2 false
-    else
-        dup2 -- string, pre, string, pre
-        string.len -- string, pre, string, L
-        0 swp -- string, pre, string, 0, L
-        string.substr -- string, pre, pre'
-        string.= -- string, ok
-        swp pop -- ok
-    fi
+func string.starts_with (string, string) (bool) in
+    match s pre in
+        pre string.len s string.len > if
+            false
+        else
+            s string.str pre string.str pre string.len ptr.memcmp 0 =
+        fi
+    end
 end
 
 -- split a string at the given index
-func string.split_at (string, int) (string, string) in -- string, i
-    dup2 -- string, i, string, i
-    swp string.len -- string, i, i, L
-    > if -- string, i
-        pop ""
-    else
-        dup2 -- string, i, string, i
-        0 swp string.substr -- string, i, prefix
-        rot' dup2 -- prefix, string, i, string, i
-        swp string.len -- prefix, string, i, i, L
-        swp - -- prefix, string, i, L-i
-        string.substr -- prefix, suffix
-    fi
+func string.split_at (string, int) (string, string) in
+    match s i in
+        i s string.len > if
+            s ""
+        else
+            s 0 i string.substr s i s string.len i - string.substr
+        fi
+    end
 end
 
 -- check if string contains another string and return the index of the first occurence
@@ -312,13 +303,12 @@ func string.index (string, string) (int, bool) in -- haystack, needle
         0 true while -- i, run
             match i ok in i ok i s string.len < ok and end loop -- i, run
             match i ok in
-                s i string.split_at -- prefix, suffix
-                swp pop -- suffix
-                sep string.starts_with if
-                    i false
+                i sep string.len + s string.len <= if
+                    s string.str i ptr.+ sep string.str sep string.len ptr.memcmp 0 =
                 else
-                    i 1 + true
+                    false
                 fi
+                if i false else i 1 + true fi
             end
         pool -- i, run
         not -- i, found
@@ -379,14 +369,15 @@ const todo -- () ()
     here "todo!\n" string.concat STDERR swp stdlib.fwrite pop abort
 
 func stdlib.fopen (string, string) (int, bool) in -- fn, md
-    swp string.str swp
-    dup "r" string.= if -- fn, md
-        pop O_RDONLY O_0644 sys.open true
-    else dup "w" string.= if -- fn, md
-        pop O_WRONLY O_CREAT | O_0644 sys.open true
-    else
-        pop2 0 false
-    fi fi -- int, ok
+    match fn md in
+        md "r" string.= if
+            fn string.str O_RDONLY O_0644 sys.open true
+        else md "w" string.= if
+            fn string.str O_WRONLY O_CREAT | O_0644 sys.open true
+        else
+            0 false
+        fi fi
+    end
 end
 
 func stdlib.fclose (int) (bool) in -- fd
@@ -397,57 +388,53 @@ func stdlib.fidentity (int) (int, int, bool) in -- fd
     match fd in
         STAT_SIZE ptr.alloc match buf in
             fd buf sys.fstat 0 = if
-                buf STAT_DEV_OFF ptr.+ int.* buf STAT_INO_OFF ptr.+ int.* true
+                buf STAT_DEV_OFF ptr.+ int.* 0 + buf STAT_INO_OFF ptr.+ int.* 0 + true
             else
                 0 0 false
             fi
+            buf ptr.free
         end
     end -- dev, ino, ok
 end
 
+-- Read at most L bytes. A failed read returns "" and false.
 func stdlib.fread (int, int) (string, bool) in -- fd, L
     match fd L in
-        L string.memory-needed ptr.alloc -- ptr
-        dup fd swp L  -- ptr, fd, ptr, L
-        sys.read -- ptr, L
-        dup -- ptr, L, L
-        0 < if -- ptr, L
-            pop2 "" false
-        else
-            swp string.init true
-        fi -- s, ok
+        L string.memory-needed ptr.alloc match buf in
+            fd buf L sys.read match n in
+                n 0 < if buf ptr.free "" false else n buf string.init true fi
+            end
+        end
     end
 end
 
+-- Read until a read returns 0 bytes. A failed read returns "" and false.
 func stdlib.fread.<eof> (int) (string, bool) in -- fd
     match fd in
-        fd stdlib.MAX_LINE stdlib.fread -- s, ok
-        not if -- s
-            pop "" false
-        else
-            dup string.len -- s, L
-            dup 0 = if -- s, L
-                -- A successful zero-byte read is EOF, not an I/O error.
-                pop true
-            else stdlib.MAX_LINE >= if -- s
-                fd stdlib.fread.<eof> -- s1, s2, ok
-                not if -- s1, s2
-                    pop2 "" false
-                else
-                    string.concat true
-                fi -- s, ok
-            else -- s
-                true
-            fi fi -- s, ok
-        fi -- s, ok
+        "" true true while loop -- s, ok
+            match s _ok in
+                fd stdlib.MAX_LINE stdlib.fread match chunk ok in
+                    ok not if
+                        s string.len 0 > if s string.str ptr.free fi
+                        "" false false
+                    else chunk string.len 0 = if
+                        s string.len 0 = if chunk else chunk string.str ptr.free s fi
+                        true false
+                    else s string.len 0 = if
+                        chunk true true
+                    else
+                        s chunk string.concat true true
+                        s string.str ptr.free
+                        chunk string.str ptr.free
+                    fi fi fi
+                end
+            end
+        pool
     end
 end
 
 func stdlib.fwrite (int, string) (bool) in -- fd, s
-    dup string.str -- fd, s, ptr
-    swp string.len -- fd, ptr, L
-    sys.write -- int
-    0 >= -- bool
+    match fd s in fd s string.str s string.len sys.write 0 >= end
 end
 
 -- DATA ARRAY
@@ -456,10 +443,7 @@ data array (int capacity, int count, int sz, ptr items)
 const array.SIZE 32
 
 func array.init.with_sz (int) (array) in -- sz
-    0 0 0 int.& -- sz, C, L, xs
-    rot4 swp -- C, L, sz, xs
-
-    array.init
+    match sz in 0 0 sz ptr.null array.init end
 end
 
 func array.get (array, int) (ptr, bool) in -- a, i
@@ -489,30 +473,27 @@ func array.set (array, int, ptr) (bool) in -- array, index, item
 end
 
 func array.copy (array) (array, bool) in -- a
-    dup array.sz -- a, sz
-    array.init.with_sz -- a, dst
-    dup rot -- dst, dst, a
-    array.extend -- dst
+    match xs in xs array.sz array.init.with_sz dup xs array.extend end
 end
 
 func array.last (array) (ptr, bool) in -- a
-    dup array.count -- a, L
-    dup 0 <= if -- a, L
-        pop2 0 int.& false
-    else
-        1 - -- a, L-1
-        array.get
-    fi -- ptr, bool
+    match xs in
+        xs array.count 0 <= if
+            0 int.& false
+        else
+            xs xs array.count 1 - array.get
+        fi
+    end
 end
 
 func array.pop (array) (bool) in -- a
-    dup array.count -- a, L
-    dup 0 <= if -- a, L
-        pop2 false
-    else
-        1 - -- a, L-1
-        array.delete
-    fi -- bool
+    match xs in
+        xs array.count 0 <= if
+            false
+        else
+            xs xs array.count 1 - array.delete
+        fi
+    end
 end
 
 func array.= (array, array) (bool) in -- xs, ys
@@ -528,54 +509,54 @@ func array.= (array, array) (bool) in -- xs, ys
     end
 end
 
+-- Make room for n items. The items move to a new block and the old block is
+-- freed.
+func array.reserve' (array, int) () in
+    match xs n in
+        n xs array.capacity > if
+            xs array.capacity 2 * dup 0 <= if pop array.SIZE fi
+            dup n < if pop n fi 0 +
+            match cap in
+                xs array.items
+                xs array.capacity xs array.sz *
+                cap xs array.sz *
+                ptr.realloc
+                xs swp array.items.set
+                xs cap array.capacity.set
+            end
+        fi
+    end
+end
+
+-- Insert n items from p at index i. p can point into the items of xs.
+func array.insert' (array, int, ptr, int) () in
+    match xs i' p n' in
+        i' 0 + n' 0 + xs array.count 0 + xs array.sz 0 + match i n L sz in
+            n L i - + sz * ptr.alloc match tmp in
+                tmp p n sz * ptr.@
+                n sz * ptr.+ xs array.items i sz * ptr.+ L i - sz * ptr.@ pop
+                xs L n + array.reserve'
+                xs array.items i sz * ptr.+ tmp n L i - + sz * ptr.@ pop
+                tmp ptr.free
+            end
+            xs L n + array.count.set
+        end
+    end
+end
+
 func array.insert (array, int, ptr) (bool) in -- dst, i, item
-    match dst i item in
-        dst array.sz array.init.with_sz -- array
-        dup item array.append if -- array
-            dst i rot -- dst i array
-            array.insert_many
-        else pop false fi -- ok
+    match xs i item in
+        i xs array.count <= if xs i item 1 array.insert' true else false fi
     end
 end
 
 func array.insert_many (array, int, array) (bool) in
     match dst i src in
         i dst array.count <= if
-            -- Resize dst array to fit src items too
-            dst array.capacity src array.capacity match C C' in
-                dst array.items -- dst
-                C dst array.sz * -- dst, C*sz
-                C C' + dst array.sz * -- dst, C*sz, C''*sz
-                ptr.realloc -- dst
-                dst swp array.items.set -- ()
-                C C' + -- C''
-                dst swp array.capacity.set
-            end
-
-            -- 1. Copy dest to tmp
-            dst array.count i - dst array.sz * ptr.alloc -- tmp
-            dst array.items i dst array.sz * ptr.+ -- tmp, dst+i*sz
-            dst array.count i - dst array.sz * -- tmp, dst+i*sz, (L-i)*sz
-            ptr.@ -- tmp
-
-            -- 2. Copy tmp to dest+
-            dst array.items src array.count i + src array.sz * ptr.+ -- tmp, dst+(i+L')*sz
-            swp -- dst+(i+L')*sz, tmp
-            dst array.count i - dst array.sz * -- dst+(i+L')*sz, tmp, (L-i)*sz
-            ptr.@ pop -- ()
-
-            -- 3. Copy src to dest-
-            dst array.items i dst array.sz * ptr.+ -- dst+i*sz
-            src array.items -- dst+i*sz, src
-            src array.count src array.sz * -- dst+i*sz, src, L'*sz
-            ptr.@ pop -- ()
-
-            -- Set the new count
-            dst array.count src array.count + -- L''
-            dst swp array.count.set -- ()
-
-            true
-        else false fi
+            dst i src array.items src array.count array.insert' true
+        else
+            false
+        fi
     end
 end
 
@@ -600,52 +581,29 @@ func array.extend (array, array) (bool) in -- xs, xs'
 end
 
 func array.append (array, ptr) (bool) in -- a, ptr
-    swp -- ptr, a
-    dup array.count -- ptr, a, L
-    swp dup array.capacity -- ptr, L, a, C
-    rot <= if -- ptr, a
-        dup array.capacity -- ptr, a, C
-        dup 2 * -- ptr, a, C, C*2
-        dup 0 <= if -- ptr, a, C, C*2
-            pop array.SIZE -- ptr, a, int
-        fi -- ptr, a, C, nC
-
-        rot swp dup2 -- ptr, C, a, nC, a, nC
-        array.capacity.set -- ptr, C, a, nC
-
-        swp dup array.sz -- ptr, C, nC, a, sz
-        rot4 * -- ptr, nC, a, sz*C
-        swp dup array.sz -- ptr, nC, sz*C, a, sz
-        rot4 * -- ptr, sz*C, a, sz*nC
-        swp dup array.items -- ptr, sz*C, sz*nC, a, a.ptr
-        rot4 rot4 -- ptr, a, a.ptr, sz*C, sz*nC
-        ptr.realloc -- ptr, a, a.ptr'
-        swp dup rot -- ptr, a, a, a.ptr'
-        array.items.set -- ptr, a
-    fi -- ptr, a
-
-    dup array.count -- ptr, a, L
-    dup2 -- ptr, a, L, a, L
-    swp dup array.sz -- ptr, a, L, L, a, sz
-    rot * -- ptr, a, L, a, L*sz
-    swp array.items swp ptr.+ -- ptr, a, L, xs+L*sz
-    rot4 rot4 -- L, xs+L*sz, ptr, a
-    dup array.sz swp rot4' -- L, a, xs+L*sz, ptr, sz
-    ptr.@ pop -- L, a
-    swp -- a, L
-    1 + -- a, L+1
-    array.count.set true -- bool
+    match xs item in
+        xs array.count xs array.capacity < if
+            xs array.items xs array.count xs array.sz * ptr.+ item xs array.sz ptr.@ pop
+            xs xs array.count 1 + array.count.set
+        else
+            xs xs array.count item 1 array.insert'
+        fi
+        true
+    end
 end
 
 func array.swap (array, int, int) () in
     match xs i j in
-        xs array.sz ptr.alloc -- tmp
-        xs i array.get unwrap -- tmp, fst
-        dup2 xs array.sz ptr.@ pop -- tmp, fst
-        xs j array.get unwrap -- tmp, fst, snd
-        dup2 xs array.sz ptr.@ pop -- tmp, fst, snd
-        swp pop swp -- snd, tmp
-        xs array.sz ptr.@ pop -- ()
+        xs array.sz ptr.alloc match tmp in
+            xs i array.get unwrap match fst in
+                tmp fst xs array.sz ptr.@ pop
+                xs j array.get unwrap match snd in
+                    fst snd xs array.sz ptr.@ pop
+                    snd tmp xs array.sz ptr.@ pop
+                end
+            end
+            tmp ptr.free
+        end
     end
 end
 
@@ -755,9 +713,11 @@ func byte.ispunct' (int) (bool) in -- chr
 end
 
 func byte.init (ptr) (int) in -- chr*
-    int.sizeof ptr.alloc -- str, ptr
-    dup rot' swp 1 ptr.@ pop -- ptr
-    int.* -- byte
+    match p in
+        int.sizeof ptr.alloc match buf in
+            buf p 1 ptr.@ int.* 0 + buf ptr.free
+        end
+    end
 end
 
 func byte.isdigit (int) (bool) in -- chr
@@ -792,10 +752,9 @@ func byte.isname (int) (bool) in -- chr
 end
 
 func byte.chr (int) (string) in -- chr
-    int.& -- &int
-    1 string.memory-needed ptr.alloc -- &int, ptr
-    swp 1 ptr.@ -- ptr
-    1 swp string.init -- ptr
+    match x in
+        1 string.memory-needed ptr.alloc x int.& 1 ptr.@ 1 swp string.init
+    end
 end
 
 -- OS
@@ -804,17 +763,14 @@ func os.env.get (string) (string, bool) in -- name
     match name in
         "" false os.env while -- result, found, ptr<c-str>
             match result found env in
-                result found env -- result, found, ptr<c-str>
-                found not env int.* 0 = not and
+                result found env found not env int.* 0 = not and
             end loop -- result, found, ptr<c-str>
-            rot' pop2
-            dup ptr.* -- ptr<c-str>, c-str
-            string.init.cstr -- ptr<c-str>, str
-            "=" string.split -- ptr<c-str>, name, value
-            swp name string.= -- ptr<c-str>, value, found
-            rot 8 ptr.+ -- value, found, ptr+8<c-str>
+            match _result _found env in
+                env ptr.* string.init.cstr "=" string.split match key value in
+                    value key name string.= env 8 ptr.+
+                end
+            end
         pool -- result, found, ptr<c-str>
-
         pop
     end -- result, found
 end
