@@ -1,0 +1,94 @@
+@import "fb"
+
+@import "home/lib/fb"
+
+@import "/proc/self/cwd/home/lib/fb"
+
+func main
+    ret0: int
+    body:
+        fb.get
+
+data fb.rec
+    v: int
+
+func fb.get
+    ret0: int
+    body:
+        2
+        0
+        8
+        +
+        ptr.alloc
+        dup
+        rot
+        rot
+        0
+        ptr.+
+        swp
+        int.&
+        8
+        ptr.@
+        pop
+        fb.rec.*
+        fb.rec.&
+        0
+        ptr.+
+        int.*
+
+func fb.file
+    ret0: string
+    body:
+        "home/lib/fb.stack"
+
+const fb.rec.sizeof
+    0
+    8
+    +
+
+const fb.rec.v.offset
+    0
+
+const fb.rec.init
+    0
+    8
+    +
+    ptr.alloc
+    dup
+    rot
+    rot
+    0
+    ptr.+
+    swp
+    int.&
+    8
+    ptr.@
+    pop
+    fb.rec.*
+
+const fb.rec.v
+    fb.rec.&
+    0
+    ptr.+
+    int.*
+
+const fb.rec.v.set
+    swp
+    fb.rec.&
+    0
+    ptr.+
+    swp
+    int.&
+    8
+    ptr.@
+    pop
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

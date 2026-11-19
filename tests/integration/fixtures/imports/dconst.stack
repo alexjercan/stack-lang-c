@@ -1,0 +1,5 @@
+@import "dc"
+
+const D_VALUE 1
+
+func main () (int) in D_VALUE end

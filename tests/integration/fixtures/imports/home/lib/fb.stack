@@ -1,0 +1,5 @@
+data fb.rec (int v)
+
+func fb.get () (int) in 2 fb.rec.init fb.rec.v end
+
+func fb.file () (string) in __file__ end

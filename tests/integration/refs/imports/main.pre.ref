@@ -1,0 +1,109 @@
+@import "mod"
+
+@import "./mod"
+
+@import "sub/../mod"
+
+@import "/proc/self/cwd/mod"
+
+@import "link"
+
+@import "hard"
+
+@import "main"
+
+@import "/proc/self/cwd/main"
+
+func main
+    ret0: int
+    body:
+        mod.get
+        42
+        +
+
+const MOD_VALUE
+    1
+
+data mod.rec
+    v: int
+
+func mod.get
+    ret0: int
+    body:
+        1
+        0
+        8
+        +
+        ptr.alloc
+        dup
+        rot
+        rot
+        0
+        ptr.+
+        swp
+        int.&
+        8
+        ptr.@
+        pop
+        mod.rec.*
+        mod.rec.&
+        0
+        ptr.+
+        int.*
+
+func mod.file
+    ret0: string
+    body:
+        "mod.stack"
+
+const mod.rec.sizeof
+    0
+    8
+    +
+
+const mod.rec.v.offset
+    0
+
+const mod.rec.init
+    0
+    8
+    +
+    ptr.alloc
+    dup
+    rot
+    rot
+    0
+    ptr.+
+    swp
+    int.&
+    8
+    ptr.@
+    pop
+    mod.rec.*
+
+const mod.rec.v
+    mod.rec.&
+    0
+    ptr.+
+    int.*
+
+const mod.rec.v.set
+    swp
+    mod.rec.&
+    0
+    ptr.+
+    swp
+    int.&
+    8
+    ptr.@
+    pop
+
+const int.sizeof
+    8
+
+const ptr.sizeof
+    8
+
+const bool.sizeof
+    8
+

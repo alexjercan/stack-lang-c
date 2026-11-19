@@ -1,0 +1,5 @@
+@import "df"
+
+func d.f () (int) in 2 end
+
+func main () (int) in d.f end

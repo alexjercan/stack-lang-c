@@ -1,0 +1,5 @@
+@import "fb"
+@import "home/lib/fb"
+@import "/proc/self/cwd/home/lib/fb"
+
+func main () (int) in fb.get end

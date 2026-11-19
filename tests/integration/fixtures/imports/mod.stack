@@ -1,0 +1,7 @@
+const MOD_VALUE 1
+
+data mod.rec (int v)
+
+func mod.get () (int) in MOD_VALUE mod.rec.init mod.rec.v end
+
+func mod.file () (string) in __file__ end

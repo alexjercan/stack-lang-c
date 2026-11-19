@@ -1,0 +1,5 @@
+@import "lib"
+
+func main () (int) in
+    0
+end

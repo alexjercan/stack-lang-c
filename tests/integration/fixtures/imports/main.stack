@@ -1,0 +1,10 @@
+@import "mod"
+@import "./mod"
+@import "sub/../mod"
+@import "/proc/self/cwd/mod"
+@import "link"
+@import "hard"
+@import "main"
+@import "/proc/self/cwd/main"
+
+func main () (int) in mod.get 42 + end
