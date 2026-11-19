@@ -11,10 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - @alexjercan Added relative import paths
 - @alexjercan Added the `stackls` language server
+- @alexjercan Added hover to `stackls`
+- @alexjercan Added the Nixvim module `nixvimModules.default` for syntax and `stackls`
 
 ### Changed
 
 - @alexjercan Changed imports to use strings instead of names
+- @alexjercan Moved `stack.vim` to `editors/neovim/syntax/stack.vim`
+
+### Fixed
+
+- @alexjercan The syntax file sets `b:current_syntax` and does not highlight keywords inside names
 
 ## [1.1.0] - 2024-12-29
 

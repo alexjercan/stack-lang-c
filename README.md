@@ -87,6 +87,21 @@ Run them on the Nix package:
 nix flake check
 ```
 
+Run the tests of the Nixvim module (see [7.3. Neovim](#73-neovim)). `eval`
+evaluates the module in some configurations and builds nothing. `headless`
+builds Neovim with the module and the default package. Then it opens a
+`.stack` file and checks the filetype, the syntax groups, the `stackls`
+client and hover. `NIXVIM` selects the Nixvim flake. Use the revision of your
+configuration, for example from its `flake.lock`:
+
+```fish
+env NIXVIM=github:nix-community/nixvim/<rev> tests/nixvim/run.sh eval
+env NIXVIM=github:nix-community/nixvim/<rev> tests/nixvim/run.sh headless
+```
+
+The tests use `path:` of the repository, so new files that git does not track
+are included. Set `STACK` to use another reference of this flake.
+
 ## 3. Stack
 
 The stack in a `Stack` program is an array with a fixed size of 64 KiB. The
@@ -512,6 +527,9 @@ are available in the `stdlib` module.
 Expressions in stack are used in the body of the functions as a sequence of
 operations that work on the stack.
 
+The blocks `if`, `match` and `while` can nest at most 2048 levels deep. A
+deeper block is a parser error, because the compiler recurses for each level.
+
 ### 5.1. Literals
 
 The most basic expression in stack is the literal. These can be `int`, `bool`
@@ -729,6 +747,9 @@ Documents:
   `textDocument/didClose` keep the text and the version of each open
   document. A change must have the full text. A change with a `range` is
   ignored and logged. Notifications with bad `params` are ignored and logged.
+- The version of an open document must increase. `didChange`, or `didOpen`
+  of a document that is open, with the same or a lower version is ignored
+  and logged.
 - The text of an open document is used in place of the file on disk, also
   when another file imports it. A URI that is not a `file://` URI can be
   open, but other files cannot import it.
@@ -736,7 +757,9 @@ Documents:
 Hover (`textDocument/hover`):
 
 - Positions use UTF-16 code units, and lines end with `\n`, `\r\n` or `\r`.
-  A character after the end of a line is the end of the line.
+  `line` and `character` must be integers from 0 to 2147483647, or the
+  request gets `-32602`. A character after the end of a line is the end of
+  the line, and a line after the end of the document gets `null`.
 - The result has the code of the definition and a short note, and the range
   of the name. The content is Markdown with a `stack` code block when the
   first known kind in `capabilities.textDocument.hover.contentFormat` is
@@ -777,3 +800,103 @@ Hover (`textDocument/hover`):
 - The server handles one message at a time. `$/cancelRequest` is ignored.
 - If the client closes stdout, the write gets `SIGPIPE` and the server stops.
 - The server runs only on x86-64 Linux, as the `Stack` compiler.
+
+### 7.3. Neovim
+
+The flake exports a [Nixvim](https://github.com/nix-community/nixvim) module
+as `nixvimModules.default`. The flake does not depend on Nixvim. The module
+uses the `lib` and `pkgs` of the configuration that imports it. It needs
+Neovim 0.11 or later, because it uses `vim.lsp.config` and `vim.lsp.enable`.
+The syntax file is also in `editors/neovim/syntax/stack.vim`.
+
+Add this repository to the inputs of your flake, and give the inputs to
+Home Manager:
+
+```nix
+{
+  inputs.stack-lang-c.url = "github:alexjercan/stack-lang-c";
+
+  # home-manager.lib.homeManagerConfiguration {
+  #   extraSpecialArgs = {inherit inputs;};
+  #   ...
+  # }
+}
+```
+
+Then import the module in `programs.nixvim`:
+
+```nix
+{inputs, ...}: {
+  programs.nixvim = {
+    imports = [inputs.stack-lang-c.nixvimModules.default];
+    stack.syntax.enable = true;
+    stack.lsp.enable = true;
+    stack.lsp.config = {root_markers = [".git"];};
+  };
+}
+```
+
+Options:
+
+- `stack.syntax.enable` (default `false`): adds `syntax/stack.vim`.
+- `stack.lsp.enable` (default `false`): configures and enables the client
+  `stackls` with `vim.lsp.config` and `vim.lsp.enable`.
+- `stack.lsp.package` (default: the `default` package of this flake): the
+  package that gives `bin/stackls`.
+- `stack.lsp.config` (default `{}`): client options for
+  `vim.lsp.config("stackls", ...)`, see `:h vim.lsp.Config`.
+
+Each of the two features also maps `*.stack` to the filetype `stack`. If
+both are `false`, the module changes nothing.
+
+The default client options are:
+
+- `cmd`: the absolute path of `bin/stackls` in `stack.lsp.package`.
+- `filetypes`: `["stack"]`.
+- `cmd_env.STACK_HOME`: the root of `stack.lsp.package`. `@import` finds
+  the libraries in `$STACK_HOME/lib`.
+
+A key in `stack.lsp.config` replaces the default value of that key. Other
+keys of `cmd_env` are added to `STACK_HOME`. `stack.lsp.config` configures
+only the client. `stackls` supports only hover, and it does not read
+`settings` or `init_options`.
+
+The module adds no keymaps. Use your own keymap for hover, for example `K`
+from `plugins.lsp.keymaps`.
+
+`STACK_HOME` must have the libraries of the same version as the server. The
+default package has `bin/slc`, `bin/stackls` and `lib`, so its root is
+correct. The package `stackls` has only the server. If you use it, set
+`STACK_HOME` to a directory that has `lib`:
+
+```nix
+{inputs, pkgs, ...}: let
+  stack = inputs.stack-lang-c.packages.${pkgs.stdenv.hostPlatform.system};
+in {
+  programs.nixvim.stack.lsp = {
+    enable = true;
+    package = stack.stackls;
+    config.cmd_env.STACK_HOME = "${stack.default}";
+  };
+}
+```
+
+To use a development build from `make`, set `cmd` and `STACK_HOME` to the
+repository:
+
+```nix
+{
+  programs.nixvim.stack.lsp = {
+    enable = true;
+    config = {
+      cmd = ["/home/me/stack-lang-c/out/stackls"];
+      cmd_env.STACK_HOME = "/home/me/stack-lang-c";
+    };
+  };
+}
+```
+
+Neovim starts the server in its current directory. `@import` of a relative
+path resolves from that directory (see [7.2. Known
+limitations](#72-known-limitations)). Set `cmd_cwd` in `stack.lsp.config`
+to use another directory.
