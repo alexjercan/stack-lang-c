@@ -660,17 +660,26 @@ writes them on stdout, and writes logs to stderr.
 stackls [-h | --help] [-v | --version] [--stdio]
 ```
 
-The server has only the transport and the lifecycle at this time. It
-advertises no capabilities (`"capabilities": {}`). Hover, go to definition,
-references and diagnostics will use the `Stack` compiler.
+The server supports hover. It advertises `"hoverProvider": true` and full
+text synchronization (`"textDocumentSync": {"openClose": true, "change": 1}`).
+Go to definition, references, completion and diagnostics are not supported.
 
-The source is `stackls.stack`. It uses the libraries `lib/rpc.stack` (message
-framing) and `lib/lsp.stack` (JSON-RPC and the lifecycle), and `lib/json.stack`.
-Other programs can import `rpc` and `lsp`.
+The source is `stackls.stack`. It uses these libraries:
+
+- `lib/rpc.stack`: message framing.
+- `lib/lsp.stack`: JSON-RPC, the lifecycle, open documents and positions. It
+  does not know `Stack`, and other programs can import it.
+- `lib/json.stack`: JSON values.
+- `lib/stack/service.stack` and `lib/stack/analysis.stack`: the `Stack`
+  requests. They use the parts of the compiler: `lib/stack/lexer.stack`,
+  `lib/stack/parser.stack`, `lib/stack/preprocessor.stack` and
+  `lib/stack/typecheck.stack`. `stack.stack` uses the same files.
 
 `tests/lsp/protocol.py` uses only the Python standard library. It acts as a
 client: it starts one server per case, sends bytes, and checks the exit code
-and every byte on stdout. You can run it on any binary:
+and every byte on stdout. The hover tests that import `stdlib` use
+`../lib` from the directory of the server: the repository for `out/stackls`,
+and the package for `result/bin/stackls`. You can run it on such a binary:
 
 ```fish
 python3 tests/lsp/protocol.py result/bin/stackls
@@ -714,13 +723,57 @@ Lifecycle:
 - `exit` stops the server with code 0 after `shutdown`, and 1 if there was no
   `shutdown`.
 
+Documents:
+
+- `textDocument/didOpen`, `textDocument/didChange` and
+  `textDocument/didClose` keep the text and the version of each open
+  document. A change must have the full text. A change with a `range` is
+  ignored and logged. Notifications with bad `params` are ignored and logged.
+- The text of an open document is used in place of the file on disk, also
+  when another file imports it. A URI that is not a `file://` URI can be
+  open, but other files cannot import it.
+
+Hover (`textDocument/hover`):
+
+- Positions use UTF-16 code units, and lines end with `\n`, `\r\n` or `\r`.
+  A character after the end of a line is the end of the line.
+- The result has the code of the definition and a short note, and the range
+  of the name. The content is Markdown with a `stack` code block when the
+  first known kind in `capabilities.textDocument.hover.contentFormat` is
+  `markdown`, else plain text.
+- These names get a result: builtin functions and data types, the `func` and
+  `data` definitions of the file and of its imports, the type names in
+  signatures and fields, `T.&` and `T.*`, and the generated constants
+  `T.init`, `T.sizeof`, `T.f`, `T.f.set` and `T.f.offset` with their stack
+  effect. The getter `T.f` gives a value that aliases the field.
+- These positions get `null`: literals, keywords, comments, match bindings
+  and the names that they bind, constants of the program, type variables,
+  names that do not resolve, and documents that are not open.
+- Bad `params` get `-32602`.
+- Imports resolve as in `slc`: `name.stack` relative to the directory where
+  the server runs, then `$STACK_HOME/lib/name.stack`.
+- If a file has a syntax error, the definitions before the error are used.
+  Names after the error get `null`. A missing or broken import keeps the
+  definitions that were loaded before it.
+
 ### 7.2. Known limitations
 
 - Memory grows with each message. The `Stack` runtime puts each computed
   `int`, `bool` and `ptr` into a cell that it never frees (see
-  [3. Stack](#3-stack)). The server frees each JSON tree and each frame buffer
-  with `ptr.free`, but cells stay. A measurement gave about 150 KB for each
-  small request.
+  [3. Stack](#3-stack)). The server frees each JSON tree, frame buffer,
+  document text and the lists of an analysis with `ptr.free`, but cells and
+  syntax trees stay. A measurement gave about 150 KB for each small request.
+- The first hover after a change analyses the document again. Later hovers
+  use the same analysis until a document opens, changes or closes. The server
+  keeps the parsed imports and parses an import again only when its text
+  changes. Measurements on x86-64 Linux: the first hover in a file that
+  imports `stdlib` adds about 50 MB, and each hover after a change about
+  5 MB. For a file that imports the compiler (`stackls.stack`) the first hover
+  adds about 620 MB and each hover after a change about 50 MB. Restart the
+  server to give the memory back.
+- The server reads an import that is not open from disk at each analysis.
+  It does not watch files, so a change on disk is seen at the next analysis.
+- Imports resolve from the directory where the editor starts the server.
 - The server handles one message at a time. `$/cancelRequest` is ignored.
 - If the client closes stdout, the write gets `SIGPIPE` and the server stops.
 - The server runs only on x86-64 Linux, as the `Stack` compiler.

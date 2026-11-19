@@ -2,15 +2,19 @@
 @import "json"
 @import "rpc"
 
--- JSON-RPC 2.0 messages and the LSP lifecycle. The server has no language
--- features yet, so it advertises no capabilities.
-
-const lsp.NAME "stackls"
-const lsp.VERSION "0.1.0"
+-- JSON-RPC 2.0 messages, the LSP lifecycle, text document sync with the full
+-- text, and positions. The program gives the server name, the capabilities of
+-- its language features and the requests that it answers, then calls
+-- lsp.server.receive in a loop. This module has no language features.
 
 const LSP_NEW 0
 const LSP_RUNNING 1
 const LSP_SHUTDOWN 2
+
+-- Actions from lsp.server.receive.
+const LSP_CONTINUE 0
+const LSP_STOP 1
+const LSP_REQUEST 2
 
 const LSP_PARSE_ERROR -32700
 const LSP_INVALID_REQUEST -32600
@@ -18,7 +22,37 @@ const LSP_METHOD_NOT_FOUND -32601
 const LSP_INVALID_PARAMS -32602
 const LSP_NOT_INITIALIZED -32002
 
-data lsp.server (int state)
+const LSP_SYNC_FULL 1
+
+-- An open document. The bytes of the strings and the items of lines are
+-- owned. lines has the byte offset of each line start. It is empty until
+-- lsp.document.lines.get makes it.
+data lsp.document (string uri, string language, int version, string text, array lines) -- array<int>
+
+-- capabilities is a map root without textDocumentSync. methods are the
+-- requests that the program answers (array<string>). markdown is true when
+-- the client prefers Markdown hover content. generation changes each time a
+-- document opens, changes or closes.
+data lsp.server
+    ( int state
+    , string name
+    , string version
+    , json_object capabilities
+    , array methods
+    , bool markdown
+    , array documents
+    , int generation
+    , rpc.reader reader
+    )
+
+func lsp.server.new (string, string, json_object, array) (lsp.server) in -- name, version, capabilities, methods
+    match name version caps methods in
+        STDIN rpc.reader.new match r in
+            LSP_NEW name version caps methods false lsp.document.sizeof array.init.with_sz 0 r lsp.server.init
+            r rpc.reader.& ptr.free
+        end
+    end
+end
 
 func lsp.err (string) () in STDERR swp stdlib.fwrite pop end
 
@@ -71,10 +105,36 @@ end
 
 func lsp.has (json_object, string) (bool) in json_object.get swp pop end
 
+-- The value at key when ok, else obj and false. Use it to follow a path.
+func lsp.get (json_object, bool, string) (json_object, bool) in
+    match obj ok key in ok if obj key json_object.get else obj false fi end
+end
+
+func lsp.get.string (json_object, bool, string) (string, bool) in
+    lsp.get match v ok in ok if v json_object.string else "" false fi end
+end
+
+func lsp.get.int (json_object, bool, string) (int, bool) in
+    lsp.get match v ok in ok if v json_object.int else 0 false fi end
+end
+
 -- Request ids are strings or integers.
 func lsp.id.valid (json_object) (bool) in
     match id in id json_object.kind JSON_OBJECT_STRING = id json_object.int swp pop or end
 end
+
+-- REQUESTS FOR THE PROGRAM
+
+-- Answer the request msg with the result root.
+func lsp.reply (json_object, json_object) () in -- msg, result
+    match msg res in msg "id" json_object.get pop json.copy res lsp.result end
+end
+
+func lsp.reply.error (json_object, int, string) () in -- msg, code, message
+    match msg code text in msg "id" json_object.get pop json.copy code text lsp.error end
+end
+
+func lsp.message.method (json_object) (string) in "method" json_object.get pop json_object.string pop end
 
 -- Check the fields of a request or notification. Returns 0 or an error code,
 -- and the error message.
@@ -126,20 +186,66 @@ func lsp.initialize.log (json_object) () in
     end
 end
 
-func lsp.initialize.result () (json_object) in
-    json.map match res in
-        res "capabilities" json.map json_object.put
-        json.map match info in
-            info "name" lsp.NAME json.string json_object.put
-            info "version" lsp.VERSION json.string json_object.put
-            res "serverInfo" info json_object.put
+-- True when the first known kind in
+-- params.capabilities.textDocument.hover.contentFormat is "markdown".
+func lsp.initialize.markdown (json_object) (bool) in
+    match msg in
+        msg true "params" lsp.get "capabilities" lsp.get "textDocument" lsp.get "hover" lsp.get
+        "contentFormat" lsp.get match formats ok in
+            ok if formats json_object.array pop else json_object.sizeof array.init.with_sz fi
         end
-        res
+        match kinds in
+            false false 0 while -- markdown, done, i
+                match md done i in md done i done not i kinds array.count < and end loop
+                match _md _done i in
+                    kinds i array.get unwrap json_object.* json_object.string match kind ok in
+                        ok kind "markdown" string.= and if true true
+                        else ok kind "plaintext" string.= and if false true
+                        else false false fi fi
+                    end
+                    i 1 +
+                end
+            pool
+            pop2
+        end
     end
 end
 
--- Answer a request. id is a root and is used for the response.
-func lsp.server.request (lsp.server, json_object, string, json_object) () in
+func lsp.initialize.result (lsp.server) (json_object) in
+    match srv in
+        json.map match res in
+            srv lsp.server.capabilities json.copy match caps in
+                json.map match sync in
+                    sync "openClose" true json.bool json_object.put
+                    sync "change" LSP_SYNC_FULL json.int json_object.put
+                    caps "textDocumentSync" sync json_object.put
+                end
+                res "capabilities" caps json_object.put
+            end
+            json.map match info in
+                info "name" srv lsp.server.name json.string json_object.put
+                info "version" srv lsp.server.version json.string json_object.put
+                res "serverInfo" info json_object.put
+            end
+            res
+        end
+    end
+end
+
+func lsp.server.answers (lsp.server, string) (bool) in
+    match srv name in
+        srv lsp.server.methods match methods in
+            false 0 while dup methods array.count < loop -- found, i
+                match found i in
+                    found methods i array.get unwrap string.* name string.= or i 1 +
+                end
+            pool pop
+        end
+    end
+end
+
+-- Answer a request, or return true when the program answers it.
+func lsp.server.request (lsp.server, json_object, string, json_object) (bool) in -- srv, id, method, msg
     match srv id name msg in
         srv lsp.server.state match state in
             state LSP_NEW = if
@@ -147,58 +253,233 @@ func lsp.server.request (lsp.server, json_object, string, json_object) () in
                     msg lsp.initialize.check match problem in
                         problem string.len 0 = if
                             msg lsp.initialize.log
-                            id lsp.initialize.result lsp.result
+                            srv msg lsp.initialize.markdown lsp.server.markdown.set
+                            id json.copy srv lsp.initialize.result lsp.result
                             srv LSP_RUNNING lsp.server.state.set
                         else
-                            id LSP_INVALID_PARAMS "Invalid params: " problem lsp.error.with
+                            id json.copy LSP_INVALID_PARAMS "Invalid params: " problem lsp.error.with
                         fi
                     end
                 else
-                    id LSP_NOT_INITIALIZED "Server not initialized" lsp.error
+                    id json.copy LSP_NOT_INITIALIZED "Server not initialized" lsp.error
                 fi
+                false
             else state LSP_RUNNING = if
                 name "initialize" string.= if
-                    id LSP_INVALID_REQUEST "Invalid Request: server is already initialized" lsp.error
+                    id json.copy LSP_INVALID_REQUEST "Invalid Request: server is already initialized" lsp.error false
                 else name "shutdown" string.= if
-                    id json.null lsp.result
+                    id json.copy json.null lsp.result
                     srv LSP_SHUTDOWN lsp.server.state.set
+                    false
+                else srv name lsp.server.answers if
+                    true
                 else
-                    id LSP_METHOD_NOT_FOUND "Method not found: " name lsp.error.with
-                fi fi
+                    id json.copy LSP_METHOD_NOT_FOUND "Method not found: " name lsp.error.with false
+                fi fi fi
             else
-                id LSP_INVALID_REQUEST "Invalid Request: server is shutting down" lsp.error
+                id json.copy LSP_INVALID_REQUEST "Invalid Request: server is shutting down" lsp.error false
             fi fi
         end
     end
 end
 
--- Handle a notification. Unknown notifications are ignored. Returns false and
--- the exit code on exit.
-func lsp.server.notify (lsp.server, string) (bool, int) in
-    match srv name in
-        name "exit" string.= if
-            false srv lsp.server.state LSP_SHUTDOWN = if 0 else 1 fi
-        else true 0 fi
+-- DOCUMENTS
+
+func lsp.document.free (lsp.document) () in
+    match doc in
+        doc lsp.document.uri string.str ptr.free
+        doc lsp.document.language string.str ptr.free
+        doc lsp.document.text string.str ptr.free
+        doc lsp.document.lines array.items ptr.free
     end
 end
 
-func lsp.server.message (lsp.server, json_object) (bool, int) in
+-- The index of the open document with uri, or -1.
+func lsp.server.document.index (lsp.server, string) (int) in
+    match srv uri in
+        srv lsp.server.documents match docs in
+            -1 0 while dup docs array.count < loop -- found, i
+                match found i in
+                    found 0 < docs i array.get unwrap lsp.document.* lsp.document.uri uri string.= and if i else found fi
+                    i 1 +
+                end
+            pool pop
+        end
+    end
+end
+
+-- The open document with uri. The document is valid until the next call of
+-- lsp.server.receive.
+func lsp.server.document (lsp.server, string) (lsp.document, bool) in
+    match srv uri in
+        srv uri lsp.server.document.index match i in
+            i 0 >= if
+                srv lsp.server.documents i array.get unwrap lsp.document.* true
+            else
+                "" "" 0 "" int.sizeof array.init.with_sz lsp.document.init false
+            fi
+        end
+    end
+end
+
+func lsp.server.changed (lsp.server) () in
+    match srv in srv srv lsp.server.generation 1 + lsp.server.generation.set end
+end
+
+-- Set the version and the text of the open document at index i. text is
+-- copied.
+func lsp.server.document.update (lsp.server, int, int, string) () in -- srv, i, version, text
+    match srv i version text in
+        srv lsp.server.documents i array.get unwrap lsp.document.* match doc in
+            doc lsp.document.text string.str ptr.free
+            doc lsp.document.lines array.items ptr.free
+            doc version lsp.document.version.set
+            text json.str.copy match copy in doc copy lsp.document.text.set copy string.& ptr.free end
+            int.sizeof array.init.with_sz match lines in doc lines lsp.document.lines.set lines array.& ptr.free end
+        end
+        srv lsp.server.changed
+    end
+end
+
+-- True when version is newer than the version of the open document at
+-- index i. Else log that the notification is ignored.
+func lsp.server.document.newer (lsp.server, int, int, string) (bool) in -- srv, i, version, method
+    match srv i version name in
+        srv lsp.server.documents i array.get unwrap lsp.document.* lsp.document.version version < dup not if
+            "ignored " name string.concat " with an old version" string.concat match text in
+                text lsp.log text json.str.free
+            end
+        fi
+    end
+end
+
+func lsp.server.did_open (lsp.server, json_object) () in
+    match srv msg in
+        msg true "params" lsp.get "textDocument" lsp.get match td ok in
+            td ok "uri" lsp.get.string td ok "languageId" lsp.get.string
+            td ok "version" lsp.get.int td ok "text" lsp.get.string
+        end
+        match uri ok_uri language ok_language version ok_version text ok_text in
+            ok_uri ok_language and ok_version and ok_text and not if
+                "ignored textDocument/didOpen with invalid params" lsp.log
+            else srv uri lsp.server.document.index match i in
+                i 0 >= if
+                    srv i version "textDocument/didOpen" lsp.server.document.newer if
+                        srv i version text lsp.server.document.update
+                    fi
+                else
+                    uri json.str.copy language json.str.copy text json.str.copy int.sizeof array.init.with_sz
+                    match u l t lines in
+                        u l version t lines lsp.document.init match doc in
+                            srv lsp.server.documents doc lsp.document.& array.append unwrap
+                            doc lsp.document.& ptr.free
+                        end
+                        u string.& ptr.free
+                        l string.& ptr.free
+                        t string.& ptr.free
+                        lines array.& ptr.free
+                    end
+                    srv lsp.server.changed
+                fi
+            end fi
+        end
+    end
+end
+
+-- The text of the last change. False when a change is not a full text.
+func lsp.changes.text (array) (string, bool) in
+    match changes in
+        "" changes array.count 0 > 0 while -- text, ok, i
+            match text ok i in text ok i ok i changes array.count < and end loop
+            match _text _ok i in
+                changes i array.get unwrap json_object.* match change in
+                    change true "text" lsp.get.string change "range" lsp.has not and
+                end
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+func lsp.server.did_change (lsp.server, json_object) () in
+    match srv msg in
+        msg true "params" lsp.get match params ok in
+            params ok "textDocument" lsp.get match td ok' in td ok' "uri" lsp.get.string td ok' "version" lsp.get.int end
+            params ok "contentChanges" lsp.get match changes ok' in
+                ok' if changes json_object.array if lsp.changes.text else pop "" false fi else "" false fi
+            end
+        end
+        match uri ok_uri version ok_version text ok_text in
+            ok_uri ok_version and ok_text and not if
+                "ignored textDocument/didChange with invalid params" lsp.log
+            else srv uri lsp.server.document.index match i in
+                i 0 >= if
+                    srv i version "textDocument/didChange" lsp.server.document.newer if
+                        srv i version text lsp.server.document.update
+                    fi
+                else
+                    "ignored textDocument/didChange for a document that is not open" lsp.log
+                fi
+            end fi
+        end
+    end
+end
+
+func lsp.server.did_close (lsp.server, json_object) () in
+    match srv msg in
+        msg true "params" lsp.get "textDocument" lsp.get "uri" lsp.get.string match uri ok in
+            ok not if
+                "ignored textDocument/didClose with invalid params" lsp.log
+            else srv uri lsp.server.document.index match i in
+                i 0 >= if
+                    srv lsp.server.documents match docs in
+                        docs i array.get unwrap lsp.document.* lsp.document.free
+                        docs i array.delete unwrap
+                    end
+                    srv lsp.server.changed
+                else
+                    "ignored textDocument/didClose for a document that is not open" lsp.log
+                fi
+            end fi
+        end
+    end
+end
+
+-- Handle a notification. Unknown notifications are ignored.
+func lsp.server.notify (lsp.server, string, json_object) (int, int) in -- srv, method, msg
+    match srv name msg in
+        name "exit" string.= if
+            LSP_STOP srv lsp.server.state LSP_SHUTDOWN = if 0 else 1 fi
+        else
+            srv lsp.server.state LSP_RUNNING = if
+                name "textDocument/didOpen" string.= if srv msg lsp.server.did_open
+                else name "textDocument/didChange" string.= if srv msg lsp.server.did_change
+                else name "textDocument/didClose" string.= if srv msg lsp.server.did_close
+                fi fi fi
+            fi
+            LSP_CONTINUE 0
+        fi
+    end
+end
+
+func lsp.server.message (lsp.server, json_object) (int, int) in
     match srv msg in
         msg json_object.kind JSON_OBJECT_MAP = not if
-            json.null LSP_INVALID_REQUEST "Invalid Request: message must be an object" lsp.error true 0
+            json.null LSP_INVALID_REQUEST "Invalid Request: message must be an object" lsp.error LSP_CONTINUE 0
         else msg "method" lsp.has not msg "result" lsp.has msg "error" lsp.has or and if
             -- A response. The server sends no requests, so it has no use for it.
-            true 0
+            LSP_CONTINUE 0
         else msg "id" json_object.get match id has_id in
             has_id id lsp.id.valid not and if
-                json.null LSP_INVALID_REQUEST "Invalid Request: id must be a string or an integer" lsp.error true 0
+                json.null LSP_INVALID_REQUEST "Invalid Request: id must be a string or an integer" lsp.error LSP_CONTINUE 0
             else msg lsp.check match code text in
                 code 0 = not if
-                    has_id if id json.copy else json.null fi code text lsp.error true 0
+                    has_id if id json.copy else json.null fi code text lsp.error LSP_CONTINUE 0
                 else
-                    msg "method" json_object.get pop json_object.string pop match name in
-                        has_id if srv id json.copy name msg lsp.server.request true 0
-                        else srv name lsp.server.notify fi
+                    msg lsp.message.method match name in
+                        has_id if
+                            srv id name msg lsp.server.request if LSP_REQUEST else LSP_CONTINUE fi 0
+                        else srv name msg lsp.server.notify fi
                     end
                 fi
             end fi
@@ -206,37 +487,215 @@ func lsp.server.message (lsp.server, json_object) (bool, int) in
     end
 end
 
--- Handle one message body. Returns false and the exit code to stop.
-func lsp.server.handle (lsp.server, string) (bool, int) in
-    match srv body in
-        body json.parse match msg e in
-            e error.ok if
-                srv msg lsp.server.message
+-- Read and handle one message. Returns the action, the exit code for
+-- LSP_STOP, and the message root. For LSP_REQUEST the program answers the
+-- request with lsp.reply or lsp.reply.error. The caller frees the message
+-- with json.free.
+func lsp.server.receive (lsp.server) (int, int, json_object) in
+    match srv in
+        srv lsp.server.reader rpc.reader.next match body status err in
+            status RPC_MESSAGE = if
+                body json.parse match msg e in
+                    e error.ok if
+                        srv msg lsp.server.message msg
+                    else
+                        json.null LSP_PARSE_ERROR "Parse error: " e error.message lsp.error.with
+                        LSP_CONTINUE 0 msg
+                    fi
+                    e json.error.free
+                end
+                body json.str.free
+            else status RPC_EOF = if
+                LSP_STOP 0 json.null
             else
-                json.null LSP_PARSE_ERROR "Parse error: " e error.message lsp.error.with true 0
-            fi
-            msg json.free
-            e json.error.free
+                err lsp.log LSP_STOP 1 json.null
+            fi fi
         end
     end
 end
 
--- Serve on stdin and stdout until exit or the end of input.
-func lsp.serve () (int) in
-    STDIN rpc.reader.new LSP_NEW lsp.server.init match r srv in
-        true 0 while match go code in go code go end loop -- run, code
-            pop2
-            r rpc.reader.next match body status err in
-                status RPC_MESSAGE = if
-                    srv body lsp.server.handle
-                    body json.str.free
-                else status RPC_EOF = if
-                    false 0
-                else
-                    err lsp.log false 1
-                fi fi
+-- POSITIONS
+-- LSP positions count lines and UTF-16 code units. Lines end with "\n",
+-- "\r\n" or "\r". Offsets are byte offsets into UTF-8 text.
+
+-- The byte length and the UTF-16 length of the character at text[i]. Bytes
+-- that do not start a character count as one unit.
+func lsp.text.char (string, int) (int, int) in
+    match text i in
+        text i string.!! match c in
+            c 240 >= c 248 < and if 4 2
+            else c 224 >= c 240 < and if 3 1
+            else c 192 >= c 224 < and if 2 1
+            else 1 1 fi fi fi
+        end
+        match n units in n i + text string.len min i - units end
+    end
+end
+
+func lsp.text.newline (string, int) (bool) in
+    match text i in text i string.!! match c in c BYTE_\N = c 13 = or end end
+end
+
+-- The byte length of the line end at text[i]: 2 for "\r\n", else 1.
+func lsp.text.newline.len (string, int) (int) in
+    match text i in
+        text i string.!! 13 = i 1 + text string.len < and if
+            text i 1 + string.!! BYTE_\N = if 2 else 1 fi
+        else 1 fi
+    end
+end
+
+-- The byte offset of each line start.
+func lsp.text.lines (string) (array) in
+    match text in
+        int.sizeof array.init.with_sz match lines in
+            lines 0 int.& array.append unwrap
+            0 while dup text string.len < loop
+                match i in
+                    text i lsp.text.newline if
+                        i text i lsp.text.newline.len + match next in
+                            lines next int.& array.append unwrap next
+                        end
+                    else i 1 + fi
+                end
+            pool pop
+            lines
+        end
+    end
+end
+
+func lsp.document.lines.get (lsp.document) (array) in
+    match doc in
+        doc lsp.document.lines array.count 0 = if
+            doc lsp.document.lines array.items ptr.free
+            doc lsp.document.text lsp.text.lines match lines in
+                doc lines lsp.document.lines.set
+                lines array.& ptr.free
             end
-        pool
-        swp pop
+        fi
+        doc lsp.document.lines
+    end
+end
+
+-- The end of the line that starts at byte i, without the line end.
+func lsp.text.line.end (string, int) (int) in
+    match text i in
+        i 0 + while dup text string.len < if text over lsp.text.newline not else false fi loop 1 + pool
+    end
+end
+
+-- The byte offset of the position. A character after the end of the line is
+-- the end of the line, and a character inside a surrogate pair is the start
+-- of the pair. False when the line is not in the text or a value is negative.
+func lsp.document.offset (lsp.document, int, int) (int, bool) in -- doc, line, character
+    match doc line character in
+        doc lsp.document.text doc lsp.document.lines.get match text lines in
+            line 0 < character 0 < or line lines array.count >= or if
+                0 false
+            else
+                lines line array.get unwrap int.* 0 + match start in
+                    text start lsp.text.line.end match stop in
+                        start 0 true while loop -- i, units
+                            match i units in
+                                i stop < units character < and if
+                                    text i lsp.text.char match n u in
+                                        units u + character > if i units false
+                                        else i n + units u + true fi
+                                    end
+                                else i units false fi
+                            end
+                        pool
+                        pop true
+                    end
+                end
+            fi
+        end
+    end
+end
+
+-- The line and the UTF-16 character of the byte offset.
+func lsp.document.position (lsp.document, int) (int, int) in -- doc, offset
+    match doc offset in
+        doc lsp.document.text doc lsp.document.lines.get match text lines in
+            0 while dup 1 + lines array.count < if lines over 1 + array.get unwrap int.* offset <= else false fi
+            loop 1 + pool
+            match line in
+                line
+                lines line array.get unwrap int.* 0 + 0 while dup2 pop offset < loop -- i, units
+                    match i units in text i lsp.text.char match n u in i n + units u + end end
+                pool
+                swp pop
+            end
+        end
+    end
+end
+
+func lsp.position.json (int, int) (json_object) in
+    match line character in
+        json.map match p in
+            p "line" line json.int json_object.put
+            p "character" character json.int json_object.put
+            p
+        end
+    end
+end
+
+-- The range of the bytes [start, stop) of the document.
+func lsp.document.range (lsp.document, int, int) (json_object) in
+    match doc start stop in
+        json.map match r in
+            r "start" doc start lsp.document.position lsp.position.json json_object.put
+            r "end" doc stop lsp.document.position lsp.position.json json_object.put
+            r
+        end
+    end
+end
+
+-- An LSP uinteger.
+func lsp.uinteger (int) (bool) in match n in n 0 >= n 2147483647 <= and end end
+
+-- The uri, line and character of TextDocumentPositionParams. False when they
+-- are not valid.
+func lsp.position.params (json_object) (string, int, int, bool) in
+    match msg in
+        msg true "params" lsp.get match params ok in
+            params ok "textDocument" lsp.get "uri" lsp.get.string
+            params ok "position" lsp.get match pos ok' in pos ok' "line" lsp.get.int pos ok' "character" lsp.get.int end
+        end
+        match uri ok_uri line ok_line character ok_character in
+            uri line character ok_uri ok_line and ok_character and line lsp.uinteger and character lsp.uinteger and
+        end
+    end
+end
+
+-- HOVER
+
+-- Hover content with a block of code in language and a note. The note is
+-- plain text. The format is the one that the client prefers.
+func lsp.server.markup (lsp.server, string, string, string) (json_object) in -- srv, language, code, note
+    match srv language code note in
+        json.map match m in
+            srv lsp.server.markdown if
+                m "kind" "markdown" json.string json_object.put
+                "```" language string.concat "\n" string.concat code string.concat "\n```" string.concat
+            else
+                m "kind" "plaintext" json.string json_object.put
+                code
+            fi
+            note string.len 0 > if "\n\n" string.concat note string.concat fi
+            match value in m "value" value json.string json_object.put end
+            m
+        end
+    end
+end
+
+-- A Hover result with contents for the bytes [start, stop) of the document.
+func lsp.hover (json_object, lsp.document, int, int) (json_object) in -- contents, doc, start, stop
+    match contents doc start stop in
+        json.map match h in
+            h "contents" contents json_object.put
+            h "range" doc start stop lsp.document.range json_object.put
+            h
+        end
     end
 end

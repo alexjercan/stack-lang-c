@@ -1,0 +1,542 @@
+@import "stdlib"
+@import "stack/parser"
+@import "stack/preprocessor"
+@import "stack/typecheck"
+@import "stack/builtins"
+
+-- Analysis of one Stack file for an editor. It finds the names in the file
+-- and resolves them with the parser, the preprocessor and the definitions of
+-- the type checker. Offsets are byte offsets in the text of the file.
+
+-- Kinds of names in the file.
+const STACK_REF_CALL 0    -- a name in a body: a constant, a function or nothing
+const STACK_REF_BOUND 1   -- a name in a body that a match binds
+const STACK_REF_BINDING 2 -- a match binding
+const STACK_REF_TYPE 3    -- a type in a signature or a data field
+const STACK_REF_FUNC 4    -- the name of a func
+const STACK_REF_DATA 5    -- the name of a data type
+const STACK_REF_FIELD 6   -- the name of a data field
+const STACK_REF_CONST 7   -- the name of a const
+
+-- The bytes [start, stop) of a name. decl is the stack_ast_func of
+-- STACK_REF_FUNC and the stack_ast_data of STACK_REF_DATA, else ptr.null.
+data stack_ref (int kind, int start, int stop, string name, ptr decl)
+
+-- Kinds of definitions that the type checker accepts.
+const STACK_DECL_DATA 0
+const STACK_DECL_FUNC 1
+const STACK_DECL_REF 2   -- T.& of a data type
+const STACK_DECL_DEREF 3 -- T.* of a data type
+
+-- decl is the stack_ast_func of STACK_DECL_FUNC, else the stack_ast_data.
+data stack_decl (int kind, string name, ptr decl)
+
+-- refs: array<stack_ref> of the file. decls: array<stack_decl> of the file and
+-- its imports. ctx has the builtins and the definitions. pre has the data
+-- helpers. parsed is false when the file has a syntax error; then the refs
+-- and the definitions are only from the features before the error.
+data stack_analysis (array refs, array decls, stack_context ctx, stack_preprocessor pre, string filename, bool parsed)
+
+-- NAMES OF THE FILE
+
+func stack_ref.add (array, int, stack_ast_node, ptr) () in -- array<stack_ref>, kind, node, decl
+    match refs kind node decl in
+        node stack_ast_node.value match name in
+            node stack_ast_node.pos 0 + match start in
+                kind start start name string.len + name decl stack_ref.init stack_ref.& match r in
+                    refs r array.append unwrap r ptr.free
+                end
+            end
+        end
+    end
+end
+
+func stack_strings.has (array, string) (bool) in
+    match xs s in
+        false 0 while dup xs array.count < loop
+            match found i in found xs i array.get unwrap string.* s string.= or i 1 + end
+        pool pop
+    end
+end
+
+func stack_analysis.names.nodes (array, int, array) () in -- array<stack_ref>, kind, array<stack_ast_node>
+    match refs kind nodes in
+        0 while dup nodes array.count < loop
+            match i in refs kind nodes i array.get unwrap stack_ast_node.* ptr.null stack_ref.add i 1 + end
+        pool pop
+    end
+end
+
+-- scope has the names that the enclosing matches bind.
+func stack_analysis.names.exprs (array, array, array) () in -- array<stack_ref>, scope, array<stack_ast_expr>
+    match refs scope exprs in
+        0 while dup exprs array.count < loop
+            match i in
+                exprs i array.get unwrap stack_ast_expr.* match expr in
+                    expr stack_ast_expr.kind match kind in
+                        kind STACK_AST_EXPR_NAME = if
+                            expr stack_ast_expr.expr stack_ast_node.* match node in
+                                refs scope node stack_ast_node.value stack_strings.has if STACK_REF_BOUND else STACK_REF_CALL fi
+                                node ptr.null stack_ref.add
+                            end
+                        else kind STACK_AST_EXPR_COND = if
+                            expr stack_ast_expr.expr stack_ast_cond.* match cond in
+                                refs scope cond stack_ast_cond.if_ stack_analysis.names.exprs
+                                refs scope cond stack_ast_cond.else_ stack_analysis.names.exprs
+                            end
+                        else kind STACK_AST_EXPR_MATCH = if
+                            expr stack_ast_expr.expr stack_ast_match.* match m in
+                                m stack_ast_match.binds match binds in
+                                    refs STACK_REF_BINDING binds stack_analysis.names.nodes
+                                    0 while dup binds array.count < loop
+                                        match j in
+                                            scope binds j array.get unwrap stack_ast_node.* stack_ast_node.value string.&
+                                            array.append unwrap
+                                            j 1 +
+                                        end
+                                    pool pop
+                                    refs scope m stack_ast_match.exprs stack_analysis.names.exprs
+                                    0 while dup binds array.count < loop scope array.pop unwrap 1 + pool pop
+                                end
+                            end
+                        else kind STACK_AST_EXPR_WHILE = if
+                            expr stack_ast_expr.expr stack_ast_while.* match w in
+                                refs scope w stack_ast_while.while_ stack_analysis.names.exprs
+                                refs scope w stack_ast_while.exprs stack_analysis.names.exprs
+                            end
+                        fi fi fi fi
+                    end
+                end
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+-- The names of the features of ast.
+func stack_analysis.names (stack_ast) (array) in
+    stack_ast.features match features in
+        stack_ref.sizeof array.init.with_sz stack_strings.new match refs scope in
+            0 while dup features array.count < loop
+                match i in
+                    features i array.get unwrap stack_ast_feature.* match feat in
+                        feat stack_ast_feature.kind match kind in
+                            kind STACK_AST_FEATURE_DATA = if
+                                feat stack_ast_feature.feature match p in
+                                    p stack_ast_data.* match d in
+                                        refs STACK_REF_DATA d stack_ast_data.name p stack_ref.add
+                                        d stack_ast_data.fields match fields in
+                                            0 while dup fields array.count < loop
+                                                match j in
+                                                    fields j array.get unwrap stack_ast_data_field.* match field in
+                                                        refs STACK_REF_TYPE field stack_ast_data_field.type ptr.null stack_ref.add
+                                                        refs STACK_REF_FIELD field stack_ast_data_field.name ptr.null stack_ref.add
+                                                    end
+                                                    j 1 +
+                                                end
+                                            pool pop
+                                        end
+                                    end
+                                end
+                            else kind STACK_AST_FEATURE_FUNC = if
+                                feat stack_ast_feature.feature match p in
+                                    p stack_ast_func.* match f in
+                                        refs STACK_REF_FUNC f stack_ast_func.name p stack_ref.add
+                                        refs STACK_REF_TYPE f stack_ast_func.args stack_analysis.names.nodes
+                                        refs STACK_REF_TYPE f stack_ast_func.rets stack_analysis.names.nodes
+                                        refs scope f stack_ast_func.exprs stack_analysis.names.exprs
+                                    end
+                                end
+                            else kind STACK_AST_FEATURE_CONST = if
+                                feat stack_ast_feature.feature stack_ast_const.* match c in
+                                    refs STACK_REF_CONST c stack_ast_const.name ptr.null stack_ref.add
+                                    refs scope c stack_ast_const.exprs stack_analysis.names.exprs
+                                end
+                            fi fi fi
+                        end
+                    end
+                    i 1 +
+                end
+            pool pop
+            scope array.items ptr.free
+            scope array.& ptr.free
+            refs
+        end
+    end
+end
+
+-- DEFINITIONS
+
+func stack_decl.add (array, int, string, ptr) () in -- array<stack_decl>, kind, name, decl
+    stack_decl.init stack_decl.& match decls d in decls d array.append unwrap d ptr.free end
+end
+
+-- The definitions of the files in the order of the type checker: the data
+-- types with T.& and T.*, then the functions. The type checker uses the
+-- first symbol with a name, after the builtins, and rejects later ones, so
+-- the first definition with a name is the one that it uses.
+func stack_analysis.defines (stack_ast) (array) in
+    stack_ast.features match features in
+        stack_decl.sizeof array.init.with_sz match decls in
+            0 while dup features array.count < loop
+                match i in
+                    features i array.get unwrap stack_ast_feature.* match feat in
+                        feat stack_ast_feature.kind STACK_AST_FEATURE_DATA = if
+                            feat stack_ast_feature.feature match p in
+                                p stack_ast_data.* stack_ast_data.name stack_ast_node.value match name in
+                                    decls STACK_DECL_DATA name p stack_decl.add
+                                    decls STACK_DECL_REF name ".&" string.concat p stack_decl.add
+                                    decls STACK_DECL_DEREF name ".*" string.concat p stack_decl.add
+                                end
+                            end
+                        fi
+                    end
+                    i 1 +
+                end
+            pool pop
+            0 while dup features array.count < loop
+                match i in
+                    features i array.get unwrap stack_ast_feature.* match feat in
+                        feat stack_ast_feature.kind STACK_AST_FEATURE_FUNC = if
+                            feat stack_ast_feature.feature match p in
+                                decls STACK_DECL_FUNC p stack_ast_func.* stack_ast_func.name stack_ast_node.value p
+                                stack_decl.add
+                            end
+                        fi
+                    end
+                    i 1 +
+                end
+            pool pop
+            decls
+        end
+    end
+end
+
+-- Analyse the file text with the name filename and the file id. sources
+-- are the texts of the open files (array<stack_source>). modules is the
+-- module cache (array<stack_module>).
+func stack_analysis.build (string, string, stack_file_id, array, array) (stack_analysis) in -- text, filename, id, sources, modules
+    match text filename id sources modules in
+        text filename stack_lexer.init.with_buffer stack_parser.init.with_lexer stack_parser.parse
+        match ast parsed in
+            ast stack_analysis.names
+            id stack_preprocessor.init.with_main match refs pre in
+                pre modules stack_preprocessor.cache.use
+                0 while dup sources array.count < loop
+                    match i in
+                        sources i array.get unwrap stack_source.* match src in
+                            pre src stack_source.id src stack_source.text stack_preprocessor.sources.add
+                        end
+                        i 1 +
+                    end
+                pool pop
+                pre ast stack_preprocessor.load pop2
+                pre stack_ast.init.empty stack_preprocessor.run.base.consts
+                stack_context.init.base match ctx in
+                    refs pre stack_preprocessor.user stack_analysis.defines ctx pre filename parsed
+                    stack_analysis.init
+                end
+            end
+        end
+    end
+end
+
+-- Free the names, the definitions and the lists of the analysis. The syntax
+-- trees and the data helpers stay, because the module cache shares them.
+func stack_analysis.free (stack_analysis) () in
+    match an in
+        an stack_analysis.refs array.items ptr.free
+        an stack_analysis.ctx stack_context.symbols array.items ptr.free
+        an stack_analysis.pre match pre in
+            pre stack_preprocessor.files array.items ptr.free
+            pre stack_preprocessor.user stack_ast.features array.items ptr.free
+            pre stack_preprocessor.generated stack_ast.features array.items ptr.free
+            pre stack_preprocessor.helpers array.items ptr.free
+            pre stack_preprocessor.sources array.items ptr.free
+        end
+        an stack_analysis.decls match decls in
+            0 while dup decls array.count < loop
+                match i in
+                    decls i array.get unwrap stack_decl.* match d in
+                        d stack_decl.kind STACK_DECL_REF = d stack_decl.kind STACK_DECL_DEREF = or if
+                            d stack_decl.name string.str ptr.free
+                        fi
+                    end
+                    i 1 +
+                end
+            pool pop
+            decls array.items ptr.free
+        end
+    end
+end
+
+-- LOOKUP
+
+-- The name with start <= offset < stop.
+func stack_analysis.find (stack_analysis, int) (stack_ref, bool) in -- an, offset
+    match an offset in
+        an stack_analysis.refs match refs in
+            -1 0 while dup refs array.count < loop -- found, i
+                match found i in
+                    found 0 < if
+                        refs i array.get unwrap stack_ref.* match r in
+                            r stack_ref.start offset <= offset r stack_ref.stop < and if i else found fi
+                        end
+                    else found fi
+                    i 1 +
+                end
+            pool pop
+            match found in
+                found 0 >= if
+                    refs found array.get unwrap stack_ref.* true
+                else
+                    0 0 0 "" ptr.null stack_ref.init false
+                fi
+            end
+        end
+    end
+end
+
+func stack_analysis.decl (stack_analysis, string) (stack_decl, bool) in -- an, name
+    match an name in
+        an stack_analysis.decls match decls in
+            -1 0 while dup decls array.count < loop -- found, i
+                match found i in
+                    found 0 < decls i array.get unwrap stack_decl.* stack_decl.name name string.= and if i else found fi
+                    i 1 +
+                end
+            pool pop
+            match found in
+                found 0 >= if
+                    decls found array.get unwrap stack_decl.* true
+                else
+                    0 "" ptr.null stack_decl.init false
+                fi
+            end
+        end
+    end
+end
+
+func stack_analysis.helper (stack_analysis, string) (stack_helper, bool) in -- an, name
+    match an name in
+        an stack_analysis.pre stack_preprocessor.helpers match helpers in
+            -1 0 while dup helpers array.count < loop -- found, i
+                match found i in
+                    found 0 < helpers i array.get unwrap stack_helper.* stack_helper.node stack_ast_node.value name string.=
+                    and if i else found fi
+                    i 1 +
+                end
+            pool pop
+            match found in
+                found 0 >= if helpers found array.get unwrap stack_helper.* true
+                else ptr.null stack_helper.* false fi
+            end
+        end
+    end
+end
+
+-- A constant of a file, not a data helper.
+func stack_analysis.const (stack_analysis, string) (bool) in -- an, name
+    match an name in
+        an stack_analysis.pre stack_preprocessor.user stack_ast.features match features in
+            false 0 while dup features array.count < loop
+                match found i in
+                    features i array.get unwrap stack_ast_feature.* match feat in
+                        found
+                        feat stack_ast_feature.kind STACK_AST_FEATURE_CONST = if
+                            feat stack_ast_feature.feature stack_ast_const.* stack_ast_const.name stack_ast_node.value
+                            name string.= or
+                        fi
+                    end
+                    i 1 +
+                end
+            pool pop
+        end
+    end
+end
+
+-- TEXT
+
+func stack_strings.join (array) (string) in
+    match xs in
+        "" 0 while dup xs array.count < loop
+            match s i in
+                s i 0 > if ", " string.concat fi xs i array.get unwrap string.* string.concat
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+func stack_signature.text (string, array, array) (string) in -- name, args, rets
+    match name args rets in
+        name " (" string.concat args stack_strings.join string.concat ") (" string.concat
+        rets stack_strings.join string.concat ")" string.concat
+    end
+end
+
+func stack_analysis.func.text (stack_context_func) (string) in
+    match f in
+        "func " f stack_context_func.name f stack_context_func.args f stack_context_func.rets stack_signature.text
+        string.concat
+    end
+end
+
+func stack_ast_func.text (stack_ast_func) (string) in
+    match f in
+        "func " f stack_ast_func.name stack_ast_node.value
+        f stack_ast_func.args stack_params.node_to_string f stack_ast_func.rets stack_params.node_to_string
+        stack_signature.text string.concat
+    end
+end
+
+func stack_ast_data.text (stack_ast_data) (string) in
+    match d in
+        d stack_ast_data.fields match fields in
+            "data " d stack_ast_data.name stack_ast_node.value string.concat " (" string.concat
+            0 while dup fields array.count < loop
+                match s i in
+                    s i 0 > if ", " string.concat fi
+                    fields i array.get unwrap stack_ast_data_field.* match field in
+                        field stack_ast_data_field.type stack_ast_node.value string.concat " " string.concat
+                        field stack_ast_data_field.name stack_ast_node.value string.concat
+                    end
+                    i 1 +
+                end
+            pool pop
+            ")" string.concat
+        end
+    end
+end
+
+func stack_ast_node.filename (stack_ast_node) (string) in
+    stack_ast_node.parser stack_parser.lexer stack_lexer.filename
+end
+
+-- A note with the file of node when it is not the analysed file.
+func stack_analysis.origin (stack_analysis, stack_ast_node) (string) in -- an, node
+    match an node in
+        node stack_ast_node.filename match file in
+            file an stack_analysis.filename string.= if "" else "Defined in " file string.concat "." string.concat fi
+        end
+    end
+end
+
+func stack_helper.note (stack_analysis, stack_helper) (string) in -- an, helper
+    match an h in
+        h stack_helper.kind h stack_helper.owner h stack_helper.field match kind owner field in
+            an owner stack_analysis.decl match d found in found d stack_decl.kind STACK_DECL_DATA = and end not
+            match builtin in
+                kind STACK_HELPER_SIZEOF = if
+                    builtin if "Size in bytes of the builtin data type " owner string.concat "."
+                    else "Generated: the size in bytes of data " owner string.concat "." fi
+                else kind STACK_HELPER_OFFSET = if
+                    "Generated: the byte offset of field " field string.concat " in data " string.concat owner string.concat "."
+                else kind STACK_HELPER_INIT = if
+                    "Generated constructor of data " owner string.concat
+                    ". It allocates a new value and copies the fields into it."
+                else kind STACK_HELPER_GETTER = if
+                    "Generated getter of field " field string.concat " of data " string.concat owner string.concat
+                    ". The result aliases the field."
+                else
+                    "Generated setter of field " field string.concat " of data " string.concat owner string.concat
+                    ". It copies the value into the field."
+                fi fi fi fi
+                string.concat
+            end
+        end
+    end
+end
+
+-- HOVER
+
+func stack_analysis.hover.type (stack_analysis, string) (bool, string, string) in -- an, name
+    match an name in
+        an stack_analysis.ctx name stack_context.get_symbol match builtin symbol in
+            builtin if
+                symbol stack_context_symbol.* stack_context_symbol.kind STACK_CONTEXT_SYMBOL_DATA = if
+                    true "data " name string.concat "Builtin data type."
+                else false "" "" fi
+            else an name stack_analysis.decl match d found in
+                found if d stack_decl.kind STACK_DECL_DATA = else false fi if
+                    d stack_decl.decl stack_ast_data.* match dd in
+                        true dd stack_ast_data.text an dd stack_ast_data.name stack_analysis.origin
+                    end
+                else false "" "" fi
+            end fi
+        end
+    end
+end
+
+func stack_analysis.hover.decl (stack_analysis, stack_decl) (bool, string, string) in -- an, decl
+    match an d in
+        d stack_decl.kind match kind in
+            kind STACK_DECL_FUNC = if
+                d stack_decl.decl stack_ast_func.* stack_ast_func.name match name in
+                    true d stack_decl.decl stack_ast_func.* stack_ast_func.text an name stack_analysis.origin
+                end
+            else kind STACK_DECL_DATA = if
+                false "" ""
+            else
+                d stack_decl.decl stack_ast_data.* stack_ast_data.name stack_ast_node.value match owner in
+                    true
+                    owner kind STACK_DECL_REF = if stack_context_func.init.data_ref else stack_context_func.init.data_deref fi
+                    stack_analysis.func.text
+                    "Generated for data " owner string.concat "." string.concat
+                end
+            fi fi
+        end
+    end
+end
+
+func stack_analysis.hover.call (stack_analysis, string) (bool, string, string) in -- an, name
+    match an name in
+        an name stack_analysis.helper match h is_helper in
+            is_helper if
+                true
+                h stack_helper.node stack_ast_node.value h stack_helper.args h stack_helper.rets stack_signature.text
+                an h stack_helper.note
+            else an name stack_analysis.const
+                name STACK_SPECIAL_FILE string.= or name STACK_SPECIAL_LINE string.= or name STACK_SPECIAL_COL string.= or
+            if
+                false "" ""
+            else an stack_analysis.ctx name stack_context.get_symbol match builtin symbol in
+                builtin if
+                    symbol stack_context_symbol.* match sym in
+                        sym stack_context_symbol.kind STACK_CONTEXT_SYMBOL_FUNC = if
+                            true sym stack_context_symbol.symbol stack_context_func.* stack_analysis.func.text "Builtin function."
+                        else false "" "" fi
+                    end
+                else an name stack_analysis.decl match d found in
+                    found if an d stack_analysis.hover.decl else false "" "" fi
+                end fi
+            end fi fi
+        end
+    end
+end
+
+-- The hover text at offset: found, the bytes [start, stop) of the name, the
+-- code and a note. Not found for literals, keywords, bindings, constants,
+-- type variables and names that do not resolve.
+func stack_analysis.hover (stack_analysis, int) (bool, int, int, string, string) in -- an, offset
+    match an offset in
+        an offset stack_analysis.find match r found in
+            found not if
+                false "" ""
+            else r stack_ref.kind match kind in
+                kind STACK_REF_FUNC = if
+                    true r stack_ref.decl stack_ast_func.* stack_ast_func.text ""
+                else kind STACK_REF_DATA = if
+                    true r stack_ref.decl stack_ast_data.* stack_ast_data.text ""
+                else kind STACK_REF_TYPE = if
+                    an r stack_ref.name stack_analysis.hover.type
+                else kind STACK_REF_CALL = if
+                    an r stack_ref.name stack_analysis.hover.call
+                else
+                    false "" ""
+                fi fi fi fi
+            end fi
+            match ok code note in ok r stack_ref.start 0 + r stack_ref.stop 0 + code note end
+        end
+    end
+end

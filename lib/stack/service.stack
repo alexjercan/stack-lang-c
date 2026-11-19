@@ -1,0 +1,216 @@
+@import "stdlib"
+@import "json"
+@import "lsp"
+@import "stack/preprocessor"
+@import "stack/analysis"
+
+-- Stack requests of the language server. It analyses an open document when
+-- a request needs it and keeps the analysis until a document changes.
+
+data stack_cached (string uri, stack_analysis an)
+
+-- cache: array<stack_cached> for the server generation. modules:
+-- array<stack_module>, the imports that the analyses parsed.
+data stack_service (int generation, array cache, array modules)
+
+func stack_service.new (lsp.server) (stack_service) in
+    match srv in
+        stack_cached.sizeof array.init.with_sz stack_module.sizeof array.init.with_sz match cache modules in
+            srv lsp.server.generation cache modules stack_service.init
+            cache array.& ptr.free
+            modules array.& ptr.free
+        end
+    end
+end
+
+-- PATHS
+
+-- The path of a file URI with the percent escapes decoded. The path ends
+-- with a zero byte that is not part of it. False for other URIs.
+func stack_uri.path (string) (string, bool) in
+    match uri in
+        uri "file://" string.starts_with not if
+            "" false
+        else
+            1 array.init.with_sz match buf in
+                7 true while dup2 pop uri string.len < loop -- i, ok
+                    match i ok in
+                        uri i string.!! match c in
+                            c 37 = if -- %
+                                uri i 1 + json.byte.at json.hex.digit uri i 2 + json.byte.at json.hex.digit
+                                match hi ok_hi lo ok_lo in
+                                    ok_hi ok_lo and if
+                                        buf hi 16 * lo + json.buf.byte i 3 + ok
+                                    else
+                                        uri string.len false
+                                    fi
+                                end
+                            else
+                                buf c json.buf.byte i 1 + ok
+                            fi
+                        end
+                    end
+                pool
+                swp pop
+                match ok in
+                    buf 0 json.buf.byte
+                    buf array.count 1 - buf array.items string.init
+                    buf array.& ptr.free
+                    ok
+                end
+            end
+        fi
+    end
+end
+
+-- The identity of the file at path.
+func stack_path.identity (string) (stack_file_id, bool) in
+    match path in
+        path "r" stdlib.fopen unwrap match fd in
+            fd 0 < if
+                0 0 stack_file_id.init false
+            else
+                fd stdlib.fidentity match dev ino ok in
+                    fd stdlib.fclose pop
+                    dev ino stack_file_id.init ok
+                end
+            fi
+        end
+    end
+end
+
+-- The open documents that are files on disk, as sources of imports.
+func stack_service.sources (lsp.server) (array) in
+    match srv in
+        srv lsp.server.documents stack_source.sizeof array.init.with_sz match docs sources in
+            0 while dup docs array.count < loop
+                match i in
+                    docs i array.get unwrap lsp.document.* match doc in
+                        doc lsp.document.uri stack_uri.path match path ok in
+                            ok if
+                                path stack_path.identity match id found in
+                                    found if
+                                        id doc lsp.document.text stack_source.init stack_source.& match s in
+                                            sources s array.append unwrap s ptr.free
+                                        end
+                                    fi
+                                end
+                                path string.str ptr.free
+                            fi
+                        end
+                    end
+                    i 1 +
+                end
+            pool pop
+            sources
+        end
+    end
+end
+
+-- ANALYSIS
+
+func stack_service.reset (stack_service, lsp.server) () in
+    match svc srv in
+        svc stack_service.cache match cache in
+            0 while dup cache array.count < loop
+                match i in
+                    cache i array.get unwrap stack_cached.* stack_cached.an stack_analysis.free
+                    i 1 +
+                end
+            pool pop
+            cache array.items ptr.free
+            stack_cached.sizeof array.init.with_sz match empty in
+                svc empty stack_service.cache.set empty array.& ptr.free
+            end
+        end
+        svc srv lsp.server.generation stack_service.generation.set
+    end
+end
+
+func stack_service.analyse (stack_service, lsp.server, lsp.document) (stack_analysis) in
+    match svc srv doc in
+        doc lsp.document.uri stack_uri.path match path ok in
+            ok if path stack_path.identity else -1 -1 stack_file_id.init false fi
+            match id found in
+                found if id else -1 -1 stack_file_id.init fi
+            end
+            ok if path else doc lsp.document.uri fi
+            match id filename in
+                srv stack_service.sources match sources in
+                    doc lsp.document.text filename id sources svc stack_service.modules stack_analysis.build
+                    sources array.items ptr.free
+                    sources array.& ptr.free
+                end
+            end
+        end
+    end
+end
+
+-- The analysis of the open document. It is valid until the next call of
+-- lsp.server.receive.
+func stack_service.analysis (stack_service, lsp.server, lsp.document) (stack_analysis) in
+    match svc srv doc in
+        svc stack_service.generation srv lsp.server.generation = not if svc srv stack_service.reset fi
+        svc stack_service.cache match cache in
+            -1 0 while dup cache array.count < loop -- found, i
+                match found i in
+                    found 0 < cache i array.get unwrap stack_cached.* stack_cached.uri doc lsp.document.uri string.= and
+                    if i else found fi
+                    i 1 +
+                end
+            pool pop
+            match found in
+                found 0 >= if
+                    cache found array.get unwrap stack_cached.* stack_cached.an
+                else
+                    svc srv doc stack_service.analyse match an in
+                        doc lsp.document.uri an stack_cached.init stack_cached.& match c in
+                            cache c array.append unwrap c ptr.free
+                        end
+                        an
+                    end
+                fi
+            end
+        end
+    end
+end
+
+-- REQUESTS
+
+func stack_service.hover (stack_service, lsp.server, json_object) () in -- svc, srv, msg
+    match svc srv msg in
+        msg lsp.position.params match uri line character ok in
+            ok not if
+                msg LSP_INVALID_PARAMS "Invalid params: expected textDocument.uri and a position" lsp.reply.error
+            else srv uri lsp.server.document match doc open in
+                open not if
+                    msg json.null lsp.reply
+                else doc line character lsp.document.offset match offset ok' in
+                    ok' not if
+                        msg json.null lsp.reply
+                    else svc srv doc stack_service.analysis offset stack_analysis.hover match found start stop code note in
+                        found if
+                            msg srv "stack" code note lsp.server.markup doc start stop lsp.hover
+                            lsp.reply
+                        else
+                            msg json.null lsp.reply
+                        fi
+                    end fi
+                end fi
+            end fi
+        end
+    end
+end
+
+-- Answer a request that lsp.server.receive returns.
+func stack_service.request (stack_service, lsp.server, json_object) () in -- svc, srv, msg
+    match svc srv msg in
+        msg lsp.message.method match name in
+            name "textDocument/hover" string.= if
+                svc srv msg stack_service.hover
+            else
+                msg LSP_METHOD_NOT_FOUND "Method not found" lsp.reply.error
+            fi
+        end
+    end
+end

@@ -1,0 +1,47 @@
+-- Names of the builtin data types and functions of the Stack compiler.
+
+const STACK_DATA_INT "int"
+const STACK_DATA_PTR "ptr"
+const STACK_DATA_BOOL "bool"
+const STACK_DATA_STRING "string"
+
+const STACK_FUNC_MAIN "main"
+
+const STACK_FUNC_DUP "dup"
+const STACK_FUNC_SWP "swp"
+const STACK_FUNC_ROT "rot"
+const STACK_FUNC_ROT4 "rot4"
+const STACK_FUNC_POP "pop"
+const STACK_FUNC_PICK "pick"
+
+const STACK_FUNC_PLUS "+"
+const STACK_FUNC_MINUS "-"
+const STACK_FUNC_STAR "*"
+const STACK_FUNC_DIV "/"
+const STACK_FUNC_MOD "%"
+const STACK_FUNC_OR "|"
+const STACK_FUNC_AND "&"
+const STACK_FUNC_XOR "^"
+const STACK_FUNC_SHR ">>"
+const STACK_FUNC_SHL "<<"
+
+const STACK_FUNC_GT ">"
+const STACK_FUNC_LT "<"
+const STACK_FUNC_EQ "="
+
+const STACK_FUNC_PTR_ALLOC "ptr.alloc"
+const STACK_FUNC_PTR_FREE "ptr.free"
+const STACK_FUNC_PTR_OFFSET "ptr.+"
+const STACK_FUNC_PTR_COPY "ptr.@"
+
+const STACK_FUNC_INT_REF "int.&"
+const STACK_FUNC_INT_DEREF "int.*"
+const STACK_FUNC_PTR_REF "ptr.&"
+const STACK_FUNC_PTR_DEREF "ptr.*"
+const STACK_FUNC_BOOL_REF "bool.&"
+const STACK_FUNC_BOOL_DEREF "bool.*"
+
+const STACK_FUNC_ENV "os.env"
+
+const STACK_FUNC_SYSCALL1 "syscall1"
+const STACK_FUNC_SYSCALL3 "syscall3"

@@ -1,0 +1,1033 @@
+@import "stdlib"
+@import "stack/parser"
+@import "stack/builtins"
+
+-- The preprocessor of the Stack compiler: imports, data helpers, constants.
+
+const STACK_EXT "stack"
+
+data stack_file_id (int dev, int ino)
+
+func stack_file_id.= (stack_file_id, stack_file_id) (bool) in
+    match a b in
+        a stack_file_id.dev b stack_file_id.dev =
+        a stack_file_id.ino b stack_file_id.ino = and
+    end
+end
+
+-- The text of an open file. An import of the file uses the text and does not
+-- read the file.
+data stack_source (stack_file_id id, string text)
+
+const STACK_HELPER_SIZEOF 0
+const STACK_HELPER_OFFSET 1
+const STACK_HELPER_INIT 2
+const STACK_HELPER_GETTER 3
+const STACK_HELPER_SETTER 4
+
+-- A constant that the preprocessor generates for a data type, and the stack
+-- effect of its body. node is the name of the constant at the data type or at
+-- the field. field is empty for sizeof and init.
+data stack_helper (int kind, stack_ast_node node, string owner, string field, array args, array rets) -- array<string>
+
+func stack_helper.add (array, int, stack_ast_node, string, string, array, array) () in -- array<stack_helper>, ...
+    stack_helper.init stack_helper.& array.append unwrap
+end
+
+func stack_strings.new () (array) in string.sizeof array.init.with_sz end
+
+func stack_strings.push (array, string) (array) in
+    match xs s in xs s string.& array.append unwrap xs end
+end
+
+-- A parsed import that a later run can use again when the text of the file
+-- is the same. text is owned. sigs: array<stack_helper>.
+data stack_module (stack_file_id id, string text, stack_ast module, stack_ast helpers, array sigs)
+
+-- files: array<stack_file_id>, helpers: array<stack_helper>, sources: array<stack_source>.
+-- diag has the first error. When cached is true, modules points to an
+-- array<stack_module> that the caller owns.
+data stack_preprocessor
+    ( array files
+    , stack_ast user
+    , stack_ast generated
+    , array helpers
+    , array sources
+    , stack_diagnostic diag
+    , bool cached
+    , ptr modules
+    )
+
+func stack_preprocessor.init.with_main (stack_file_id) (stack_preprocessor) in
+    match id in
+        stack_file_id.sizeof array.init.with_sz
+        stack_ast.init.empty
+        stack_ast.init.empty
+        stack_helper.sizeof array.init.with_sz
+        stack_source.sizeof array.init.with_sz
+        "" "" stack_lexer.init.with_buffer stack_diagnostic.new
+        false ptr.null
+        stack_preprocessor.init
+        dup id stack_preprocessor.files.register unwrap
+    end
+end
+
+-- Use and fill the module cache modules (array<stack_module>).
+func stack_preprocessor.cache.use (stack_preprocessor, array) () in -- pre, modules
+    match pre modules in pre true stack_preprocessor.cached.set pre modules array.& stack_preprocessor.modules.set end
+end
+
+func stack_preprocessor.failed (stack_preprocessor) (bool) in stack_preprocessor.diag stack_diagnostic.failed end
+
+func stack_preprocessor.fail (stack_preprocessor, stack_ast_node, string) () in -- pre, node, message
+    match pre node message in
+        pre stack_preprocessor.diag node stack_ast_node.parser stack_parser.lexer node stack_ast_node.pos message
+        stack_diagnostic.fail
+    end
+end
+
+-- Imports of the file id use text.
+func stack_preprocessor.sources.add (stack_preprocessor, stack_file_id, string) () in -- pre, id, text
+    match pre id text in
+        pre stack_preprocessor.sources id text stack_source.init stack_source.& array.append unwrap
+    end
+end
+
+func stack_preprocessor.source (stack_preprocessor, stack_file_id) (string, bool) in -- pre, id
+    match pre id in
+        pre stack_preprocessor.sources match sources in
+            "" false 0 while -- text, found, i
+                match text found i in text found i found not i sources array.count < and end loop
+                match _text _found i in
+                    sources i array.get unwrap stack_source.* match src in
+                        src stack_source.id id stack_file_id.= if src stack_source.text true else "" false fi
+                        i 1 +
+                    end
+                end
+            pool pop
+        end
+    end
+end
+
+func stack_preprocessor.files.register (stack_preprocessor, stack_file_id) (bool) in -- pre, id
+    match pre id in
+        pre stack_preprocessor.files match files in
+            true 0 while dup files array.count < loop -- new, i
+                dup files swp array.get unwrap stack_file_id.* id stack_file_id.= if
+                    swp pop false swp
+                fi
+                1 +
+            pool pop
+            dup if files id stack_file_id.& array.append unwrap fi
+        end
+    end
+end
+
+func stack_home () (string) in
+    "STACK_HOME" os.env.get not if pop "." fi
+end
+
+const STACK_INIT "init"
+const STACK_SIZEOF "sizeof"
+const STACK_OFFSET "offset"
+
+const STACK_SPECIAL_FILE "__file__"
+const STACK_SPECIAL_LINE "__line__"
+const STACK_SPECIAL_COL "__col__"
+
+func stack_preprocessor.run.base.sizeof (stack_preprocessor, stack_ast, stack_parser, string) () in -- pre, ast, parser, type
+    match pre ast parser type in
+        parser type "." string.concat STACK_SIZEOF string.concat 0 stack_ast_node.init
+        stack_ast_expr.sizeof array.init.with_sz match name exprs in
+            exprs STACK_AST_EXPR_NUMBER parser int.sizeof int.show 0 stack_ast_node.init stack_ast_node.& stack_ast_expr.init
+            stack_ast_expr.& array.append unwrap
+            ast name exprs stack_ast_const.init stack_ast.features.append.const
+            pre stack_preprocessor.helpers STACK_HELPER_SIZEOF name type ""
+            stack_strings.new stack_strings.new STACK_DATA_INT stack_strings.push stack_helper.add
+        end
+    end
+end
+
+func stack_preprocessor.run.base.consts (stack_preprocessor, stack_ast) () in -- pre, ast
+    match pre ast in
+        "" __file__ stack_lexer.init.with_buffer stack_parser.init.with_lexer match parser in
+            pre ast parser STACK_DATA_INT stack_preprocessor.run.base.sizeof
+            pre ast parser STACK_DATA_PTR stack_preprocessor.run.base.sizeof
+            pre ast parser STACK_DATA_BOOL stack_preprocessor.run.base.sizeof
+        end
+    end
+end
+
+func stack_ast_node.location (stack_ast_node) (string) in -- node
+    match node in node stack_ast_node.parser stack_parser.lexer node stack_ast_node.pos stack_lexer.location end
+end
+
+func stack_preprocessor.run.import.error (stack_preprocessor, stack_ast_node, string) () in -- pre, node, action
+    match pre node action in
+        pre node
+        "Preprocessor error: cannot " action string.concat " import \"" string.concat
+        node stack_ast_node.value string.concat "\"\n" string.concat
+        stack_preprocessor.fail
+    end
+end
+
+func stack_preprocessor.run.import.open (stack_ast_node) (string, int) in -- node
+    match node in
+        node stack_ast_node.value "." string.concat STACK_EXT string.concat match name in
+            name "r" stdlib.fopen unwrap match fd in
+                fd 0 >= if
+                    name fd
+                else
+                    stack_home "/lib/" string.concat name string.concat match path in
+                        path path "r" stdlib.fopen unwrap
+                    end
+                fi
+            end
+        end
+    end
+end
+
+func stack_preprocessor.run.import.parse (stack_preprocessor, stack_ast, stack_file_id, string, string) () in -- pre, ast, id, source, path
+    match pre ast id source path in
+        pre stack_preprocessor.cached if
+            pre ast id source path stack_preprocessor.run.import.cached
+        else
+            source path stack_lexer.init.with_buffer stack_parser.init.with_lexer
+            dup stack_parser.parse match parser module ok in
+                ok if
+                    pre ast module stack_preprocessor.run.module
+                else
+                    pre stack_preprocessor.diag parser stack_parser.diag stack_diagnostic.take
+                fi
+            end
+        fi
+    end
+end
+
+-- a = b, with a compare of 8 bytes at a time.
+func stack_text.= (string, string) (bool) in -- a, b
+    match a b in
+        a string.len b string.len = if
+            a string.str b string.str a string.len true while -- p, q, n, same
+                match p q n same in p q n same same n 8 >= and end loop
+                match p q n _same in
+                    p 8 ptr.+ q 8 ptr.+ n 8 - p int.* 0 + q int.* 0 + =
+                end
+            pool
+            match p q n same in same if p q n ptr.memcmp 0 = else false fi end
+        else
+            false
+        fi
+    end
+end
+
+-- The index of the module of the file id, or -1.
+func stack_modules.index (array, stack_file_id) (int) in -- array<stack_module>, id
+    match modules id in
+        -1 0 while dup modules array.count < loop -- found, i
+            match found i in
+                found 0 < modules i array.get unwrap stack_module.* stack_module.id id stack_file_id.= and if i else found fi
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+-- stack_preprocessor.run.import.parse with the module cache. A module in the
+-- cache is used again when its text is source, else it is parsed again. The
+-- cache has only modules without errors, so they are not checked again.
+func stack_preprocessor.run.import.cached (stack_preprocessor, stack_ast, stack_file_id, string, string) () in -- pre, ast, id, source, path
+    match pre ast id source path in
+        pre stack_preprocessor.modules array.* match modules in
+            modules id stack_modules.index match i in
+                i 0 >= if modules i array.get unwrap stack_module.* stack_module.text source stack_text.= else false fi
+                if
+                    modules i array.get unwrap stack_module.* match m in
+                        pre stack_preprocessor.helpers m stack_module.sigs array.extend unwrap
+                        pre ast m stack_module.module m stack_module.helpers stack_preprocessor.run.module.append
+                    end
+                else
+                    source 0 source string.len string.substr match text in
+                        text path stack_lexer.init.with_buffer stack_parser.init.with_lexer
+                        dup stack_parser.parse match parser module ok in
+                            ok if
+                                stack_ast.init.empty stack_helper.sizeof array.init.with_sz match helpers sigs in
+                                    module helpers sigs stack_preprocessor.run.generate.data
+                                    pre stack_preprocessor.helpers sigs array.extend unwrap
+                                    pre ast module helpers stack_preprocessor.run.module.add
+                                    pre stack_preprocessor.failed not if
+                                        id text module helpers sigs stack_module.init stack_module.& match entry in
+                                            i 0 >= if
+                                                modules i array.get unwrap stack_module.* stack_module.text string.str ptr.free
+                                                modules i entry array.set unwrap
+                                            else
+                                                modules entry array.append unwrap
+                                            fi
+                                            entry ptr.free
+                                        end
+                                    fi
+                                end
+                            else
+                                pre stack_preprocessor.diag parser stack_parser.diag stack_diagnostic.take
+                            fi
+                        end
+                    end
+                fi
+            end
+        end
+    end
+end
+
+func stack_preprocessor.run.import.file (stack_preprocessor, stack_ast, stack_ast_node) () in -- pre, ast, node
+    match pre ast node in
+        node stack_preprocessor.run.import.open match path fd in
+            fd 0 < if
+                pre node "open" stack_preprocessor.run.import.error
+            else fd stdlib.fidentity match dev ino ok in
+                ok not if
+                    fd stdlib.fclose pop pre node "stat" stack_preprocessor.run.import.error
+                else dev ino stack_file_id.init match id in
+                    pre id stack_preprocessor.files.register not if
+                        fd stdlib.fclose not if pre node "close" stack_preprocessor.run.import.error fi
+                    else
+                        pre id stack_preprocessor.source dup not if pop2 fd stdlib.fread.<eof> fi
+                        match source ok' in
+                            ok' not if
+                                fd stdlib.fclose pop pre node "read" stack_preprocessor.run.import.error
+                            else fd stdlib.fclose not if
+                                pre node "close" stack_preprocessor.run.import.error
+                            else
+                                pre ast id source path stack_preprocessor.run.import.parse
+                            fi fi
+                        end
+                    fi
+                end fi
+            end fi
+        end
+    end
+end
+
+func stack_preprocessor.run.import (stack_preprocessor, stack_ast) () in -- pre, ast
+    match pre ast in
+        0 while dup ast stack_ast.features array.count < pre stack_preprocessor.failed not and loop
+            dup ast stack_ast.features swp array.get unwrap stack_ast_feature.* match feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_IMPORT = if
+                    pre ast feat stack_ast_feature.feature stack_ast_import.* stack_ast_import.name
+                    stack_preprocessor.run.import.file
+                fi
+            end
+            1 +
+        pool pop
+    end
+end
+
+func stack_preprocessor.run.expand.clone.node (stack_ast_node, stack_ast_node) (stack_ast_node) in -- node, use
+    match node use in
+        use stack_ast_node.parser node stack_ast_node.value use stack_ast_node.pos stack_ast_node.init
+    end
+end
+
+func stack_preprocessor.run.expand.clone.binds (array, stack_ast_node) (array) in -- array<node>, use
+    match binds use in
+        stack_ast_node.sizeof array.init.with_sz 0 while -- binds', i
+            dup binds array.count < loop
+            dup2 binds swp array.get unwrap stack_ast_node.* -- binds', i, binds', node
+            use stack_preprocessor.run.expand.clone.node stack_ast_node.& array.append unwrap -- binds', i
+            1 +
+        pool pop
+    end
+end
+
+func stack_preprocessor.run.expand.clone.expr (stack_ast_expr, stack_ast_node) (stack_ast_expr) in -- expr, use
+    match expr use in
+        expr stack_ast_expr.kind
+        dup STACK_AST_EXPR_COND = if
+            expr stack_ast_expr.expr stack_ast_cond.* match cond in
+                cond stack_ast_cond.cond use stack_preprocessor.run.expand.clone.node
+                cond stack_ast_cond.if_ use stack_preprocessor.run.expand.clone.exprs
+                cond stack_ast_cond.else_ use stack_preprocessor.run.expand.clone.exprs
+                stack_ast_cond.init stack_ast_cond.&
+            end
+        else dup STACK_AST_EXPR_MATCH = if
+            expr stack_ast_expr.expr stack_ast_match.* match match' in
+                match' stack_ast_match.node use stack_preprocessor.run.expand.clone.node
+                match' stack_ast_match.binds use stack_preprocessor.run.expand.clone.binds
+                match' stack_ast_match.exprs use stack_preprocessor.run.expand.clone.exprs
+                stack_ast_match.init stack_ast_match.&
+            end
+        else dup STACK_AST_EXPR_WHILE = if
+            expr stack_ast_expr.expr stack_ast_while.* match while' in
+                while' stack_ast_while.node use stack_preprocessor.run.expand.clone.node
+                while' stack_ast_while.while_ use stack_preprocessor.run.expand.clone.exprs
+                while' stack_ast_while.exprs use stack_preprocessor.run.expand.clone.exprs
+                stack_ast_while.init stack_ast_while.&
+            end
+        else
+            expr stack_ast_expr.expr stack_ast_node.* use stack_preprocessor.run.expand.clone.node stack_ast_node.&
+        fi fi fi -- kind, ptr
+        stack_ast_expr.init
+    end
+end
+
+func stack_preprocessor.run.expand.clone.exprs (array, stack_ast_node) (array) in -- array<expr>, use
+    match exprs use in
+        stack_ast_expr.sizeof array.init.with_sz 0 while -- exprs', i
+            dup exprs array.count < loop
+            dup2 exprs swp array.get unwrap stack_ast_expr.* -- exprs', i, exprs', expr
+            use stack_preprocessor.run.expand.clone.expr stack_ast_expr.& array.append unwrap -- exprs', i
+            1 +
+        pool pop
+    end
+end
+
+func stack_preprocessor.run.expand.exprs (array, stack_ast_const) () in -- array<expr>, const
+    match exprs def in
+        0 while dup exprs array.count < loop
+            dup exprs swp array.get unwrap stack_ast_expr.* match i expr in
+                expr stack_ast_expr.kind
+                dup STACK_AST_EXPR_NAME = if
+                    pop expr stack_ast_expr.expr stack_ast_node.* match use in
+                        use stack_ast_node.value def stack_ast_const.name stack_ast_node.value string.= if
+                            def stack_ast_const.exprs use stack_preprocessor.run.expand.clone.exprs match cloned in
+                                exprs i array.delete unwrap
+                                exprs i cloned array.insert_many unwrap
+                            end
+
+                            -- An empty constant leaves a new expression at this index.
+                            def stack_ast_const.exprs array.count 0 = if i 1 - else i fi
+                        else
+                            i
+                        fi
+                    end
+                else dup STACK_AST_EXPR_COND = if
+                    pop expr stack_ast_expr.expr stack_ast_cond.* match cond in
+                        cond stack_ast_cond.if_ def stack_preprocessor.run.expand.exprs
+                        cond stack_ast_cond.else_ def stack_preprocessor.run.expand.exprs
+                    end
+                    i
+                else dup STACK_AST_EXPR_MATCH = if
+                    pop expr stack_ast_expr.expr stack_ast_match.* stack_ast_match.exprs
+                    def stack_preprocessor.run.expand.exprs
+                    i
+                else dup STACK_AST_EXPR_WHILE = if
+                    pop expr stack_ast_expr.expr stack_ast_while.* match while' in
+                        while' stack_ast_while.while_ def stack_preprocessor.run.expand.exprs
+                        while' stack_ast_while.exprs def stack_preprocessor.run.expand.exprs
+                    end
+                    i
+                else
+                    pop i
+                fi fi fi fi
+            end
+            1 +
+        pool pop
+    end
+end
+
+func stack_preprocessor.run.expand.consts' (stack_ast, stack_ast_const) () in -- ast, const
+    swp stack_ast.features match def features in
+        0 while dup features array.count < loop
+            dup features swp array.get unwrap stack_ast_feature.* match feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_CONST = if
+                    feat stack_ast_feature.feature stack_ast_const.* stack_ast_const.exprs
+                    def stack_preprocessor.run.expand.exprs
+                fi
+            end
+            1 +
+        pool pop
+    end
+end
+
+func stack_preprocessor.run.expand.consts (stack_ast) () in -- ast
+    match ast in
+        0 while dup ast stack_ast.features array.count < loop
+            dup ast stack_ast.features swp array.get unwrap stack_ast_feature.* match feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_CONST = if
+                    ast feat stack_ast_feature.feature stack_ast_const.* stack_preprocessor.run.expand.consts'
+                fi
+            end
+            1 +
+        pool pop
+    end
+end
+
+func stack_preprocessor.run.expand.funcs' (stack_ast, stack_ast_const) () in -- ast, const
+    swp stack_ast.features match def features in
+        0 while dup features array.count < loop
+            dup features swp array.get unwrap stack_ast_feature.* match feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_FUNC = if
+                    feat stack_ast_feature.feature stack_ast_func.* stack_ast_func.exprs
+                    def stack_preprocessor.run.expand.exprs
+                fi
+            end
+            1 +
+        pool pop
+    end
+end
+
+func stack_preprocessor.run.expand.funcs (stack_ast) () in -- ast
+    match ast in
+        0 while dup ast stack_ast.features array.count < loop
+            dup ast stack_ast.features swp array.get unwrap stack_ast_feature.* match feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_CONST = if
+                    ast feat stack_ast_feature.feature stack_ast_const.* stack_preprocessor.run.expand.funcs'
+                fi
+            end
+            1 +
+        pool pop
+    end
+end
+
+func stack_preprocessor.run.expand.special.replace (array, int, int, stack_ast_node) () in -- array<expr>, i, kind, node
+    match exprs i kind node in
+        exprs i array.delete unwrap
+        exprs i kind node stack_ast_node.& stack_ast_expr.init stack_ast_expr.& array.insert unwrap
+    end
+end
+
+func stack_preprocessor.run.expand.special.name (array, int, stack_ast_node) () in -- array<expr>, i, node
+    match exprs i node in
+        node stack_ast_node.parser node stack_ast_node.pos match parser pos in
+            node stack_ast_node.value
+            dup STACK_SPECIAL_FILE string.= if
+                pop exprs i STACK_AST_EXPR_STRING
+                parser "\"" parser stack_parser.lexer stack_lexer.filename string.concat "\"" string.concat pos
+                stack_ast_node.init stack_preprocessor.run.expand.special.replace
+            else dup STACK_SPECIAL_LINE string.= if
+                pop exprs i STACK_AST_EXPR_NUMBER
+                parser parser stack_parser.lexer pos stack_lexer.pos.to_lc pop int.show pos
+                stack_ast_node.init stack_preprocessor.run.expand.special.replace
+            else dup STACK_SPECIAL_COL string.= if
+                pop exprs i STACK_AST_EXPR_NUMBER
+                parser parser stack_parser.lexer pos stack_lexer.pos.to_lc swp pop int.show pos
+                stack_ast_node.init stack_preprocessor.run.expand.special.replace
+            else
+                pop
+            fi fi fi
+        end
+    end
+end
+
+func stack_preprocessor.run.expand.special.exprs (array) () in -- array<expr>
+    match exprs in
+        0 while dup exprs array.count < loop
+            dup exprs swp array.get unwrap stack_ast_expr.* match i expr in
+                expr stack_ast_expr.kind
+                dup STACK_AST_EXPR_NAME = if
+                    pop exprs i expr stack_ast_expr.expr stack_ast_node.* stack_preprocessor.run.expand.special.name
+                else dup STACK_AST_EXPR_COND = if
+                    pop expr stack_ast_expr.expr stack_ast_cond.* match cond in
+                        cond stack_ast_cond.if_ stack_preprocessor.run.expand.special.exprs
+                        cond stack_ast_cond.else_ stack_preprocessor.run.expand.special.exprs
+                    end
+                else dup STACK_AST_EXPR_MATCH = if
+                    pop expr stack_ast_expr.expr stack_ast_match.* stack_ast_match.exprs
+                    stack_preprocessor.run.expand.special.exprs
+                else dup STACK_AST_EXPR_WHILE = if
+                    pop expr stack_ast_expr.expr stack_ast_while.* match while' in
+                        while' stack_ast_while.while_ stack_preprocessor.run.expand.special.exprs
+                        while' stack_ast_while.exprs stack_preprocessor.run.expand.special.exprs
+                    end
+                else
+                    pop
+                fi fi fi fi
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+func stack_preprocessor.run.expand.special (stack_ast) () in -- ast
+    stack_ast.features match features in
+        0 while dup features array.count < loop
+            dup features swp array.get unwrap stack_ast_feature.* match feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_FUNC = if
+                    feat stack_ast_feature.feature stack_ast_func.* stack_ast_func.exprs
+                    stack_preprocessor.run.expand.special.exprs
+                fi
+            end
+            1 +
+        pool pop
+    end
+end
+
+func stack_preprocessor.run.generate.data.name (stack_ast_node, string) (stack_ast_node) in -- source, value
+    match source value in
+        source stack_ast_node.parser value source stack_ast_node.pos stack_ast_node.init
+    end
+end
+
+func stack_preprocessor.run.generate.data.expr (array, stack_parser, int, string) () in -- array<expr>, parser, kind, value
+    match exprs parser kind value in
+        exprs kind parser value 0 stack_ast_node.init stack_ast_node.& stack_ast_expr.init
+        stack_ast_expr.& array.append unwrap
+    end
+end
+
+func stack_preprocessor.run.generate.data.call (array, stack_parser, string) () in -- array<expr>, parser, name
+    STACK_AST_EXPR_NAME swp stack_preprocessor.run.generate.data.expr
+end
+
+func stack_preprocessor.run.generate.data.sizeof (stack_ast, array, stack_ast_data, stack_parser) () in -- ast, array<stack_helper>, data, parser
+    match ast sigs decl parser in
+        decl stack_ast_data.fields stack_ast_expr.sizeof array.init.with_sz match fields exprs in
+            exprs parser STACK_AST_EXPR_NUMBER 0 int.show stack_preprocessor.run.generate.data.expr
+
+            -- Later fields come first, as in the generated constructor.
+            fields array.count while dup 0 > loop
+                1 - match i in
+                    exprs parser
+                    fields i array.get unwrap stack_ast_data_field.* stack_ast_data_field.type stack_ast_node.value
+                    "." string.concat STACK_SIZEOF string.concat
+                    stack_preprocessor.run.generate.data.call
+                    exprs parser STACK_FUNC_PLUS stack_preprocessor.run.generate.data.call
+                    i
+                end
+            pool pop
+
+            decl stack_ast_data.name dup stack_ast_node.value "." string.concat STACK_SIZEOF string.concat
+            stack_preprocessor.run.generate.data.name match name in
+                ast name exprs stack_ast_const.init stack_ast.features.append.const
+                sigs STACK_HELPER_SIZEOF name decl stack_ast_data.name stack_ast_node.value ""
+                stack_strings.new stack_strings.new STACK_DATA_INT stack_strings.push stack_helper.add
+            end
+        end
+    end
+end
+
+func stack_preprocessor.run.generate.data.offset (stack_ast, array, stack_ast_data, stack_parser) () in -- ast, array<stack_helper>, data, parser
+    match ast sigs decl parser in
+        decl stack_ast_data.fields decl stack_ast_data.name stack_ast_node.value "." string.concat
+        match fields prefix in
+            fields array.count while dup 0 > loop
+                1 - stack_ast_expr.sizeof array.init.with_sz match i exprs in
+                    i 0 = if
+                        exprs parser STACK_AST_EXPR_NUMBER 0 int.show stack_preprocessor.run.generate.data.expr
+                    else
+                        fields i 1 - array.get unwrap stack_ast_data_field.* match prev in
+                            exprs parser
+                            prev stack_ast_data_field.type stack_ast_node.value
+                            "." string.concat STACK_SIZEOF string.concat
+                            stack_preprocessor.run.generate.data.call
+                            exprs parser
+                            prefix prev stack_ast_data_field.name stack_ast_node.value string.concat
+                            "." string.concat STACK_OFFSET string.concat
+                            stack_preprocessor.run.generate.data.call
+                        end
+                        exprs parser STACK_FUNC_PLUS stack_preprocessor.run.generate.data.call
+                    fi
+
+                    fields i array.get unwrap stack_ast_data_field.* stack_ast_data_field.name match field in
+                        field prefix field stack_ast_node.value string.concat "." string.concat STACK_OFFSET string.concat
+                        stack_preprocessor.run.generate.data.name match name in
+                            ast name exprs stack_ast_const.init stack_ast.features.append.const
+                            sigs STACK_HELPER_OFFSET name decl stack_ast_data.name stack_ast_node.value field stack_ast_node.value
+                            stack_strings.new stack_strings.new STACK_DATA_INT stack_strings.push stack_helper.add
+                        end
+                    end
+                    i
+                end
+            pool pop
+        end
+    end
+end
+
+func stack_preprocessor.run.generate.data.init (stack_ast, array, stack_ast_data, stack_parser) () in -- ast, array<stack_helper>, data, parser
+    match ast sigs decl parser in
+        decl stack_ast_data.fields decl stack_ast_data.name stack_ast_node.value
+        stack_ast_expr.sizeof array.init.with_sz match fields owner exprs in
+            exprs parser owner "." string.concat STACK_SIZEOF string.concat stack_preprocessor.run.generate.data.call
+            exprs parser STACK_FUNC_PTR_ALLOC stack_preprocessor.run.generate.data.call
+
+            -- The last field is on top of the stack.
+            fields array.count while dup 0 > loop
+                1 - dup fields swp array.get unwrap stack_ast_data_field.* match i field in
+                    field stack_ast_data_field.type stack_ast_node.value match ftype in
+                        exprs parser STACK_FUNC_DUP stack_preprocessor.run.generate.data.call
+                        exprs parser STACK_FUNC_ROT stack_preprocessor.run.generate.data.call
+                        exprs parser STACK_FUNC_ROT stack_preprocessor.run.generate.data.call
+                        exprs parser
+                        owner "." string.concat field stack_ast_data_field.name stack_ast_node.value string.concat
+                        "." string.concat STACK_OFFSET string.concat
+                        stack_preprocessor.run.generate.data.call
+                        exprs parser STACK_FUNC_PTR_OFFSET stack_preprocessor.run.generate.data.call
+                        exprs parser STACK_FUNC_SWP stack_preprocessor.run.generate.data.call
+                        exprs parser ftype ".&" string.concat stack_preprocessor.run.generate.data.call
+                        exprs parser ftype "." string.concat STACK_SIZEOF string.concat stack_preprocessor.run.generate.data.call
+                        exprs parser STACK_FUNC_PTR_COPY stack_preprocessor.run.generate.data.call
+                        exprs parser STACK_FUNC_POP stack_preprocessor.run.generate.data.call
+                    end
+                    i
+                end
+            pool pop
+
+            exprs parser owner ".*" string.concat stack_preprocessor.run.generate.data.call
+
+            decl stack_ast_data.name owner "." string.concat STACK_INIT string.concat
+            stack_preprocessor.run.generate.data.name match name in
+                ast name exprs stack_ast_const.init stack_ast.features.append.const
+                stack_strings.new 0 while dup fields array.count < loop -- args, i
+                    match args i in
+                        args fields i array.get unwrap stack_ast_data_field.* stack_ast_data_field.type stack_ast_node.value
+                        stack_strings.push i 1 +
+                    end
+                pool pop
+                match args in
+                    sigs STACK_HELPER_INIT name owner "" args stack_strings.new owner stack_strings.push stack_helper.add
+                end
+            end
+        end
+    end
+end
+
+
+func stack_preprocessor.run.generate.data.getters (stack_ast, array, stack_ast_data, stack_parser) () in -- ast, array<stack_helper>, data, parser
+    match ast sigs decl parser in
+        decl stack_ast_data.fields decl stack_ast_data.name stack_ast_node.value match fields owner in
+            fields array.count while dup 0 > loop
+                1 - dup fields swp array.get unwrap stack_ast_data_field.*
+                stack_ast_expr.sizeof array.init.with_sz match i field exprs in
+                    owner "." string.concat field stack_ast_data_field.name stack_ast_node.value string.concat
+                    match getter in
+                        exprs parser owner ".&" string.concat stack_preprocessor.run.generate.data.call
+                        exprs parser getter "." string.concat STACK_OFFSET string.concat stack_preprocessor.run.generate.data.call
+                        exprs parser STACK_FUNC_PTR_OFFSET stack_preprocessor.run.generate.data.call
+                        exprs parser
+                        field stack_ast_data_field.type stack_ast_node.value ".*" string.concat
+                        stack_preprocessor.run.generate.data.call
+
+                        field stack_ast_data_field.name getter stack_preprocessor.run.generate.data.name match name in
+                            ast name exprs stack_ast_const.init stack_ast.features.append.const
+                            sigs STACK_HELPER_GETTER name owner field stack_ast_data_field.name stack_ast_node.value
+                            stack_strings.new owner stack_strings.push
+                            stack_strings.new field stack_ast_data_field.type stack_ast_node.value stack_strings.push
+                            stack_helper.add
+                        end
+                    end
+                    i
+                end
+            pool pop
+        end
+    end
+end
+
+func stack_preprocessor.run.generate.data.setters (stack_ast, array, stack_ast_data, stack_parser) () in -- ast, array<stack_helper>, data, parser
+    match ast sigs decl parser in
+        decl stack_ast_data.fields decl stack_ast_data.name stack_ast_node.value match fields owner in
+            fields array.count while dup 0 > loop
+                1 - dup fields swp array.get unwrap stack_ast_data_field.*
+                stack_ast_expr.sizeof array.init.with_sz match i field exprs in
+                    owner "." string.concat field stack_ast_data_field.name stack_ast_node.value string.concat
+                    field stack_ast_data_field.type stack_ast_node.value match getter ftype in
+                        exprs parser STACK_FUNC_SWP stack_preprocessor.run.generate.data.call
+                        exprs parser owner ".&" string.concat stack_preprocessor.run.generate.data.call
+                        exprs parser getter "." string.concat STACK_OFFSET string.concat stack_preprocessor.run.generate.data.call
+                        exprs parser STACK_FUNC_PTR_OFFSET stack_preprocessor.run.generate.data.call
+                        exprs parser STACK_FUNC_SWP stack_preprocessor.run.generate.data.call
+                        exprs parser ftype ".&" string.concat stack_preprocessor.run.generate.data.call
+                        exprs parser ftype "." string.concat STACK_SIZEOF string.concat stack_preprocessor.run.generate.data.call
+                        exprs parser STACK_FUNC_PTR_COPY stack_preprocessor.run.generate.data.call
+                        exprs parser STACK_FUNC_POP stack_preprocessor.run.generate.data.call
+
+                        field stack_ast_data_field.name getter ".set" string.concat stack_preprocessor.run.generate.data.name
+                        match name in
+                            ast name exprs stack_ast_const.init stack_ast.features.append.const
+                            sigs STACK_HELPER_SETTER name owner field stack_ast_data_field.name stack_ast_node.value
+                            stack_strings.new owner stack_strings.push ftype stack_strings.push
+                            stack_strings.new stack_helper.add
+                        end
+                    end
+                    i
+                end
+            pool pop
+        end
+    end
+end
+
+func stack_preprocessor.run.generate.data (stack_ast, stack_ast, array) () in -- source, helpers, array<stack_helper>
+    match source helpers sigs in
+        0 while dup source stack_ast.features array.count < loop
+            dup source stack_ast.features swp array.get unwrap stack_ast_feature.* match feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_DATA = if
+                    "" __file__ stack_lexer.init.with_buffer stack_parser.init.with_lexer
+                    feat stack_ast_feature.feature stack_ast_data.* match parser d in
+                        helpers sigs d parser stack_preprocessor.run.generate.data.sizeof
+                        helpers sigs d parser stack_preprocessor.run.generate.data.offset
+                        helpers sigs d parser stack_preprocessor.run.generate.data.init
+                        helpers sigs d parser stack_preprocessor.run.generate.data.getters
+                        helpers sigs d parser stack_preprocessor.run.generate.data.setters
+                    end
+                fi
+            end
+            1 +
+        pool pop
+    end
+end
+
+data stack_const_graph (array consts, array states, array path) -- array<ptr>, array<int>, array<int>
+
+const STACK_CONST_UNVISITED 0
+const STACK_CONST_ACTIVE 1
+const STACK_CONST_DONE 2
+
+func stack_const_graph.init.with_ast (stack_ast) (stack_const_graph) in -- ast
+    stack_ast.features match features in
+        ptr.sizeof array.init.with_sz int.sizeof array.init.with_sz 0 while -- consts, states, i
+            dup features array.count < loop
+            dup features swp array.get unwrap stack_ast_feature.* match consts states i feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_CONST = if
+                    consts feat stack_ast_feature.feature ptr.& array.append unwrap
+                    states STACK_CONST_UNVISITED int.& array.append unwrap
+                fi
+                consts states i 1 +
+            end
+        pool pop
+        int.sizeof array.init.with_sz stack_const_graph.init
+    end
+end
+
+func stack_const_graph.get (stack_const_graph, int) (stack_ast_const) in -- graph, i
+    swp stack_const_graph.consts swp array.get unwrap ptr.* stack_ast_const.*
+end
+
+func stack_const_graph.name (stack_const_graph, int) (string) in -- graph, i
+    stack_const_graph.get stack_ast_const.name stack_ast_node.value
+end
+
+func stack_const_graph.status (stack_const_graph, int) (int) in -- graph, i
+    swp stack_const_graph.states swp array.get unwrap int.*
+end
+
+func stack_const_graph.mark (stack_const_graph, int, int) () in -- graph, i, status
+    match graph i status in
+        graph stack_const_graph.states i status int.& array.set unwrap
+    end
+end
+
+func stack_const_graph.index (stack_const_graph, string) (int, bool) in -- graph, name
+    match graph name in
+        graph stack_const_graph.consts array.count match count in
+            0 while
+                dup count < if dup graph swp stack_const_graph.name name string.= not else false fi
+            loop 1 + pool
+            dup count <
+        end
+    end
+end
+
+func stack_const_graph.cycle.error (stack_preprocessor, stack_const_graph, int) () in -- pre, graph, i
+    match pre graph i in
+        "Preprocessor error: cyclic constant "
+        graph stack_const_graph.path match path in
+            0 while dup path swp array.get unwrap int.* i = not loop 1 + pool
+            while dup path array.count < loop
+                match text k in
+                    text graph path k array.get unwrap int.* stack_const_graph.name string.concat " -> " string.concat
+                    k 1 +
+                end
+            pool pop
+        end
+        graph i stack_const_graph.name string.concat "\n" string.concat
+        match message in pre graph i stack_const_graph.get stack_ast_const.name message stack_preprocessor.fail end
+    end
+end
+
+func stack_const_graph.visit.name (stack_preprocessor, stack_const_graph, stack_ast_node) () in -- pre, graph, node
+    match pre graph node in
+        graph node stack_ast_node.value stack_const_graph.index if
+            match j in
+                graph j stack_const_graph.status STACK_CONST_ACTIVE = if
+                    pre graph j stack_const_graph.cycle.error
+                fi
+                pre graph j stack_const_graph.visit
+            end
+        else pop fi
+    end
+end
+
+func stack_const_graph.visit.exprs (stack_preprocessor, stack_const_graph, array) () in -- pre, graph, array<expr>
+    match pre graph exprs in
+        0 while dup exprs array.count < loop
+            dup exprs swp array.get unwrap stack_ast_expr.* match expr in
+                expr stack_ast_expr.kind
+                dup STACK_AST_EXPR_NAME = if
+                    pre graph expr stack_ast_expr.expr stack_ast_node.* stack_const_graph.visit.name
+                else dup STACK_AST_EXPR_COND = if
+                    expr stack_ast_expr.expr stack_ast_cond.* match cond in
+                        pre graph cond stack_ast_cond.if_ stack_const_graph.visit.exprs
+                        pre graph cond stack_ast_cond.else_ stack_const_graph.visit.exprs
+                    end
+                else dup STACK_AST_EXPR_MATCH = if
+                    pre graph expr stack_ast_expr.expr stack_ast_match.* stack_ast_match.exprs stack_const_graph.visit.exprs
+                else dup STACK_AST_EXPR_WHILE = if
+                    expr stack_ast_expr.expr stack_ast_while.* match while' in
+                        pre graph while' stack_ast_while.while_ stack_const_graph.visit.exprs
+                        pre graph while' stack_ast_while.exprs stack_const_graph.visit.exprs
+                    end
+                fi fi fi fi
+                pop
+            end
+            1 +
+        pool pop
+    end
+end
+
+func stack_const_graph.visit (stack_preprocessor, stack_const_graph, int) () in -- pre, graph, i
+    match pre graph i in
+        graph i stack_const_graph.status STACK_CONST_UNVISITED = pre stack_preprocessor.failed not and if
+            graph i STACK_CONST_ACTIVE stack_const_graph.mark
+            graph stack_const_graph.path i int.& array.append unwrap
+            pre graph graph i stack_const_graph.get stack_ast_const.exprs stack_const_graph.visit.exprs
+            graph stack_const_graph.path array.pop unwrap
+            graph i STACK_CONST_DONE stack_const_graph.mark
+        fi
+    end
+end
+
+func stack_preprocessor.run.check.consts (stack_preprocessor, stack_ast) () in -- pre, ast
+    match pre ast in
+        ast stack_const_graph.init.with_ast match graph in
+            0 while dup graph stack_const_graph.consts array.count < loop
+                dup pre graph rot stack_const_graph.visit
+                1 +
+            pool pop
+        end
+    end
+end
+
+func stack_preprocessor.run.check.original (stack_preprocessor, stack_ast, stack_ast) () in -- pre, source, helpers
+    match pre source helpers in
+        stack_ast.init.empty
+        dup source stack_ast.append
+        dup helpers stack_ast.append
+        pre swp stack_preprocessor.run.check.consts
+    end
+end
+
+func stack_const_graph.duplicate.error (stack_preprocessor, stack_const_graph, int, int, int, int) () in -- pre, graph, i, j, builtins, generated
+    match pre graph i j builtins generated in
+        "Preprocessor error: duplicate constant " graph i stack_const_graph.name string.concat
+        j builtins < if
+            ", already defined as builtin" string.concat
+        else
+            j generated < if ", conflicts with data helper generated at " else ", first defined at " fi string.concat
+            graph j stack_const_graph.get stack_ast_const.name stack_ast_node.location string.concat
+        fi
+        "\n" string.concat
+        match message in pre graph i stack_const_graph.get stack_ast_const.name message stack_preprocessor.fail end
+    end
+end
+
+func stack_preprocessor.data.duplicated (stack_preprocessor) (bool) in -- pre
+    stack_preprocessor.user stack_ast.features match features in
+        string.sizeof array.init.with_sz match names in
+            names STACK_DATA_INT string.& array.append unwrap
+            names STACK_DATA_PTR string.& array.append unwrap
+            names STACK_DATA_BOOL string.& array.append unwrap
+            false 0 while dup features array.count < loop -- found, i
+                dup features swp array.get unwrap stack_ast_feature.* match feat in
+                    feat stack_ast_feature.kind STACK_AST_FEATURE_DATA = if
+                        feat stack_ast_feature.feature stack_ast_data.* stack_ast_data.name stack_ast_node.value match name in
+                            0 while dup names array.count < loop
+                                dup names swp array.get unwrap string.* name string.= if
+                                    rot pop true rot'
+                                fi
+                                1 +
+                            pool pop
+                            names name string.& array.append unwrap
+                        end
+                    fi
+                end
+                1 +
+            pool pop
+        end
+    end
+end
+
+func stack_preprocessor.run.check.duplicates (stack_preprocessor, stack_ast) () in -- pre, builtins
+    match pre builtins in
+        stack_ast.init.empty match table in
+            table builtins stack_ast.append
+            table stack_ast.features array.count 0 +
+            table pre stack_preprocessor.generated stack_ast.append
+            table stack_ast.features array.count 0 +
+            table pre stack_preprocessor.user stack_ast.append
+            table stack_const_graph.init.with_ast
+        end
+        match nb ng graph in
+            pre stack_preprocessor.data.duplicated if ng else nb fi
+            while dup graph stack_const_graph.consts array.count < pre stack_preprocessor.failed not and loop
+                dup graph swp stack_const_graph.name graph swp stack_const_graph.index pop match i j in
+                    i j = not if pre graph i j nb ng stack_const_graph.duplicate.error fi
+                    i
+                end
+                1 +
+            pool pop
+        end
+    end
+end
+
+func stack_preprocessor.run.module (stack_preprocessor, stack_ast, stack_ast) () in -- pre, ast, module
+    match pre ast module in
+        stack_ast.init.empty match helpers in
+            module helpers pre stack_preprocessor.helpers stack_preprocessor.run.generate.data
+            pre ast module helpers stack_preprocessor.run.module.add
+        end
+    end
+end
+
+-- Check an imported module with its data helpers and add them.
+func stack_preprocessor.run.module.add (stack_preprocessor, stack_ast, stack_ast, stack_ast) () in -- pre, ast, module, helpers
+    match pre ast module helpers in
+        pre module helpers stack_preprocessor.run.check.original
+        pre ast module helpers stack_preprocessor.run.module.append
+    end
+end
+
+func stack_preprocessor.run.module.append (stack_preprocessor, stack_ast, stack_ast, stack_ast) () in -- pre, ast, module, helpers
+    match pre ast module helpers in
+        pre stack_preprocessor.user module stack_ast.append
+        pre stack_preprocessor.generated helpers stack_ast.append
+        ast module stack_ast.append
+        ast helpers stack_ast.append
+    end
+end
+
+-- Generate the data helpers of ast and load the imports. pre.user gets the
+-- features of all files and pre.generated their data helpers. ast gets the
+-- features and helpers of the imported files. Returns the features and the
+-- helpers of ast. Stops at the first error.
+func stack_preprocessor.load (stack_preprocessor, stack_ast) (stack_ast, stack_ast) in -- pre, ast
+    match pre ast in
+        stack_ast.init.empty stack_ast.init.empty match source helpers in
+            source ast stack_ast.append
+            source helpers pre stack_preprocessor.helpers stack_preprocessor.run.generate.data
+            pre stack_preprocessor.user source stack_ast.append
+            pre stack_preprocessor.generated helpers stack_ast.append
+            pre ast stack_preprocessor.run.import
+            source helpers
+        end
+    end
+end
+
+-- Load, check and expand ast. On an error pre.diag has the first error and
+-- ast is not complete.
+func stack_preprocessor.run (stack_preprocessor, stack_ast) () in -- pre, ast
+    match pre ast in
+        pre ast stack_preprocessor.load stack_ast.init.empty match source helpers builtins in
+            pre stack_preprocessor.failed not if pre source helpers stack_preprocessor.run.check.original fi
+            pre stack_preprocessor.failed not if
+                pre builtins stack_preprocessor.run.base.consts
+                ast builtins stack_ast.append
+                ast helpers stack_ast.append
+                pre builtins stack_preprocessor.run.check.duplicates
+            fi
+            pre stack_preprocessor.failed not if pre ast stack_preprocessor.run.check.consts fi
+            pre stack_preprocessor.failed not if
+                ast stack_preprocessor.run.expand.consts
+                ast stack_preprocessor.run.expand.funcs
+                ast stack_preprocessor.run.expand.special
+            fi
+        end
+    end
+end

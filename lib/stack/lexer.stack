@@ -1,0 +1,334 @@
+@import "stdlib"
+
+-- Tokens and the lexer of the Stack compiler.
+
+const STACK_TOKEN_EOF       0
+const STACK_TOKEN_ILLEGAL   1
+const STACK_TOKEN_NUMBER    2
+const STACK_TOKEN_BOOLEAN   3
+const STACK_TOKEN_STRING    4
+const STACK_TOKEN_NAME      5
+const STACK_TOKEN_FUNC	    6
+const STACK_TOKEN_IN	    7
+const STACK_TOKEN_END	    8
+const STACK_TOKEN_LPAREN	9
+const STACK_TOKEN_RPAREN	10
+const STACK_TOKEN_COMMA	    11
+const STACK_TOKEN_IF	    12
+const STACK_TOKEN_ELSE	    13
+const STACK_TOKEN_FI	    14
+const STACK_TOKEN_DATA	    15
+const STACK_TOKEN_IMPORT	16
+const STACK_TOKEN_CONST	    17
+const STACK_TOKEN_MATCH     18
+const STACK_TOKEN_WHILE     19
+const STACK_TOKEN_LOOP      20
+const STACK_TOKEN_POOL      21
+
+func stack_token_kind.map (int) (string) in
+    dup STACK_TOKEN_EOF = if pop "<EOF>"
+    else dup STACK_TOKEN_ILLEGAL = if pop "ILLEGAL"
+    else dup STACK_TOKEN_NUMBER = if pop "NUMBER"
+    else dup STACK_TOKEN_BOOLEAN = if pop "BOOLEAN"
+    else dup STACK_TOKEN_STRING = if pop "STRING"
+    else dup STACK_TOKEN_NAME = if pop "NAME"
+    else dup STACK_TOKEN_FUNC = if pop "FUNC"
+    else dup STACK_TOKEN_IN = if pop "IN"
+    else dup STACK_TOKEN_END = if pop "END"
+    else dup STACK_TOKEN_LPAREN = if pop "("
+    else dup STACK_TOKEN_RPAREN = if pop ")"
+    else dup STACK_TOKEN_COMMA = if pop ","
+    else dup STACK_TOKEN_IF = if pop "IF"
+    else dup STACK_TOKEN_ELSE = if pop "ELSE"
+    else dup STACK_TOKEN_FI = if pop "FI"
+    else dup STACK_TOKEN_DATA = if pop "DATA"
+    else dup STACK_TOKEN_IMPORT = if pop "IMPORT"
+    else dup STACK_TOKEN_CONST = if pop "CONST"
+    else dup STACK_TOKEN_MATCH = if pop "MATCH"
+    else dup STACK_TOKEN_WHILE = if pop "WHILE"
+    else dup STACK_TOKEN_LOOP = if pop "LOOP"
+    else dup STACK_TOKEN_POOL = if pop "POOL"
+    else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- (string)
+end
+
+func stack_token_kind.describe (int) (string) in
+    dup STACK_TOKEN_EOF = if pop "end of file"
+    else dup STACK_TOKEN_NAME = if pop "name"
+    else dup STACK_TOKEN_NUMBER = if pop "number"
+    else dup STACK_TOKEN_BOOLEAN = if pop "boolean"
+    else dup STACK_TOKEN_STRING = if pop "string"
+    else
+        dup STACK_TOKEN_FUNC = if pop "func"
+        else dup STACK_TOKEN_IN = if pop "in"
+        else dup STACK_TOKEN_END = if pop "end"
+        else dup STACK_TOKEN_IF = if pop "if"
+        else dup STACK_TOKEN_ELSE = if pop "else"
+        else dup STACK_TOKEN_FI = if pop "fi"
+        else dup STACK_TOKEN_DATA = if pop "data"
+        else dup STACK_TOKEN_IMPORT = if pop "@import"
+        else dup STACK_TOKEN_CONST = if pop "const"
+        else dup STACK_TOKEN_MATCH = if pop "match"
+        else dup STACK_TOKEN_WHILE = if pop "while"
+        else dup STACK_TOKEN_LOOP = if pop "loop"
+        else dup STACK_TOKEN_POOL = if pop "pool"
+        else stack_token_kind.map
+        fi fi fi fi fi fi fi fi fi fi fi fi fi
+        "'" swp string.concat "'" string.concat
+    fi fi fi fi fi
+end
+
+const STACK_ILLEGAL_NO_ERROR    0
+const STACK_ILLEGAL_INVALID     1
+const STACK_ILLEGAL_STRING_NULL 2
+const STACK_ILLEGAL_STRING_\N   3
+const STACK_ILLEGAL_STRING_EOF  4
+
+data stack_token (int kind, string value, int pos, int err)
+
+func stack_token.init.empty () (stack_token) in
+    0 "" 0 0 stack_token.init
+end
+
+func stack_token.init.ok (int, string, int) (stack_token) in -- kind, value, pos
+    STACK_ILLEGAL_NO_ERROR stack_token.init
+end
+
+data stack_lexer (string buffer, int pos, int read_pos, int ch, string filename)
+
+func stack_lexer.init.with_buffer (string, string) (stack_lexer) in -- buffer, filename
+    0 0 0 rot4 stack_lexer.init dup stack_lexer.read pop -- stack_lexer
+end
+
+func stack_lexer.pos.to_lc (stack_lexer, int) (int, int) in -- lexer, pos
+    match lexer pos in
+        lexer stack_lexer.buffer match buffer in
+            1 1 0 while dup pos < loop -- line, col, i
+                match line col i in
+                    buffer i string.!! BYTE_\N = if
+                        line 1 + 1
+                    else
+                        line col 1 +
+                    fi
+                    i 1 +
+                end
+            pool pop
+        end
+    end
+end
+
+-- "file:line:col" of the byte pos.
+func stack_lexer.location (stack_lexer, int) (string) in
+    match lexer pos in
+        lexer pos stack_lexer.pos.to_lc match line col in
+            lexer stack_lexer.filename ":" string.concat line int.show string.concat
+            ":" string.concat col int.show string.concat
+        end
+    end
+end
+
+-- The first error of a compiler phase. The message starts with the kind of
+-- the error, for example "Parser error: ", and ends with a new line. pos is a
+-- byte offset in the buffer of lexer.
+data stack_diagnostic (bool failed, stack_lexer lexer, int pos, string message)
+
+func stack_diagnostic.new (stack_lexer) (stack_diagnostic) in
+    match lexer in false lexer 0 "" stack_diagnostic.init end
+end
+
+-- Keep only the first error.
+func stack_diagnostic.fail (stack_diagnostic, stack_lexer, int, string) () in
+    match diag lexer pos message in
+        diag stack_diagnostic.failed not if
+            diag lexer stack_diagnostic.lexer.set
+            diag pos stack_diagnostic.pos.set
+            diag message stack_diagnostic.message.set
+            diag true stack_diagnostic.failed.set
+        fi
+    end
+end
+
+-- Copy the error of src to diag, if diag has no error.
+func stack_diagnostic.take (stack_diagnostic, stack_diagnostic) () in
+    match diag src in
+        src stack_diagnostic.failed if
+            diag src stack_diagnostic.lexer src stack_diagnostic.pos src stack_diagnostic.message
+            stack_diagnostic.fail
+        fi
+    end
+end
+
+-- Write "file:line:col, message" to stderr.
+func stack_diagnostic.stderr (stack_diagnostic) () in
+    match diag in
+        diag stack_diagnostic.lexer diag stack_diagnostic.pos stack_lexer.location string.stderr
+        ", " string.stderr
+        diag stack_diagnostic.message string.stderr
+    end
+end
+
+func stack_lexer.peek (stack_lexer) (int) in
+    dup stack_lexer.buffer dup2 -- lexer, buffer, lexer, buffer
+
+    string.len swp stack_lexer.read_pos <= if -- lexer, buffer
+        pop2 BYTE_EOF
+    else
+        swp stack_lexer.read_pos string.!!
+    fi -- byte
+end
+
+func stack_lexer.read (stack_lexer) (int) in
+    dup stack_lexer.peek dup2 stack_lexer.ch.set swp -- chr, stack_lexer
+    dup stack_lexer.read_pos dup2 stack_lexer.pos.set -- chr, stack_lexer, rpos
+    1 + dup2 stack_lexer.read_pos.set pop2 -- chr
+end
+
+func stack_lexer.skip.whitespace (stack_lexer) () in
+    match lexer in
+        while lexer stack_lexer.ch byte.isspace loop
+            lexer stack_lexer.read pop
+        pool
+    end
+end
+
+func stack_lexer.skip.until_newline (stack_lexer) () in
+    match lexer in
+        while
+            lexer stack_lexer.ch BYTE_\N =
+            lexer stack_lexer.ch BYTE_EOF = or not
+        loop
+            lexer stack_lexer.read pop
+        pool
+    end
+end
+
+func stack_lexer.next.number (stack_lexer) (string) in
+    match lexer in
+        lexer stack_lexer.ch BYTE_- = if
+            lexer stack_lexer.read pop "-"
+        else
+            ""
+        fi -- digits
+
+        while lexer stack_lexer.ch byte.isdigit loop
+            lexer stack_lexer.ch byte.chr string.concat
+            lexer stack_lexer.read pop
+        pool
+    end
+end
+
+func stack_lexer.next.string (int, stack_lexer) (stack_token) in -- pos, stack_lexer
+    match pos lexer in
+        lexer stack_lexer.read pop
+        "\"" STACK_ILLEGAL_NO_ERROR while -- value, err
+            dup STACK_ILLEGAL_NO_ERROR = lexer stack_lexer.ch BYTE_QUOTE = not and
+        loop
+            pop -- value
+            lexer stack_lexer.ch BYTE_EOF = if
+                STACK_ILLEGAL_STRING_EOF
+            else lexer stack_lexer.ch BYTE_NULL = if
+                STACK_ILLEGAL_STRING_NULL
+            else lexer stack_lexer.ch BYTE_\N = if
+                STACK_ILLEGAL_STRING_\N
+            else
+                lexer stack_lexer.ch BYTE_\ = if
+                    lexer stack_lexer.ch byte.chr string.concat
+                    lexer stack_lexer.read pop
+                fi
+                lexer stack_lexer.ch BYTE_EOF = not if
+                    lexer stack_lexer.ch byte.chr string.concat
+                    lexer stack_lexer.read pop
+                fi
+                STACK_ILLEGAL_NO_ERROR
+            fi fi fi
+        pool -- value, err
+
+        match value err in
+            err STACK_ILLEGAL_NO_ERROR = if
+                lexer stack_lexer.read pop
+                STACK_TOKEN_STRING value "\"" string.concat pos stack_token.init.ok
+            else
+                STACK_TOKEN_ILLEGAL "" pos err stack_token.init
+            fi
+        end
+    end
+end
+
+func stack_lexer.next.name (int, stack_lexer) (stack_token) in -- pos, stack_lexer
+    match pos lexer in
+        "" while lexer stack_lexer.ch byte.isname loop
+            lexer stack_lexer.ch byte.chr string.concat
+            lexer stack_lexer.read pop
+        pool -- name
+
+        dup "import" string.= if
+            pop STACK_TOKEN_IMPORT ""
+        else dup "func" string.= if
+            pop STACK_TOKEN_FUNC ""
+        else dup "in" string.= if
+            pop STACK_TOKEN_IN ""
+        else dup "end" string.= if
+            pop STACK_TOKEN_END ""
+        else dup "data" string.= if
+            pop STACK_TOKEN_DATA ""
+        else dup "true" string.= if
+            pop STACK_TOKEN_BOOLEAN "true"
+        else dup "false" string.= if
+            pop STACK_TOKEN_BOOLEAN "false"
+        else dup "if" string.= if
+            pop STACK_TOKEN_IF ""
+        else dup "else" string.= if
+            pop STACK_TOKEN_ELSE ""
+        else dup "fi" string.= if
+            pop STACK_TOKEN_FI ""
+        else dup "const" string.= if
+            pop STACK_TOKEN_CONST ""
+        else dup "@import" string.= if
+            pop STACK_TOKEN_IMPORT ""
+        else dup "match" string.= if
+            pop STACK_TOKEN_MATCH ""
+        else dup "while" string.= if
+            pop STACK_TOKEN_WHILE ""
+        else dup "loop" string.= if
+            pop STACK_TOKEN_LOOP ""
+        else dup "pool" string.= if
+            pop STACK_TOKEN_POOL ""
+        else
+            STACK_TOKEN_NAME swp
+        fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- kind, value
+
+        pos stack_token.init.ok
+    end
+end
+
+func stack_lexer.next (stack_lexer) (stack_token) in
+    match lexer in
+        lexer stack_lexer.skip.whitespace
+        while
+            lexer stack_lexer.ch BYTE_- = lexer stack_lexer.peek BYTE_- = and
+        loop
+            lexer stack_lexer.skip.until_newline
+            lexer stack_lexer.skip.whitespace
+        pool
+
+        lexer stack_lexer.pos 0 + lexer stack_lexer.ch 0 + match pos ch in
+            ch BYTE_EOF = if
+                lexer stack_lexer.read pop STACK_TOKEN_EOF "" pos stack_token.init.ok
+            else ch BYTE_LPAREN = if
+                lexer stack_lexer.read pop STACK_TOKEN_LPAREN "" pos stack_token.init.ok
+            else ch BYTE_RPAREN = if
+                lexer stack_lexer.read pop STACK_TOKEN_RPAREN "" pos stack_token.init.ok
+            else ch BYTE_COMMA = if
+                lexer stack_lexer.read pop STACK_TOKEN_COMMA "" pos stack_token.init.ok
+            else ch byte.isdigit ch BYTE_- = lexer stack_lexer.peek byte.isdigit and or if
+                STACK_TOKEN_NUMBER lexer stack_lexer.next.number pos stack_token.init.ok
+            else ch BYTE_QUOTE = if
+                pos lexer stack_lexer.next.string
+            else ch byte.isname if
+                pos lexer stack_lexer.next.name
+            else
+                lexer stack_lexer.read pop
+                STACK_TOKEN_ILLEGAL ch int.show pos STACK_ILLEGAL_INVALID stack_token.init
+            fi fi fi fi fi fi fi -- stack_token
+        end
+    end
+end

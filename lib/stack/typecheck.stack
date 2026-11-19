@@ -1,0 +1,1141 @@
+@import "stdlib"
+@import "stack/parser"
+@import "stack/builtins"
+
+-- The type checker of the Stack compiler.
+
+data stack_context_data (string name)
+data stack_context_func (string name, array args, array rets) -- array<string>
+
+const STACK_CONTEXT_SYMBOL_DATA 0
+const STACK_CONTEXT_SYMBOL_FUNC 1
+
+data stack_context_symbol (int kind, ptr symbol)
+
+data stack_context (array symbols, bool ok)
+
+func stack_context.init.base () (stack_context) in
+    stack_context_symbol.sizeof array.init.with_sz  -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_DATA STACK_DATA_PTR stack_context_data.init stack_context_data.& stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_DATA STACK_DATA_INT stack_context_data.init stack_context_data.& stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_DATA STACK_DATA_BOOL stack_context_data.init stack_context_data.& stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_DUP -- name
+    string.sizeof array.init.with_sz -- args
+    dup "a" string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup "a" string.& array.append unwrap
+    dup "a" string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_SWP -- name
+    string.sizeof array.init.with_sz -- args
+    dup "a" string.& array.append unwrap
+    dup "b" string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup "b" string.& array.append unwrap
+    dup "a" string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_ROT -- name
+    string.sizeof array.init.with_sz -- args
+    dup "a" string.& array.append unwrap
+    dup "b" string.& array.append unwrap
+    dup "c" string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup "b" string.& array.append unwrap
+    dup "c" string.& array.append unwrap
+    dup "a" string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_ROT4 -- name
+    string.sizeof array.init.with_sz -- args
+    dup "a" string.& array.append unwrap
+    dup "b" string.& array.append unwrap
+    dup "c" string.& array.append unwrap
+    dup "d" string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup "b" string.& array.append unwrap
+    dup "c" string.& array.append unwrap
+    dup "d" string.& array.append unwrap
+    dup "a" string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_POP -- name
+    string.sizeof array.init.with_sz -- args
+    dup "a" string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_PICK -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_PTR string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_PTR_ALLOC -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_PTR string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_PTR_FREE -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_PTR string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_PTR_OFFSET -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_PTR string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_PTR string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_PTR_COPY -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_PTR string.& array.append unwrap
+    dup STACK_DATA_PTR string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_PTR string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_PLUS -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_INT string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_MINUS -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_INT string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_STAR -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_INT string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_DIV -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_INT string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_MOD -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_INT string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_OR -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_INT string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_AND -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_INT string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_XOR -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_INT string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_SHR -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_INT string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_SHL -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_INT string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_GT -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_BOOL string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_LT -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_BOOL string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_EQ -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_BOOL string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_ENV -- name
+    string.sizeof array.init.with_sz -- args
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_PTR string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_SYSCALL1 -- name
+    string.sizeof array.init.with_sz -- args
+    dup "a" string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_INT string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_SYSCALL3 -- name
+    string.sizeof array.init.with_sz -- args
+    dup "a" string.& array.append unwrap
+    dup "b" string.& array.append unwrap
+    dup "c" string.& array.append unwrap
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_INT string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_INT_REF -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_INT string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_PTR string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_INT_DEREF -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_PTR string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_INT string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_PTR_REF -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_PTR string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_PTR string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_PTR_DEREF -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_PTR string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_PTR string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_BOOL_REF -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_BOOL string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_PTR string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
+    STACK_FUNC_BOOL_DEREF -- name
+    string.sizeof array.init.with_sz -- args
+    dup STACK_DATA_PTR string.& array.append unwrap
+    string.sizeof array.init.with_sz -- rets
+    dup STACK_DATA_BOOL string.& array.append unwrap
+    stack_context_func.init stack_context_func.& -- ptr
+    stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
+    true stack_context.init
+end
+
+func stack_context.append.data (stack_context, stack_context_data) () in
+    stack_context_data.& -- ctx, ptr
+    STACK_CONTEXT_SYMBOL_DATA swp -- ctx, kind, ptr
+    stack_context_symbol.init -- ctx, sym
+    swp stack_context.symbols swp -- arr, sym
+    stack_context_symbol.& array.append unwrap -- ()
+end
+
+func stack_context.append.func (stack_context, stack_context_func) () in
+    stack_context_func.& -- ctx, ptr
+    STACK_CONTEXT_SYMBOL_FUNC swp -- ctx, kind, ptr
+    stack_context_symbol.init -- ctx, sym
+    swp stack_context.symbols swp -- arr, sym
+    stack_context_symbol.& array.append unwrap -- ()
+end
+
+func stack_context_symbol.name (stack_context_symbol) (string) in
+    dup stack_context_symbol.kind
+    dup STACK_CONTEXT_SYMBOL_DATA = if
+        pop stack_context_symbol.symbol stack_context_data.* stack_context_data.name
+    else dup STACK_CONTEXT_SYMBOL_FUNC = if
+        pop stack_context_symbol.symbol stack_context_func.* stack_context_func.name
+    else
+        todo pop2 ""
+    fi fi
+end
+
+func stack_context.get_symbol (stack_context, string) (bool, ptr) in -- ctx, name
+    swp stack_context.symbols match name symbols in
+        0 while
+            dup symbols array.count < if
+                dup symbols swp array.get unwrap stack_context_symbol.* stack_context_symbol.name
+                name string.= not
+            else
+                false
+            fi
+        loop 1 + pool -- i
+
+        dup symbols array.count < if
+            symbols swp array.get unwrap true swp
+        else
+            pop false 0 int.&
+        fi -- bool, ptr
+    end
+end
+
+func stack_context.has_data (stack_context, string) (bool) in
+    stack_context.get_symbol swp if
+        stack_context_symbol.* stack_context_symbol.kind STACK_CONTEXT_SYMBOL_DATA =
+    else
+        pop false
+    fi
+end
+
+func stack_context.showf (stack_context, stack_ast_node, string) () in -- ctx, node, msg
+    swp dup -- ctx, str, node, node
+    stack_ast_node.parser -- ctx, str, node, parser
+    stack_parser.lexer -- ctx, str, node, lexer
+    dup stack_lexer.filename -- ctx, str, node, lexer, filename
+    string.stderr -- ctx, str, node, lexer
+    swp -- ctx, str, lexer, node
+    stack_ast_node.pos -- ctx, str, lexer, pos
+    stack_lexer.pos.to_lc -- ctx, str, line, col
+    ":" string.stderr -- ctx, str, line, col
+    swp int.show string.stderr  -- ctx, str, col
+    ":" string.stderr -- ctx, str, col
+    int.show string.stderr  -- ctx, str
+    ", Semantic error: " string.stderr -- ctx, str
+    string.stderr -- ctx
+
+    false stack_context.ok.set -- ()
+end
+
+-- The function T.& (T) (ptr) of the data type T.
+func stack_context_func.init.data_ref (string) (stack_context_func) in -- name
+    match name in
+        name ".&" string.concat
+        string.sizeof array.init.with_sz dup name string.& array.append unwrap
+        string.sizeof array.init.with_sz dup STACK_DATA_PTR string.& array.append unwrap
+        stack_context_func.init
+    end
+end
+
+-- The function T.* (ptr) (T) of the data type T.
+func stack_context_func.init.data_deref (string) (stack_context_func) in -- name
+    match name in
+        name ".*" string.concat
+        string.sizeof array.init.with_sz dup STACK_DATA_PTR string.& array.append unwrap
+        string.sizeof array.init.with_sz dup name string.& array.append unwrap
+        stack_context_func.init
+    end
+end
+
+func stack_context.typecheck.data_def' (stack_context, stack_ast_data) () in -- ctx, data
+    match ctx decl in
+        decl stack_ast_data.name stack_ast_node.value match name in
+            ctx name stack_context.get_symbol pop if
+                ctx decl stack_ast_data.name "data " name string.concat " is redefined\n" string.concat
+                stack_context.showf
+            else
+                ctx name stack_context_data.init stack_context.append.data
+                ctx name stack_context_func.init.data_ref stack_context.append.func
+                ctx name stack_context_func.init.data_deref stack_context.append.func
+            fi
+        end
+    end
+end
+
+func stack_context.typecheck.data_def (stack_context, stack_ast) () in -- ctx, ast
+    stack_ast.features match ctx features in
+        0 while dup features array.count < loop
+            dup features swp array.get unwrap stack_ast_feature.* match feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_DATA = if
+                    ctx feat stack_ast_feature.feature stack_ast_data.* stack_context.typecheck.data_def'
+                fi
+            end
+            1 +
+        pool pop
+    end
+end
+
+func stack_params.node_to_string (array) (array) in -- array<stack_ast_node>
+    string.sizeof array.init.with_sz match nodes result in
+        0 while dup nodes array.count < loop
+            result over nodes swp array.get unwrap stack_ast_node.* stack_ast_node.value
+            string.& array.append unwrap
+            1 +
+        pool pop
+        result
+    end
+end
+
+func stack_context.typecheck.func_def' (stack_context, stack_ast_func) () in -- ctx, func
+    match ctx decl in
+        decl stack_ast_func.name stack_ast_node.value match name in
+            ctx name stack_context.get_symbol pop if
+                ctx decl stack_ast_func.name "func " name string.concat " is redefined\n" string.concat
+                stack_context.showf
+            else
+                ctx
+                name decl stack_ast_func.args stack_params.node_to_string decl stack_ast_func.rets stack_params.node_to_string
+                stack_context_func.init stack_context.append.func
+            fi
+        end
+    end
+end
+
+func stack_context.typecheck.func_def (stack_context, stack_ast) () in -- ctx, ast
+    stack_ast.features match ctx features in
+        0 while dup features array.count < loop
+            dup features swp array.get unwrap stack_ast_feature.* match feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_FUNC = if
+                    ctx feat stack_ast_feature.feature stack_ast_func.* stack_context.typecheck.func_def'
+                fi
+            end
+            1 +
+        pool pop
+    end
+end
+
+data string_tuple (string k, string v)
+
+func string_tuple.get (array, string) (string, bool) in -- array<string_tuple>, key
+    match tuples key in
+        0 while
+            dup tuples array.count < if
+                dup tuples swp array.get unwrap string_tuple.* string_tuple.k key string.= not
+            else
+                false
+            fi
+        loop 1 + pool -- i
+
+        dup tuples array.count < if
+            tuples swp array.get unwrap string_tuple.* string_tuple.v true
+        else
+            pop "" false
+        fi -- string, ok
+    end
+end
+
+func stack_context.typecheck.expr.name.infer (stack_context, array, array, array) (array, bool) in
+    -- ctx, stack, args, map
+    match ctx stack args map in
+        map
+        stack array.count args array.count < if
+            false
+        else
+            true 0 while -- ok, i
+                match ok i in ok i ok i args array.count < and end
+            loop
+                swp pop -- i
+                dup stack array.count + args array.count - stack swp array.get unwrap string.* -- i, stack.string
+                over args swp array.get unwrap string.* -- i, stack.string, arg.string
+                match i actual formal in
+                    ctx formal stack_context.has_data not if
+                        -- if arg is `a` generic
+                        map formal string_tuple.get not if
+                            pop map formal actual string_tuple.init string_tuple.& array.append
+                        else
+                            actual swp string.=
+                        fi
+                    else
+                        -- if arg is `int` non generic
+                        ctx actual stack_context.has_data not if
+                            -- if stack is `a` generic
+                            false
+                        else
+                            -- if stack is `int` non generic
+                            actual formal string.=
+                        fi
+                    fi -- ok
+                    i 1 +
+                end
+            pool pop
+        fi -- map, ok
+    end
+end
+
+func stack_context.typecheck.infer.showf (stack_context, stack_ast_node, array, array) () in -- ctx, func, stack, stack'
+    rot4 rot4 -- stack, stack', ctx, func
+
+    dup2 -- ..., ctx, name
+    dup stack_ast_node.value "func " swp string.concat " has non matching args, expected (" string.concat -- ..., ctx, name, s
+    stack_context.showf -- stack, stack', ctx, func
+
+    pop swp -- stack, ctx, stack'
+    array.string.showf -- stack, ctx
+
+    ") but got (" string.stderr
+
+    swp -- ctx, stack
+    array.string.showf -- ctx
+
+    ")\n" string.stderr -- ctx
+
+    pop
+end
+
+func stack_context.typecheck.expr.name.stack_pop (array, int) () in -- stack, L
+    match stack count in
+        -- `count` can be the live count of `stack`. Do not copy it.
+        0 while dup count < loop
+            stack array.pop unwrap
+            1 +
+        pool pop
+    end
+end
+
+func stack_context.typecheck.expr.name.stack_add (array, array, array) () in -- stack, rets, map
+    string.sizeof array.init.with_sz match stack rets map result in
+        0 while dup rets array.count < loop
+            dup rets swp array.get unwrap string.* match ret in
+                result map ret string_tuple.get not if pop ret fi string.& array.append unwrap
+            end
+            1 +
+        pool pop
+        stack result array.extend unwrap
+    end
+end
+
+func stack_context.typecheck.expr.name (stack_context, array, stack_ast_node) () in -- ctx, stack, node
+    dup stack_ast_node.value -- ctx, stack, node, string
+    rot4 swp dup2 -- stack, node, ctx, string, ctx, string
+    stack_context.get_symbol -- stack, node, ctx, strign, bool, ptr
+    swp not if -- stack, node, ctx, string, ptr
+        pop2 -- stack, node, ctx
+        swp -- stack, ctx, node
+        dup stack_ast_node.value -- stack, ctx, node, name
+        "func " swp string.concat " is not defined\n" string.concat -- stack ctx, node, s
+        stack_context.showf pop
+    else
+        swp pop -- stack, node, ctx, ptr
+        stack_context_symbol.* -- stack, node, ctx, sym
+
+        dup stack_context_symbol.kind STACK_CONTEXT_SYMBOL_FUNC = if -- stack, node, ctx, sym
+            rot rot4' -- node, stack, ctx, sym
+            rot swp -- node, ctx, stack, sym
+            dup3 -- ..., ctx, stack, sym
+            string_tuple.sizeof array.init.with_sz -- ..., ctx, stack, sym, array<kv>
+            swp -- ..., ctx, stack, array<kv>, sym
+            stack_context_symbol.symbol -- ..., ptr
+            stack_context_func.* -- ... func
+            stack_context_func.args swp -- ..., ctx, stack, args, array<kv>
+            stack_context.typecheck.expr.name.infer -- node, ctx, stack, sym, array, ok
+
+            not if -- node, ctx, stack, sym, array<kv>
+                match node ctx stack sym xs in
+                    ctx node stack
+
+                    sym stack_context_symbol.symbol
+                    stack_context_func.*
+                    stack_context_func.args -- ctx, node, stack, args
+
+                    stack_context.typecheck.infer.showf -- ()
+
+                    node ctx stack sym xs
+                end
+            fi
+
+            swp dup stack_context_symbol.symbol -- node, ctx, stack, map, sym, ptr
+            stack_context_func.* -- node, ctx, stack, map, sym, func
+            stack_context_func.args -- node, ctx, stack, map, sym, args
+            array.count -- node, ctx, stack, map, sym, L
+            rot4 dup rot -- node, ctx, map, sym, stack, stack, L
+            swp dup array.count -- node, ctx, map, sym, stack, L, stack, C
+            rot -- node, ctx, map, sym, stack, stack, C, L
+            min -- node, ctx, map, sym, stack, stack, L
+            stack_context.typecheck.expr.name.stack_pop -- node, ctx, map, sym, stack
+
+            swp dup stack_context_symbol.symbol -- node, ctx, map, stack, sym, ptr
+            stack_context_func.* -- node, ctx, map, stack, sym, func
+            stack_context_func.rets -- node, ctx, map, stack, sym, rets
+
+            swp pop -- node, ctx, map, stack, rets
+            rot -- node, ctx, stack, rets, map
+            stack_context.typecheck.expr.name.stack_add -- node, ctx
+            pop pop -- ()
+        else
+            pop -- stack, node, ctx
+            swp -- stack, ctx, node
+            dup stack_ast_node.value -- stack, ctx, node, name
+            "func " swp string.concat " is not defined\n" string.concat -- stack ctx, node, s
+            stack_context.showf pop
+        fi -- ()
+    fi -- ()
+end
+
+func stack_context.typecheck.expr.cond.has_boolean (array) (bool) in -- stack
+    array.last -- ptr, ok
+    not if -- ptr
+        pop false
+    else
+        string.* STACK_DATA_BOOL string.=
+    fi -- bool
+end
+
+func stack_context.typecheck.branch.showf (stack_context, stack_ast_cond, array, array) () in -- ctx, cond, stack, stack'
+    swp -- lhs, rhs
+    rot4 rot4 -- stack, stack', ctx, cond
+
+    dup2 stack_ast_cond.cond -- ..., ctx, name
+    "stack mismatch lhs execution (..., " -- ..., ctx, name, s
+    stack_context.showf -- stack, stack', ctx, cond
+
+    pop swp -- stack, ctx, stack'
+    array.string.showf -- stack, ctx
+
+    ") rhs execution (..., " string.stderr
+
+    swp -- ctx, stack
+    array.string.showf -- ctx
+
+    ")\n" string.stderr -- ctx
+
+    pop
+end
+
+func stack_context.typecheck.expr.cond.has_boolean.showf (stack_context, stack_ast_cond, array) () in -- ctx, cond, stack
+    array.last -- ctx, cond, ptr, ok
+    not if -- ptr
+        pop ""
+    else
+        string.*
+    fi -- ctx, cond, str
+    "expected type (" STACK_DATA_BOOL string.concat
+    ") but got (" string.concat swp string.concat ")\n" string.concat -- ctx, cond, str
+
+    swp -- ctx, str, cond
+    stack_ast_cond.cond swp -- ctx, node, str
+    stack_context.showf -- ()
+end
+
+func array.string.= (array, array) (bool) in -- array<string>, array<string>
+    match xs ys in
+        xs array.count ys array.count = if
+            0 while
+                dup xs array.count < if
+                    dup xs swp array.get unwrap string.*
+                    over ys swp array.get unwrap string.*
+                    string.=
+                else
+                    false
+                fi
+            loop 1 + pool -- i
+            xs array.count =
+        else
+            false
+        fi -- bool
+    end
+end
+
+func stack_context.typecheck.expr.cond (stack_context, array, stack_ast_cond) () in -- ctx, stack, cond
+    swp dup stack_context.typecheck.expr.cond.has_boolean not if -- ctx, cond, stack
+        stack_context.typecheck.expr.cond.has_boolean.showf
+    else
+        dup array.pop unwrap -- ctx, cond, stack
+        dup array.copy unwrap -- ctx, cond, stack, stack'
+
+        rot4' -- stack', ctx, cond, stack
+        swp -- stack', ctx, stack, cond
+        dup stack_ast_cond.if_ -- s' ,ctx, s, cond if_
+        swp rot4' -- stack', cond, ctx, stack, if_
+        dup3 stack_context.typecheck.exprs pop -- stack', cond, ctx, stack
+
+        rot4' -- stack, stack', cond, ctx
+        swp -- stack, stack' ctx, cond
+        dup stack_ast_cond.else_ -- stack, stack', ctx, cond, else_
+        swp rot4' -- stack, cond, stack', ctx, else_
+        rot swp -- stack, cond, ctx, stack', else_
+        dup3 stack_context.typecheck.exprs pop -- stack, cond, ctx, stack'
+
+        swp rot4' -- ctx, stack, cond, stack'
+        rot swp -- ctx, cond, stack, stack'
+
+        dup2 array.string.= not if -- ctx, cond, stack, stack'
+            stack_context.typecheck.branch.showf
+        else
+            pop pop pop pop
+        fi -- ()
+    fi -- ()
+end
+
+func stack_context.typecheck.match.showf (stack_context, stack_ast_match, array) () in -- ctx, match, stack
+    rot' -- stack, ctx, match
+    dup2 -- ..., ctx, match
+    stack_ast_match.node "match tried to bind to many items, expected (" -- ..., ctx, name, s
+    stack_context.showf -- stack, ctx, match
+
+    stack_ast_match.binds -- stack, ctx, binds
+    stack_params.node_to_string -- stack, ctx, array<string>
+    array.string.showf -- stack, ctx
+
+    ") but got (" string.stderr -- stack, ctx
+
+    swp array.string.showf -- ctx
+
+    ")\n" string.stderr -- ctx
+
+    pop
+end
+
+func stack_context.typecheck.match.init (stack_context, array, array) (bool) in -- ctx, stack, binds
+    match ctx stack binds in
+        true 0 while -- ok, bound
+            match ok bound in ok bound ok bound binds array.count < and end
+        loop
+            swp pop -- bound
+            dup binds swp binds array.count swp - 1 - array.get unwrap stack_ast_node.*
+            match bound bind in
+                ctx bind stack_ast_node.value stack_context.get_symbol pop if
+                    ctx bind "bind " bind stack_ast_node.value string.concat
+                    " is already defined\n" string.concat stack_context.showf
+                    false bound
+                else
+                    ctx bind stack_ast_node.value
+                    string.sizeof array.init.with_sz
+                    string.sizeof array.init.with_sz
+                    dup stack array.last unwrap array.append unwrap
+                    stack_context_func.init stack_context.append.func
+                    stack array.pop unwrap
+                    true bound 1 +
+                fi
+            end
+        pool -- ok, bound
+
+        match ok bound in
+            ok not if
+                -- Roll back the bindings in reverse order. The return type
+                -- of a binding symbol is the stack type that it removed.
+                ctx stack_context.symbols match symbols in
+                    0 while dup bound < loop
+                        stack
+                        symbols array.last unwrap stack_context_symbol.* stack_context_symbol.symbol
+                        stack_context_func.* stack_context_func.rets 0 array.get unwrap
+                        symbols array.pop unwrap
+                        array.append unwrap
+                        1 +
+                    pool pop
+                end
+            fi
+            ok
+        end
+    end
+end
+
+func stack_context.typecheck.match.clear (stack_context, array) () in -- ctx, binds
+    match ctx binds in
+        0 while dup binds array.count < loop
+            ctx stack_context.symbols array.pop unwrap
+            1 +
+        pool pop
+    end
+end
+
+func stack_context.typecheck.expr.match (stack_context, array, stack_ast_match) () in -- ctx, stack, match
+    match ctx stack node in
+        node stack_ast_match.binds array.count stack array.count > if
+            ctx node stack stack_context.typecheck.match.showf
+        else
+            ctx stack node stack_ast_match.binds stack_context.typecheck.match.init if
+                ctx stack node stack_ast_match.exprs stack_context.typecheck.exprs
+                ctx node stack_ast_match.binds stack_context.typecheck.match.clear
+            fi
+        fi
+    end
+end
+
+func stack_context.typecheck.expr.while.has_boolean (array) (bool) in -- stack
+    array.last -- ptr, ok
+    not if -- ptr
+        pop false
+    else
+        string.* STACK_DATA_BOOL string.=
+    fi -- bool
+end
+
+func stack_context.typecheck.while.showf (stack_context, stack_ast_while, array, array) () in -- ctx, while, body, input
+    rot4 rot4 -- stack, stack', ctx, while
+
+    dup2 stack_ast_while.node -- ..., ctx, name
+    "stack mismatch while expects (..., " -- ..., ctx, name, s
+    stack_context.showf -- stack, stack', ctx, cond
+
+    pop swp -- stack, ctx, stack'
+    array.string.showf -- stack, ctx
+
+    ") but pool gives (..., " string.stderr
+
+    swp -- ctx, stack
+    array.string.showf -- ctx
+
+    ")\n" string.stderr -- ctx
+
+    pop
+end
+func stack_context.typecheck.expr.while.has_boolean.showf (stack_context, stack_ast_while, array) () in -- ctx, while, stack
+    array.last -- ctx, cond, ptr, ok
+    not if -- ptr
+        pop ""
+    else
+        string.*
+    fi -- ctx, cond, str
+    "expected type (" STACK_DATA_BOOL string.concat
+    ") but got (" string.concat swp string.concat ")\n" string.concat -- ctx, cond, str
+
+    swp -- ctx, str, cond
+    stack_ast_while.node swp -- ctx, node, str
+    stack_context.showf -- ()
+end
+
+func stack_context.typecheck.expr.while (stack_context, array, stack_ast_while) () in -- ctx, stack, while
+    swp dup array.copy unwrap -- ctx, while, stack, stack'
+
+    -- while:     -- we make a checkpoint for the stack: stack'
+    --     exprs  -- evaluate on the main stack
+    --     loop   -- pop bool from stack if false jmp pool; while expr will return here
+    --     body   -- evaluate the body of the while ONCE: stack''
+    -- pool:      -- jmp while; we MUST have stack'' == stack'
+
+    match ctx ast stack stack' in
+        -- evaluate the while_ condition to check if it evaluates to bool
+        ctx stack ast stack_ast_while.while_ stack_context.typecheck.exprs
+
+        stack stack_context.typecheck.expr.while.has_boolean not if
+            ctx ast stack stack_context.typecheck.expr.while.has_boolean.showf
+        else
+            -- remove the bool from the stack
+            stack array.pop unwrap
+
+            -- we need to copy the stack because the while expression will return here when it stops
+            stack array.copy unwrap -- stack''
+
+            match stack'' in
+                -- evaluate the body of the while ONCE
+                ctx stack'' ast stack_ast_while.exprs stack_context.typecheck.exprs
+
+                -- stack MUST be the same after ONE iteration
+                stack'' stack' array.string.= not if
+                    ctx ast stack'' stack' stack_context.typecheck.while.showf
+                fi
+            end
+        fi
+    end
+end
+
+func stack_context.typecheck.expr (stack_context, array, stack_ast_expr) () in -- ctx, stack, expr
+    dup stack_ast_expr.kind -- ctx, stack, expr, kind
+    dup STACK_AST_EXPR_NUMBER = if -- ctx, stack, expr, kind
+        pop pop -- ctx, stack, expr
+        STACK_DATA_INT -- ctx, stack, int
+        string.& array.append unwrap pop -- ()
+    else dup STACK_AST_EXPR_STRING = if
+        pop pop -- ctx, stack, expr
+        STACK_DATA_STRING -- ctx, stack, string
+        string.& array.append unwrap pop -- ()
+    else dup STACK_AST_EXPR_BOOLEAN = if
+        pop pop -- ctx, stack, expr
+        STACK_DATA_BOOL -- ctx, stack, bool
+        string.& array.append unwrap pop -- ()
+    else dup STACK_AST_EXPR_NAME = if
+        pop -- ctx, stack, expr
+        stack_ast_expr.expr -- ctx, stack, ptr
+        stack_ast_node.* -- ctx, stack, node
+        stack_context.typecheck.expr.name -- ()
+    else dup STACK_AST_EXPR_COND = if
+        pop -- ctx, stack, expr
+        stack_ast_expr.expr -- ctx, stack, ptr
+        stack_ast_cond.* -- ctx, stack, cond
+        stack_context.typecheck.expr.cond -- ()
+    else dup STACK_AST_EXPR_MATCH = if
+        pop -- ctx, stack, expr
+        stack_ast_expr.expr -- ctx, stack, ptr
+        stack_ast_match.* -- ctx, stack, match
+        stack_context.typecheck.expr.match -- ()
+    else dup STACK_AST_EXPR_WHILE = if
+        pop -- ctx, stack, expr
+        stack_ast_expr.expr -- ctx, stack, ptr
+        stack_ast_while.* -- ctx, stack, cond
+        stack_context.typecheck.expr.while -- ()
+    else
+        todo pop pop pop pop
+    fi fi fi fi fi fi fi -- ()
+end
+
+func stack_context.typecheck.exprs (stack_context, array, array) () in -- ctx, stack, exprs
+    match ctx stack exprs in
+        0 while dup exprs array.count < loop
+            ctx stack 2 pick int.* exprs swp array.get unwrap stack_ast_expr.* stack_context.typecheck.expr
+            1 +
+        pool pop
+    end
+end
+
+func array.string.showf (array) () in -- array<string>
+    match items in
+        0 while dup items array.count < loop
+            dup 0 > if ", " string.stderr fi
+            dup items swp array.get unwrap string.* string.stderr
+            1 +
+        pool pop
+    end
+end
+
+func stack_context.typecheck.rets.showf (stack_context, stack_ast_func, array, array) () in -- ctx, func, stack, stack'
+    rot4 rot4 -- stack, stack', ctx, func
+
+    dup2 stack_ast_func.name -- ..., ctx, name
+    dup stack_ast_node.value "func " swp string.concat " has non matching return, expected (" string.concat -- ..., ctx, name, s
+    stack_context.showf -- stack, stack', ctx, func
+
+    pop swp -- stack, ctx, stack'
+    array.string.showf -- stack, ctx
+
+    ") but got (" string.stderr
+
+    swp -- ctx, stack
+    array.string.showf -- ctx
+
+    ")\n" string.stderr -- ctx
+
+    pop
+end
+
+func stack_ast_func.is_main (stack_ast_func) (bool) in
+    stack_ast_func.name stack_ast_node.value STACK_FUNC_MAIN string.=
+end
+
+func stack_context.typecheck.main.signature (stack_context, stack_ast_func) () in
+    match ctx entry in
+        entry stack_ast_func.args match inputs in
+            inputs array.count 0 = if
+                true
+            else inputs array.count 2 = if
+                inputs 0 array.get unwrap stack_ast_node.* stack_ast_node.value STACK_DATA_INT string.=
+                inputs 1 array.get unwrap stack_ast_node.* stack_ast_node.value STACK_DATA_PTR string.=
+                and
+            else
+                false
+            fi fi
+        end
+        not if
+            ctx entry stack_ast_func.name
+            "func main must have input signature () or (int, ptr)\n" stack_context.showf
+        fi
+
+        entry stack_ast_func.rets match outputs in
+            outputs array.count 1 = if
+                outputs 0 array.get unwrap stack_ast_node.* stack_ast_node.value STACK_DATA_INT string.=
+            else
+                false
+            fi
+        end
+        not if
+            ctx entry stack_ast_func.name
+            "func main must have return signature (int)\n" stack_context.showf
+        fi
+    end
+end
+
+func stack_context.typecheck.func' (stack_context, stack_ast_func) () in -- ctx, func
+    dup stack_ast_func.is_main if
+        dup2 stack_context.typecheck.main.signature
+    fi
+    dup -- ctx, func, func
+    stack_ast_func.args -- ctx, func, array<node>
+    stack_params.node_to_string -- ctx, func, stack
+
+    swp dup stack_ast_func.exprs -- ctx, stack, func, exprs
+    swp rot4' -- func, ctx, stack, exprs
+    dup3 stack_context.typecheck.exprs pop -- func, ctx, stack
+
+    rot dup stack_ast_func.rets -- ctx, stack, func, rets
+    stack_params.node_to_string -- ctx, stack, func, stack'
+    swp rot' -- ctx, func, stack, stack'
+
+    dup2 array.string.= not if -- ctx, func, stack, stack'
+        stack_context.typecheck.rets.showf
+    else
+        pop pop pop pop
+    fi -- ()
+end
+
+func stack_context.typecheck.func (stack_context, stack_ast) () in -- ctx, ast
+    stack_ast.features match ctx features in
+        0 while dup features array.count < loop
+            dup features swp array.get unwrap stack_ast_feature.* match feat in
+                feat stack_ast_feature.kind STACK_AST_FEATURE_FUNC = if
+                    ctx feat stack_ast_feature.feature stack_ast_func.* stack_context.typecheck.func'
+                fi
+            end
+            1 +
+        pool pop
+    end
+end
+
+func stack_context.typecheck.main.exists (stack_context, stack_ast) () in
+    pop match ctx in
+        -- Avoid a secondary missing-entrypoint error after a definition error.
+        ctx stack_context.ok if
+            ctx STACK_FUNC_MAIN stack_context.get_symbol swp if
+                stack_context_symbol.* stack_context_symbol.kind STACK_CONTEXT_SYMBOL_FUNC =
+            else
+                pop false
+            fi
+            not if
+                "Semantic error: entrypoint func main is not defined\n" string.stderr
+                ctx false stack_context.ok.set
+            fi
+        fi
+    end
+end
+
+func stack_context.typecheck (stack_context, stack_ast) () in
+    dup2 stack_context.typecheck.data_def
+    dup2 stack_context.typecheck.func_def
+    dup2 stack_context.typecheck.main.exists
+    dup2 stack_context.typecheck.func
+
+    pop2
+end

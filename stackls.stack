@@ -1,5 +1,10 @@
 @import "stdlib"
+@import "json"
 @import "lsp"
+@import "stack/service"
+
+const STACKLS_NAME "stackls"
+const STACKLS_VERSION "0.1.0"
 
 const CLI_RUN 0
 const CLI_HELP 1
@@ -34,17 +39,36 @@ func cli.parse (int, ptr) (int, string) in
     end
 end
 
+func stackls.serve () (int) in
+    json.map match caps in
+        caps "hoverProvider" true json.bool json_object.put
+        stack_strings.new "textDocument/hover" stack_strings.push match methods in
+            STACKLS_NAME STACKLS_VERSION caps methods lsp.server.new
+        end
+    end
+    dup stack_service.new match srv svc in
+        LSP_CONTINUE 0 while over LSP_STOP = not loop -- action, code
+            pop2 srv lsp.server.receive match action code msg in
+                action LSP_REQUEST = if svc srv msg stack_service.request LSP_CONTINUE else action fi
+                code
+                msg json.free
+            end
+        pool
+        swp pop
+    end
+end
+
 func main (int, ptr) (int) in
     cli.parse match mode arg in
         mode CLI_HELP = if
             STDOUT cli.usage 0
         else mode CLI_VERSION = if
-            STDOUT lsp.VERSION "\n" string.concat stdlib.fwrite pop 0
+            STDOUT STACKLS_VERSION "\n" string.concat stdlib.fwrite pop 0
         else mode CLI_ERROR = if
             "stackls: unknown argument: " arg string.concat "\n" string.concat string.stderr
             STDERR cli.usage 2
         else
-            lsp.serve
+            stackls.serve
         fi fi fi
     end
 end

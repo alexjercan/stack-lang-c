@@ -2,7 +2,10 @@
 """Protocol tests for stackls. Usage: python3 tests/lsp/protocol.py PATH"""
 
 import json
+import os
+import re
 import subprocess
+import tempfile
 import sys
 import threading
 import time
@@ -10,7 +13,7 @@ import time
 SERVER = sys.argv[1]
 TIMEOUT = 20
 INIT_RESULT = {
-    "capabilities": {},
+    "capabilities": {"hoverProvider": True, "textDocumentSync": {"openClose": True, "change": 1}},
     "serverInfo": {"name": "stackls", "version": "0.1.0"},
 }
 TESTS = []
@@ -69,11 +72,11 @@ def frames(out):
     return msgs
 
 
-def run(*chunks, delay=0.0, close=True):
+def run(*chunks, delay=0.0, close=True, cwd=None, env=None):
     """Send chunks to a new server. Returns exit code, messages and stderr.
     Without close, stdin stays open until the server exits by itself."""
-    proc = subprocess.Popen([SERVER], stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen([os.path.abspath(SERVER)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, cwd=cwd, env=env)
     result = {}
 
     def feed():
@@ -186,7 +189,7 @@ def not_initialized():
 
 @test
 def unknown_methods():
-    got, _ = expect([frame(INIT), frame(req(2, "textDocument/hover", {})), frame(req(3, "textDocument/definition", {})),
+    got, _ = expect([frame(INIT), frame(req(2, "textDocument/completion", {})), frame(req(3, "textDocument/definition", {})),
                      frame(req(4, "$/unknown")), frame(req(5, "a\"b\\")), frame(note("$/cancelRequest", {"id": 2})),
                      frame(note("workspace/didChangeConfiguration", {})), frame(note("unknown")),
                      frame(req(6, "initialize", {})), frame(req(7, "shutdown"))],
@@ -197,11 +200,11 @@ def unknown_methods():
 
 @test
 def escaped_methods():
-    got, _ = expect([frame(INIT), frame(b'{"jsonrpc":"2.0","id":2,"method":"textDocument\\/hover"}'),
+    got, _ = expect([frame(INIT), frame(b'{"jsonrpc":"2.0","id":2,"method":"textDocument\\/definition"}'),
                      frame(b'{"jsonrpc":"2.0","id":3,"method":"\\u0073hutdown"}'),
                      frame(b'{"jsonrpc":"2.0","method":"\\u0065xit"}')],
                     [ok(1, INIT_RESULT), err(2, -32601), ok(3, None)])
-    assert got[1]["error"]["message"] == "Method not found: textDocument/hover"
+    assert got[1]["error"]["message"] == "Method not found: textDocument/definition"
 
 
 @test
@@ -308,6 +311,459 @@ def header_limit():
 def large_body():
     big = note("$/unknown", {"text": "x" * 200000 + "é" * 1000})
     expect([frame(INIT), frame(big), frame(req(2, "shutdown"))], [ok(1, INIT_RESULT), ok(2, None)])
+
+
+# HOVER
+
+# The libraries are in ../lib from the directory of the server.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(SERVER)))
+URI = "file:///nonexistent/stackls-test/main.stack"
+MARKDOWN = {"textDocument": {"hover": {"contentFormat": ["markdown", "plaintext"]}}}
+PLAINTEXT = {"textDocument": {"hover": {"contentFormat": ["plaintext", "markdown"]}}}
+BUILTIN = "Builtin function."
+BUILTIN_DATA = "Builtin data type."
+ALIAS = ". The result aliases the field."
+NEWLINE = re.compile(r"\r\n|\r|\n")
+TOKEN = re.compile(r"[^\s(),]+")
+
+
+def utf16(text):
+    return len(text.encode("utf-16-le")) // 2
+
+
+def position(text, i):
+    """The LSP position of the character text[i]."""
+    breaks = list(NEWLINE.finditer(text[:i]))
+    start = breaks[-1].end() if breaks else 0
+    return {"line": len(breaks), "character": utf16(text[start:i])}
+
+
+def find(text, needle, n=0):
+    i = -1
+    for _ in range(n + 1):
+        i = text.index(needle, i + 1)
+    return i
+
+
+def did_open(text, uri=URI, version=1):
+    return note("textDocument/didOpen",
+                {"textDocument": {"uri": uri, "languageId": "stack", "version": version, "text": text}})
+
+
+def did_change(text, uri=URI, version=2):
+    return note("textDocument/didChange",
+                {"textDocument": {"uri": uri, "version": version}, "contentChanges": [{"text": text}]})
+
+
+def did_close(uri=URI):
+    return note("textDocument/didClose", {"textDocument": {"uri": uri}})
+
+
+def hover(id, pos, uri=URI):
+    return req(id, "textDocument/hover", {"textDocument": {"uri": uri}, "position": pos})
+
+
+def pos(line, character):
+    return {"line": line, "character": character}
+
+
+def hover_result(code, text, start, stop, markdown=True):
+    value = "```stack\n" + code + "\n```" if markdown else code
+    if text:
+        value += "\n\n" + text
+    return {"contents": {"kind": "markdown" if markdown else "plaintext", "value": value},
+            "range": {"start": start, "end": stop}}
+
+
+def init(caps=MARKDOWN):
+    return frame(req(1, "initialize", {"capabilities": caps}))
+
+
+def hovers(text, cases, uri=URI, caps=MARKDOWN, before=(), **kw):
+    """Open text and hover each case (needle, n, offset, want) at offset
+    characters into the n-th needle. want is None for a null result, else
+    (code, note) for the range of the token at the needle."""
+    chunks = [init(caps)] + [frame(m) for m in before] + [frame(did_open(text, uri))]
+    want = [ok(1, INIT_RESULT)]
+    for k, (needle, n, off, w) in enumerate(cases):
+        i = find(text, needle, n)
+        chunks.append(frame(hover(10 + k, position(text, i + off), uri)))
+        res = None
+        if w is not None:
+            stop = i + len(TOKEN.match(text, i).group())
+            res = hover_result(w[0], w[1], position(text, i), position(text, stop), caps is not PLAINTEXT)
+        want.append(ok(10 + k, res))
+    chunks += [frame(req(2, "shutdown")), frame(note("exit"))]
+    return expect(chunks, want + [ok(2, None)], **kw)
+
+
+@test
+def hover_builtins():
+    text = ('func main () (int) in\n'
+            '    1 2 + dup pop "dup" -- dup\n'
+            '    true if 3 else 4 fi int.sizeof +\n'
+            'end\n')
+    hovers(text, [
+        ("+", 0, 0, ("func + (int, int) (int)", BUILTIN)),
+        ("dup", 0, 0, ("func dup (a) (a, a)", BUILTIN)),
+        ("dup", 0, 2, ("func dup (a) (a, a)", BUILTIN)),
+        ("dup", 0, 3, None),
+        ("pop", 0, 1, ("func pop (a) ()", BUILTIN)),
+        ("dup", 1, 0, None),
+        ("dup", 2, 0, None),
+        ("1", 0, 0, None),
+        ("true", 0, 0, None),
+        ("if", 0, 0, None),
+        ("fi", 0, 0, None),
+        ("func", 0, 0, None),
+        ("end", 0, 0, None),
+        ("int", 0, 0, ("data int", BUILTIN_DATA)),
+        ("main", 0, 0, ("func main () (int)", "")),
+        ("int.sizeof", 0, 4, ("int.sizeof () (int)", "Size in bytes of the builtin data type int.")),
+        ("    1", 0, 1, None),
+    ])
+
+
+DECLS = ('data pair (int a, ptr b)\n'
+         'const N 3\n'
+         'func pair.first (pair) (int) in pair.a int.* end\n'
+         'func swap2 (a, b) (b, a) in swp end\n'
+         'func main () (int) in\n'
+         '    N pair.sizeof + 0 pair.first pair.b.offset + 1 2 swap2 + +\n'
+         '    0 pair.init pop pair.b.set pair.& pair.*\n'
+         'end\n')
+
+
+@test
+def hover_declarations():
+    hovers(DECLS, [
+        ("pair", 0, 0, ("data pair (int a, ptr b)", "")),
+        ("int", 0, 1, ("data int", BUILTIN_DATA)),
+        ("a,", 0, 0, None),
+        ("ptr", 0, 2, ("data ptr", BUILTIN_DATA)),
+        ("N", 0, 0, None),
+        ("N", 1, 0, None),
+        ("pair.first", 0, 0, ("func pair.first (pair) (int)", "")),
+        ("pair)", 0, 0, ("data pair (int a, ptr b)", "")),
+        ("pair.first", 1, 3, ("func pair.first (pair) (int)", "")),
+        ("swap2", 0, 0, ("func swap2 (a, b) (b, a)", "")),
+        ("a, b)", 0, 0, None),
+        ("swap2", 1, 0, ("func swap2 (a, b) (b, a)", "")),
+        ("swp", 0, 0, ("func swp (a, b) (b, a)", BUILTIN)),
+    ])
+
+
+@test
+def hover_generated():
+    hovers(DECLS, [
+        ("pair.a", 0, 0, ("pair.a (pair) (int)", "Generated getter of field a of data pair" + ALIAS)),
+        ("pair.sizeof", 0, 0, ("pair.sizeof () (int)", "Generated: the size in bytes of data pair.")),
+        ("pair.b.offset", 0, 0, ("pair.b.offset () (int)", "Generated: the byte offset of field b in data pair.")),
+        ("pair.init", 0, 0, ("pair.init (int, ptr) (pair)",
+                             "Generated constructor of data pair. It allocates a new value and copies the fields into it.")),
+        ("pair.b.set", 0, 0, ("pair.b.set (pair, ptr) ()",
+                              "Generated setter of field b of data pair. It copies the value into the field.")),
+        ("pair.&", 0, 0, ("func pair.& (pair) (ptr)", "Generated for data pair.")),
+        ("pair.*", 0, 0, ("func pair.* (ptr) (pair)", "Generated for data pair.")),
+    ])
+    text = 'data inner (int x)\ndata outer (inner i, int n)\nfunc f (outer) (inner) in outer.i end\n'
+    hovers(text, [
+        ("outer.i", 0, 0, ("outer.i (outer) (inner)", "Generated getter of field i of data outer" + ALIAS)),
+        ("inner i", 0, 0, ("data inner (int x)", "")),
+        ("inner)", 0, 0, ("data inner (int x)", "")),
+    ])
+
+
+@test
+def hover_bindings():
+    text = ('func main () (int) in\n'
+            '    1 2 match dup x in\n'
+            '        dup x +\n'
+            '        3 match x in x end +\n'
+            '        true while dup loop false pool\n'
+            '    end\n'
+            '    dup +\n'
+            'end\n')
+    hovers(text, [
+        ("dup", 0, 0, None),
+        ("x", 0, 0, None),
+        ("dup", 1, 0, None),
+        ("x", 1, 0, None),
+        ("x", 2, 0, None),
+        ("x", 3, 0, None),
+        ("dup", 2, 0, None),
+        ("+", 0, 0, ("func + (int, int) (int)", BUILTIN)),
+        ("dup", 3, 0, ("func dup (a) (a, a)", BUILTIN)),
+    ])
+
+
+@test
+def hover_imports():
+    with tempfile.TemporaryDirectory() as tmp:
+        os.mkdir(os.path.join(tmp, "lib"))
+        with open(os.path.join(tmp, "local.stack"), "w") as f:
+            f.write('data cell (int v)\nfunc local.f (int) (cell) in cell.init end\n')
+        with open(os.path.join(tmp, "lib", "shared.stack"), "w") as f:
+            f.write('@import "local"\nfunc shared.g () () in end\n')
+        text = '@import "shared"\nfunc main () () in 1 local.f cell.v pop shared.g string.len end\n'
+        env = dict(os.environ, STACK_HOME=tmp)
+        shared = os.path.join(tmp, "lib", "shared.stack")
+        hovers(text, [
+            ("local.f", 0, 0, ("func local.f (int) (cell)", "Defined in local.stack.")),
+            ("cell.v", 0, 0, ("cell.v (cell) (int)", "Generated getter of field v of data cell" + ALIAS)),
+            ("shared.g", 0, 0, ("func shared.g () ()", "Defined in " + shared + ".")),
+            ("string.len", 0, 0, None),
+            ('"shared"', 0, 1, None),
+        ], cwd=tmp, env=env)
+        # A missing import keeps the declarations of the open file.
+        text = '@import "missing"\nfunc main () () in main dup end\n'
+        hovers(text, [("main", 1, 0, ("func main () ()", "")), ("dup", 0, 0, ("func dup (a) (a, a)", BUILTIN))],
+               cwd=tmp, env=env)
+        env = dict(os.environ, STACK_HOME=ROOT)
+        stdlib = os.path.join(ROOT, "lib", "stdlib.stack")
+        text = '@import "stdlib"\nfunc f (string) (int) in string.len end\n'
+        hovers(text, [
+            ("string.len", 0, 0, ("string.len (string) (int)", "Generated getter of field len of data string" + ALIAS)),
+            ("string", 0, 1, ("data string (int len, ptr str)", "Defined in " + stdlib + ".")),
+        ], cwd=tmp, env=env)
+
+
+@test
+def hover_unsaved_imports():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = os.path.join(tmp, "a b")
+        os.mkdir(tmp)
+        path = os.path.join(tmp, "dep.stack")
+        with open(path, "w") as f:
+            f.write('func dep.old () () in end\n')
+        dep = "file://" + path.replace(" ", "%20")
+        uri = "file://" + os.path.join(tmp, "main.stack").replace(" ", "%20")
+        text = '@import "dep"\nfunc main () () in dep.old dep.new end\n'
+        unsaved = did_open('func dep.new (int) (int) in end\n', dep)
+        hovers(text, [("dep.old", 0, 0, None), ("dep.new", 0, 0, ("func dep.new (int) (int)", "Defined in dep.stack."))],
+               uri=uri, before=[unsaved], cwd=tmp)
+        hovers(text, [("dep.old", 0, 0, ("func dep.old () ()", "Defined in dep.stack.")), ("dep.new", 0, 0, None)],
+               uri=uri, before=[unsaved, did_close(dep)], cwd=tmp)
+        # The open file imports itself.
+        with open(os.path.join(tmp, "main.stack"), "w") as f:
+            f.write("data old (int x)\n")
+        text = '@import "main"\nfunc main () () in main old.x end\n'
+        hovers(text, [("main", 1, 0, ("func main () ()", "")), ("main", 2, 0, ("func main () ()", "")),
+                      ("old.x", 0, 0, None)], uri=uri, cwd=tmp)
+
+
+BROKEN = ["", "func", "func f (", "func f () () in match", "data d (int", "@import", '@import "x',
+          "func f () () in \"abc", "func f () () in \x00 dup end", "ÿþ dup", "end end fi pool",
+          "func f () () in " + "if " * 2000, "func f () () in " + "match x in " * 2000,
+          "func f () () in " + "x " * 20000 + "end",
+          "const c c\nconst d d\nfunc f () () in c end", "data d (d x)\nfunc f (d) () in d.x end",
+          "data d (int x)\ndata d (int y)\nfunc f () () in d.x end", "func f () () in end\nfunc f () () in end",
+          "@import \"stdlib\"\n@import \"stdlib\"\nfunc f () () in string.len end"]
+
+
+@test
+def hover_broken_source():
+    text = ('func good () (int) in 1 end\n'
+            'func bad () (int) in 1 2 + \n'
+            'func later () (int) in good end\n')
+    hovers(text, [
+        ("good", 0, 0, ("func good () (int)", "")),
+        ("int", 0, 0, ("data int", BUILTIN_DATA)),
+        ("bad", 0, 0, None),
+        ("+", 0, 0, None),
+        ("later", 0, 0, None),
+        ("good", 1, 0, None),
+    ])
+    text = 'func good () (int) in 1 end\nfunc bad () () in 1 \r end\n'
+    hovers(text, [("good", 0, 0, ("func good () (int)", "")), ("bad", 0, 0, None)])
+    env = dict(os.environ, STACK_HOME=ROOT)
+    for text in BROKEN:
+        first = text.split("\n")[0]
+        chunks = [init(), frame(did_open(text))]
+        chunks += [frame(hover(10 + k, pos(0, k))) for k in range(min(len(first), 60) + 1)]
+        chunks += [frame(req(2, "shutdown")), frame(note("exit"))]
+        status, got, errs = run(*chunks, cwd=ROOT, env=env)
+        assert status == 0, (text[:40], status, errs[-200:])
+        assert len(got) == len(chunks) - 2 and got[-1] == ok(2, None), (text[:40], got[-3:])
+
+
+@test
+def hover_positions():
+    # A carriage return is not valid in Stack code, but it ends a line in a comment.
+    text = 'func main () () in\n    "é€\U0001F600" pop -- \U0001F600 \U0001F600\r\n    "\U0001F600" swp -- a\r-- b\n    dup\nend\n'
+    hovers(text, [
+        ("pop", 0, 0, ("func pop (a) ()", BUILTIN)),
+        ("pop", 0, 2, ("func pop (a) ()", BUILTIN)),
+        ("swp", 0, 1, ("func swp (a, b) (b, a)", BUILTIN)),
+        ("dup", 0, 0, ("func dup (a) (a, a)", BUILTIN)),
+    ])
+    line = position(text, find(text, "pop"))["line"]
+    expect([init(), frame(did_open(text)),
+            frame(hover(3, pos(line, 1000))),
+            frame(hover(4, pos(99, 0))),
+            frame(hover(5, pos(line, 6))),
+            frame(hover(6, pos(line, 7))),
+            frame(hover(7, pos(0, 0), uri="file:///other.stack"))],
+           [ok(1, INIT_RESULT)] + [ok(i, None) for i in range(3, 8)])
+    # A position inside a surrogate pair.
+    text = 'func main () () in "\U0001F600"dup end\n'
+    expect([init(), frame(did_open(text)), frame(hover(2, pos(0, 21))), frame(hover(3, pos(0, 23)))],
+           [ok(1, INIT_RESULT), ok(2, None), ok(3, hover_result("func dup (a) (a, a)", BUILTIN, pos(0, 23), pos(0, 26)))])
+
+
+@test
+def hover_formats():
+    text = 'func main () () in dup end\n'
+    dup = ("func dup (a) (a, a)", BUILTIN, pos(0, 19), pos(0, 22))
+    for caps, markdown in [(MARKDOWN, True), (PLAINTEXT, False), ({}, False), ({"textDocument": {"hover": {}}}, False),
+                           ({"textDocument": {"hover": {"contentFormat": []}}}, False),
+                           ({"textDocument": {"hover": {"contentFormat": ["x", 1, "plaintext", "markdown"]}}}, False),
+                           ({"textDocument": {"hover": {"contentFormat": [5, "markdown"]}}}, True),
+                           ({"textDocument": {"hover": {"contentFormat": "markdown"}}}, False),
+                           ({"textDocument": 5}, False)]:
+        expect([init(caps), frame(did_open(text)), frame(hover(2, pos(0, 20)))],
+               [ok(1, INIT_RESULT), ok(2, hover_result(*dup, markdown))])
+
+
+@test
+def hover_documents():
+    one = 'func f () () in dup end\n'
+    two = 'func g () () in\n  swp end\n'
+    p, q = pos(0, 16), pos(1, 2)
+    dup = hover_result("func dup (a) (a, a)", BUILTIN, p, pos(0, 19))
+    swp = hover_result("func swp (a, b) (b, a)", BUILTIN, q, pos(1, 5))
+    untitled = "untitled:Untitled-1"
+    expect([init(), frame(hover(2, p)), frame(did_open(one)), frame(hover(3, p)),
+            frame(did_change(two)), frame(hover(4, p)), frame(hover(5, pos(0, 5))), frame(hover(6, q)),
+            frame(note("textDocument/didChange", {"textDocument": {"uri": URI, "version": 3},
+                                                  "contentChanges": [{"range": {}, "text": "x"}]})),
+            frame(hover(7, q)),
+            frame(did_change(one, version=4)), frame(did_change(two, version=5)), frame(hover(8, q)),
+            frame(did_close()), frame(hover(9, q)), frame(did_close()), frame(did_change(one)),
+            frame(did_open(one, version=7)), frame(did_open(two, version=8)), frame(hover(10, q)),
+            frame(did_open(one, uri=untitled)), frame(hover(11, p, uri=untitled)), frame(hover(12, q))],
+           [ok(1, INIT_RESULT), ok(2, None), ok(3, dup), ok(4, None),
+            ok(5, hover_result("func g () ()", "", pos(0, 5), pos(0, 6))),
+            ok(6, swp), ok(7, swp), ok(8, swp), ok(9, None), ok(10, swp), ok(11, dup), ok(12, swp)])
+
+
+@test
+def hover_params():
+    bad = [None, {}, {"textDocument": {"uri": URI}}, {"position": pos(0, 0)},
+           {"textDocument": {}, "position": pos(0, 0)},
+           {"textDocument": {"uri": 5}, "position": pos(0, 0)},
+           {"textDocument": {"uri": URI}, "position": pos(-1, 0)},
+           {"textDocument": {"uri": URI}, "position": pos(0, -1)},
+           {"textDocument": {"uri": URI}, "position": pos(0.5, 0)},
+           {"textDocument": {"uri": URI}, "position": pos("0", 0)},
+           {"textDocument": {"uri": URI}, "position": [0, 0]},
+           {"textDocument": {"uri": URI}, "position": pos(2147483648, 0)},
+           {"textDocument": {"uri": URI}, "position": pos(0, 2147483648)},
+           {"textDocument": {"uri": URI}, "position": pos(9223372036854775807, 0)}]
+    chunks = [init(), frame(did_open("func f () () in dup end\n"))]
+    chunks += [frame(req(10 + i, "textDocument/hover", p)) for i, p in enumerate(bad)]
+    chunks += [frame(hover(2, pos(0, 16))), frame(hover(3, pos(2147483647, 0))), frame(hover(4, pos(0, 2147483647)))]
+    expect(chunks, [ok(1, INIT_RESULT)] + [err(10 + i, -32602) for i in range(len(bad))] +
+           [ok(2, hover_result("func dup (a) (a, a)", BUILTIN, pos(0, 16), pos(0, 19))), ok(3, None), ok(4, None)])
+    expect([init(), frame(note("textDocument/didOpen", {})), frame(note("textDocument/didOpen", {"textDocument": {}})),
+            frame(note("textDocument/didChange", {})), frame(note("textDocument/didClose", {"textDocument": 5})),
+            frame(hover(2, pos(0, 0)))], [ok(1, INIT_RESULT), ok(2, None)])
+
+
+@test
+def hover_cache():
+    """Edits and hovers in one session with stdlib imported."""
+    env = dict(os.environ, STACK_HOME=ROOT)
+    chunks, want = [init()], [ok(1, INIT_RESULT)]
+    for v in range(20):
+        text = '@import "stdlib"\nfunc f%d () (int) in "x" string.len end\n' % v
+        chunks.append(frame(did_open(text, version=v) if v == 0 else did_change(text, version=v)))
+        for k in range(3):
+            chunks.append(frame(hover(100 * v + k, pos(1, 5))))
+            want.append(ok(100 * v + k, hover_result("func f%d () (int)" % v, "", pos(1, 5), pos(1, 7 if v < 10 else 8))))
+    expect(chunks + [frame(req(2, "shutdown"))], want + [ok(2, None)], cwd=ROOT, env=env)
+
+
+@test
+def hover_deep_nesting():
+    good = "func good () () in end\n"
+    want = ("func good () ()", "")
+    for block in ["if ", "match x in ", "true while ", "if match x in true while "]:
+        text = good + "func bad () () in " + block * 10000
+        hovers(text, [("good", 0, 0, want), ("bad", 0, 0, None)])
+    # At most 2048 nested blocks.
+    for n, inner in [(2048, ("func dup (a) (a, a)", BUILTIN)), (2049, None)]:
+        text = good + "func bad () () in\n" + "true if " * n + "dup" + " fi" * n + "\nend\n"
+        hovers(text, [("good", 0, 0, want), ("dup", 0, 1, inner)])
+    # The server continues after a deep document.
+    deep = good + "func bad () () in " + "if " * 10000
+    expect([init(), frame(did_open(deep)), frame(hover(2, pos(0, 5))), frame(did_change("func f () () in dup end\n")),
+            frame(hover(3, pos(0, 16)))],
+           [ok(1, INIT_RESULT), ok(2, hover_result(*want, pos(0, 5), pos(0, 9))),
+            ok(3, hover_result("func dup (a) (a, a)", BUILTIN, pos(0, 16), pos(0, 19)))])
+
+
+@test
+def hover_versions():
+    old, new = "func old () () in end\n", "func new () () in end\n"
+    p = pos(0, 5)
+    hold = hover_result("func old () ()", "", p, pos(0, 8))
+    hnew = hover_result("func new () ()", "", p, pos(0, 8))
+    expect([init(), frame(did_open(new, version=10)), frame(did_change(old, version=9)), frame(hover(2, p)),
+            frame(did_change(old, version=10)), frame(hover(3, p)), frame(did_open(old, version=10)), frame(hover(4, p)),
+            frame(did_change(old, version=11)), frame(hover(5, p)), frame(did_open(new, version=12)), frame(hover(6, p)),
+            frame(did_change(old, version=-1)), frame(hover(7, p))],
+           [ok(1, INIT_RESULT), ok(2, hnew), ok(3, hnew), ok(4, hnew), ok(5, hold), ok(6, hnew), ok(7, hnew)])
+
+
+class Session:
+    """A server that answers one request at a time."""
+
+    def __init__(self, **kw):
+        self.proc = subprocess.Popen([os.path.abspath(SERVER)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                     stderr=subprocess.DEVNULL, **kw)
+
+    def send(self, msg):
+        self.proc.stdin.write(frame(msg))
+        self.proc.stdin.flush()
+
+    def read(self):
+        head = b""
+        while not head.endswith(b"\r\n\r\n"):
+            c = self.proc.stdout.read(1)
+            assert c, "server closed stdout"
+            head += c
+        return json.loads(self.proc.stdout.read(int(head.split(b":")[1])))
+
+    def close(self):
+        self.send(req(2, "shutdown"))
+        assert self.read() == ok(2, None)
+        self.send(note("exit"))
+        self.proc.stdin.close()
+        assert self.proc.wait(TIMEOUT) == 0
+
+
+@test
+def hover_import_changes():
+    with tempfile.TemporaryDirectory() as tmp:
+        dep = os.path.join(tmp, "dep.stack")
+        uri = "file://" + os.path.join(tmp, "main.stack")
+        text = '@import "dep"\nfunc main () () in dep.f end\n'
+        at = position(text, find(text, "dep.f"))
+        srv = Session(cwd=tmp)
+        srv.send(req(1, "initialize", {"capabilities": {}}))
+        assert srv.read() == ok(1, INIT_RESULT)
+        srv.send(did_open(text, uri))
+        for k, sig in enumerate(["()", "(int)", "(int)", "(ptr)"]):
+            if k != 2:
+                with open(dep, "w") as f:
+                    f.write("func dep.f () %s in end\n" % sig)
+            srv.send(did_change(text + "-- %d\n" % k, uri, version=k + 2))
+            srv.send(hover(10 + k, at, uri))
+            want = hover_result("func dep.f () %s" % sig, "Defined in dep.stack.", at,
+                                {"line": at["line"], "character": at["character"] + 5}, False)
+            assert srv.read() == ok(10 + k, want)
+        srv.close()
 
 
 def main():
