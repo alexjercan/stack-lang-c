@@ -1,0 +1,50 @@
+@import "stdlib"
+@import "lsp"
+
+const CLI_RUN 0
+const CLI_HELP 1
+const CLI_VERSION 2
+const CLI_ERROR 3
+
+func cli.usage (int) () in
+    "usage: stackls [-h | --help] [-v | --version] [--stdio]\n\n"
+    "Language server for Stack. It reads and writes LSP messages on stdin and\n" string.concat
+    "stdout and writes logs to stderr.\n" string.concat
+    stdlib.fwrite pop
+end
+
+-- The mode and the first bad argument.
+func cli.parse (int, ptr) (int, string) in
+    match argc argv in
+        argc argc ptr.sizeof argv array.init match args in
+            1 CLI_RUN "" while -- i, mode, bad
+                match i mode bad in i mode bad i argc < mode CLI_RUN = and end loop
+                match i _mode _bad in
+                    args i array.get unwrap ptr.* string.init.cstr match arg in
+                        i 1 +
+                        arg "-h" string.= arg "--help" string.= or if CLI_HELP ""
+                        else arg "-v" string.= arg "--version" string.= or if CLI_VERSION ""
+                        else arg "--stdio" string.= if CLI_RUN ""
+                        else CLI_ERROR arg fi fi fi
+                    end
+                end
+            pool
+            rot pop
+        end
+    end
+end
+
+func main (int, ptr) (int) in
+    cli.parse match mode arg in
+        mode CLI_HELP = if
+            STDOUT cli.usage 0
+        else mode CLI_VERSION = if
+            STDOUT lsp.VERSION "\n" string.concat stdlib.fwrite pop 0
+        else mode CLI_ERROR = if
+            "stackls: unknown argument: " arg string.concat "\n" string.concat string.stderr
+            STDERR cli.usage 2
+        else
+            lsp.serve
+        fi fi fi
+    end
+end

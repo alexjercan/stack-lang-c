@@ -1,0 +1,242 @@
+@import "stdlib"
+@import "json"
+@import "rpc"
+
+-- JSON-RPC 2.0 messages and the LSP lifecycle. The server has no language
+-- features yet, so it advertises no capabilities.
+
+const lsp.NAME "stackls"
+const lsp.VERSION "0.1.0"
+
+const LSP_NEW 0
+const LSP_RUNNING 1
+const LSP_SHUTDOWN 2
+
+const LSP_PARSE_ERROR -32700
+const LSP_INVALID_REQUEST -32600
+const LSP_METHOD_NOT_FOUND -32601
+const LSP_INVALID_PARAMS -32602
+const LSP_NOT_INITIALIZED -32002
+
+data lsp.server (int state)
+
+func lsp.err (string) () in STDERR swp stdlib.fwrite pop end
+
+func lsp.log (string) () in "stackls: " lsp.err lsp.err "\n" lsp.err end
+
+-- Write a message root and free it. A failed write stops the server.
+func lsp.send (json_object) () in
+    match msg in
+        msg json.dumps match s in
+            STDOUT s rpc.send not if "failed to write to stdout" lsp.log 1 sys.exit fi
+            s json.str.free
+        end
+        msg json.free
+    end
+end
+
+func lsp.envelope (json_object) (json_object) in -- id
+    match id in
+        json.map match m in
+            m "jsonrpc" "2.0" json.string json_object.put
+            m "id" id json_object.put
+            m
+        end
+    end
+end
+
+func lsp.result (json_object, json_object) () in -- id, result
+    match id res in id lsp.envelope match m in m "result" res json_object.put m lsp.send end end
+end
+
+func lsp.error (json_object, int, string) () in -- id, code, message
+    match id code text in
+        code json.int match num in
+            "stackls: error " lsp.err num json_object.number pop lsp.err ": " lsp.err text lsp.err "\n" lsp.err
+            json.map match e in
+                e "code" num json_object.put
+                e "message" text json.string json_object.put
+                id lsp.envelope match m in m "error" e json_object.put m lsp.send end
+            end
+        end
+    end
+end
+
+-- lsp.error with the message prefix and detail.
+func lsp.error.with (json_object, int, string, string) () in
+    match id code prefix detail in
+        prefix detail string.concat match text in id code text lsp.error text json.str.free end
+    end
+end
+
+func lsp.has (json_object, string) (bool) in json_object.get swp pop end
+
+-- Request ids are strings or integers.
+func lsp.id.valid (json_object) (bool) in
+    match id in id json_object.kind JSON_OBJECT_STRING = id json_object.int swp pop or end
+end
+
+-- Check the fields of a request or notification. Returns 0 or an error code,
+-- and the error message.
+func lsp.check (json_object) (int, string) in
+    match msg in
+        msg "jsonrpc" json_object.get pop json_object.string match v ok in ok v "2.0" string.= and end not if
+            LSP_INVALID_REQUEST "Invalid Request: jsonrpc must be \"2.0\""
+        else msg "method" json_object.get match m has in has m json_object.kind JSON_OBJECT_STRING = not and end if
+            LSP_INVALID_REQUEST "Invalid Request: method must be a string"
+        else msg "params" json_object.get match p has in
+            p json_object.kind match k in k JSON_OBJECT_MAP = k JSON_OBJECT_ARRAY = or k JSON_OBJECT_NULL = or end
+            has not or
+        end not if
+            LSP_INVALID_REQUEST "Invalid Request: params must be an object or an array"
+        else msg "method" lsp.has not if
+            LSP_INVALID_REQUEST "Invalid Request: missing method"
+        else 0 "" fi fi fi fi
+    end
+end
+
+-- Check the initialize params. Returns an error message, empty when valid.
+func lsp.initialize.check (json_object) (string) in
+    match msg in
+        msg "params" json_object.get match p has in
+            has not p json_object.kind JSON_OBJECT_NULL = or if ""
+            else p json_object.kind JSON_OBJECT_MAP = not if "params must be an object"
+            else p "clientInfo" json_object.get match ci has_ci in
+                has_ci not if ""
+                else ci json_object.kind JSON_OBJECT_MAP = not if "clientInfo must be an object"
+                else ci "name" json_object.get pop json_object.string swp pop not if "clientInfo.name must be a string"
+                else ci "version" json_object.get match v has_v in has_v v json_object.kind JSON_OBJECT_STRING = not and end if
+                    "clientInfo.version must be a string"
+                else "" fi fi fi fi
+            end fi fi
+        end
+    end
+end
+
+-- Log the client name and version. The params are valid.
+func lsp.initialize.log (json_object) () in
+    match msg in
+        msg "params" json_object.get pop "clientInfo" json_object.get match ci has in
+            has ci json_object.kind JSON_OBJECT_MAP = and if
+                "stackls: initialize from " lsp.err ci "name" json_object.get pop json_object.string pop lsp.err
+                ci "version" json_object.get if " " lsp.err json_object.string pop lsp.err else pop fi
+                "\n" lsp.err
+            else "initialize" lsp.log fi
+        end
+    end
+end
+
+func lsp.initialize.result () (json_object) in
+    json.map match res in
+        res "capabilities" json.map json_object.put
+        json.map match info in
+            info "name" lsp.NAME json.string json_object.put
+            info "version" lsp.VERSION json.string json_object.put
+            res "serverInfo" info json_object.put
+        end
+        res
+    end
+end
+
+-- Answer a request. id is a root and is used for the response.
+func lsp.server.request (lsp.server, json_object, string, json_object) () in
+    match srv id name msg in
+        srv lsp.server.state match state in
+            state LSP_NEW = if
+                name "initialize" string.= if
+                    msg lsp.initialize.check match problem in
+                        problem string.len 0 = if
+                            msg lsp.initialize.log
+                            id lsp.initialize.result lsp.result
+                            srv LSP_RUNNING lsp.server.state.set
+                        else
+                            id LSP_INVALID_PARAMS "Invalid params: " problem lsp.error.with
+                        fi
+                    end
+                else
+                    id LSP_NOT_INITIALIZED "Server not initialized" lsp.error
+                fi
+            else state LSP_RUNNING = if
+                name "initialize" string.= if
+                    id LSP_INVALID_REQUEST "Invalid Request: server is already initialized" lsp.error
+                else name "shutdown" string.= if
+                    id json.null lsp.result
+                    srv LSP_SHUTDOWN lsp.server.state.set
+                else
+                    id LSP_METHOD_NOT_FOUND "Method not found: " name lsp.error.with
+                fi fi
+            else
+                id LSP_INVALID_REQUEST "Invalid Request: server is shutting down" lsp.error
+            fi fi
+        end
+    end
+end
+
+-- Handle a notification. Unknown notifications are ignored. Returns false and
+-- the exit code on exit.
+func lsp.server.notify (lsp.server, string) (bool, int) in
+    match srv name in
+        name "exit" string.= if
+            false srv lsp.server.state LSP_SHUTDOWN = if 0 else 1 fi
+        else true 0 fi
+    end
+end
+
+func lsp.server.message (lsp.server, json_object) (bool, int) in
+    match srv msg in
+        msg json_object.kind JSON_OBJECT_MAP = not if
+            json.null LSP_INVALID_REQUEST "Invalid Request: message must be an object" lsp.error true 0
+        else msg "method" lsp.has not msg "result" lsp.has msg "error" lsp.has or and if
+            -- A response. The server sends no requests, so it has no use for it.
+            true 0
+        else msg "id" json_object.get match id has_id in
+            has_id id lsp.id.valid not and if
+                json.null LSP_INVALID_REQUEST "Invalid Request: id must be a string or an integer" lsp.error true 0
+            else msg lsp.check match code text in
+                code 0 = not if
+                    has_id if id json.copy else json.null fi code text lsp.error true 0
+                else
+                    msg "method" json_object.get pop json_object.string pop match name in
+                        has_id if srv id json.copy name msg lsp.server.request true 0
+                        else srv name lsp.server.notify fi
+                    end
+                fi
+            end fi
+        end fi fi
+    end
+end
+
+-- Handle one message body. Returns false and the exit code to stop.
+func lsp.server.handle (lsp.server, string) (bool, int) in
+    match srv body in
+        body json.parse match msg e in
+            e error.ok if
+                srv msg lsp.server.message
+            else
+                json.null LSP_PARSE_ERROR "Parse error: " e error.message lsp.error.with true 0
+            fi
+            msg json.free
+            e json.error.free
+        end
+    end
+end
+
+-- Serve on stdin and stdout until exit or the end of input.
+func lsp.serve () (int) in
+    STDIN rpc.reader.new LSP_NEW lsp.server.init match r srv in
+        true 0 while match go code in go code go end loop -- run, code
+            pop2
+            r rpc.reader.next match body status err in
+                status RPC_MESSAGE = if
+                    srv body lsp.server.handle
+                    body json.str.free
+                else status RPC_EOF = if
+                    false 0
+                else
+                    err lsp.log false 1
+                fi fi
+            end
+        pool
+        swp pop
+    end
+end

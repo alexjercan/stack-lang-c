@@ -1,0 +1,298 @@
+@import "stdlib"
+
+-- Base protocol framing: header lines, an empty line, then Content-Length
+-- bytes of body.
+
+const RPC_MESSAGE 0
+const RPC_EOF 1
+const RPC_ERROR 2
+
+const RPC_MAX_HEADER 8192
+const RPC_MAX_BODY 67108864
+const RPC_CHUNK 65536
+const RPC_EINTR -4
+
+-- Bytes [first, last) of bytes are read but not used yet. bytes has 8 more
+-- bytes than cap, so rpc.reader.byte can read a full int.
+data rpc.reader (int fd, ptr bytes, int cap, int first, int last)
+
+func rpc.reader.new (int) (rpc.reader) in
+    RPC_CHUNK 8 + ptr.alloc RPC_CHUNK 0 0 rpc.reader.init
+end
+
+func rpc.reader.byte (rpc.reader, int) (int) in
+    swp rpc.reader.bytes swp ptr.+ int.* 255 &
+end
+
+func rpc.reader.used (rpc.reader) (int) in
+    match r in r rpc.reader.last r rpc.reader.first - end
+end
+
+-- Read more bytes. Returns the count, 0 at end of input, or -1 on error.
+func rpc.reader.fill (rpc.reader) (int) in
+    match r in
+        r rpc.reader.first 0 > if
+            r rpc.reader.bytes r rpc.reader.bytes r rpc.reader.first ptr.+ r rpc.reader.used ptr.@ pop
+            r r rpc.reader.used rpc.reader.last.set
+            r 0 rpc.reader.first.set
+        fi
+        r rpc.reader.last r rpc.reader.cap = if
+            r rpc.reader.cap 2 * match cap in
+                r r rpc.reader.bytes r rpc.reader.cap 8 + cap 8 + ptr.realloc rpc.reader.bytes.set
+                r cap rpc.reader.cap.set
+            end
+        fi
+        RPC_EINTR while dup RPC_EINTR = loop
+            pop
+            r rpc.reader.fd
+            r rpc.reader.bytes r rpc.reader.last ptr.+
+            r rpc.reader.cap r rpc.reader.last -
+            sys.read
+        pool
+        match n in
+            n 0 > if r r rpc.reader.last n + rpc.reader.last.set n
+            else n 0 = if 0 else -1 fi fi
+        end
+    end
+end
+
+func rpc.reader.crlf (rpc.reader, int) (bool) in
+    match r i in r i rpc.reader.byte 13 = r i 1 + rpc.reader.byte 10 = and end
+end
+
+-- Index of "\r\n\r\n" in [from, last), or -1.
+func rpc.reader.find (rpc.reader, int) (int) in
+    match r from in
+        from 0 + -1 while -- i, at
+            match i at in i at at 0 < i 3 + r rpc.reader.last < and end loop
+            match i _at in
+                i 1 + r i rpc.reader.crlf r i 2 + rpc.reader.crlf and if i else -1 fi
+            end
+        pool
+        swp pop
+    end
+end
+
+-- Index of the first "\r\n" in [from, b), or b.
+func rpc.reader.eol (rpc.reader, int, int) (int) in
+    match r from b in
+        from 0 + while dup b < if dup r swp rpc.reader.crlf not else false fi loop 1 + pool
+    end
+end
+
+func rpc.ows (int) (bool) in dup BYTE_SPACE = swp BYTE_\T = or end
+
+func rpc.token.byte (int) (bool) in
+    match c in
+        c byte.isalnum
+        c BYTE_! = or c BYTE_# = or c BYTE_$ = or c BYTE_% = or c BYTE_& = or
+        c BYTE_' = or c BYTE_* = or c BYTE_+ = or c BYTE_- = or c BYTE_. = or
+        c BYTE_^ = or c BYTE__ = or c BYTE_` = or c BYTE_| = or c BYTE_~ = or
+    end
+end
+
+-- The bytes [a, b) are a header name equal to name, without case. name is
+-- lower case.
+func rpc.reader.name= (rpc.reader, int, int, string) (bool) in
+    match r a b name in
+        b a - name string.len = 0 while -- ok, k
+            match ok k in ok k ok k name string.len < and end loop
+            match _ok k in
+                r a k + rpc.reader.byte match c in c BYTE_A >= c BYTE_Z <= and if c 32 + else c fi end
+                name k string.!! = k 1 +
+            end
+        pool
+        pop
+    end
+end
+
+-- Parse the value [a, b) of Content-Length. Returns -1 when it is not a
+-- number and -2 when it is too large.
+func rpc.reader.length (rpc.reader, int, int) (int) in
+    match r a b in
+        a b < if
+            a 0 + 0 while -- i, n
+                match i n in i n i b < n 0 >= and end loop
+                match i n in
+                    r i rpc.reader.byte match c in
+                        c byte.isdigit not if -1
+                        else n RPC_MAX_BODY > if n else n 10 * c BYTE_0 - + fi fi
+                    end
+                    i 1 + swp
+                end
+            pool
+            swp pop
+            dup RPC_MAX_BODY > if pop -2 fi
+        else -1 fi
+    end
+end
+
+-- Check the header line [a, b). Returns the Content-Length (-1 for other
+-- headers) and an error message.
+func rpc.reader.line (rpc.reader, int, int) (int, string) in
+    match r a b in
+        a while dup b < if r over rpc.reader.byte BYTE_: = not else false fi loop 1 + pool
+        match colon in
+            colon b = if -1 "invalid header line"
+            else
+                true a 0 + while -- ok, i
+                    match ok i in ok i ok i colon < and end loop
+                    match _ok i in r i rpc.reader.byte rpc.token.byte i 1 + end
+                pool
+                pop colon a > and not if -1 "invalid header name"
+                else
+                    colon 1 + while dup b < if r over rpc.reader.byte rpc.ows else false fi loop 1 + pool
+                    b while dup2 < if r over 1 - rpc.reader.byte rpc.ows else false fi loop 1 - pool
+                    match va vb in
+                        true va 0 + while -- ok, i
+                            match ok i in ok i ok i vb < and end loop
+                            match _ok i in
+                                r i rpc.reader.byte match c in c 32 >= c 127 < and c BYTE_\T = or end i 1 +
+                            end
+                        pool
+                        pop not if -1 "invalid header value"
+                        else r a colon "content-length" rpc.reader.name= if
+                            r va vb rpc.reader.length match n in
+                                n -1 = if -1 "invalid Content-Length"
+                                else n -2 = if -1 "Content-Length is too large"
+                                else n "" fi fi
+                            end
+                        else -1 "" fi fi
+                    end
+                fi
+            fi
+        end
+    end
+end
+
+-- Check the header lines in [a, b). Returns the Content-Length and an error
+-- message.
+func rpc.reader.headers (rpc.reader, int, int) (int, string) in
+    match r a b in
+        a 0 + -1 "" while -- i, len, err
+            match i len err in i len err i b < err string.len 0 = and end loop
+            match i len _err in
+                r i b rpc.reader.eol match j in
+                    r i j rpc.reader.line match n err in
+                        err string.len 0 > if j 2 + len err
+                        else n 0 < if j 2 + len ""
+                        else len 0 >= if j 2 + len "duplicate Content-Length"
+                        else j 2 + n "" fi fi fi
+                    end
+                end
+            end
+        pool
+        rot pop
+        match len err in
+            err string.len 0 = len 0 < and if len "missing Content-Length" else len err fi
+        end
+    end
+end
+
+-- Read the next message. Returns the body, RPC_MESSAGE, and "", or "",
+-- RPC_EOF at the end of input between messages, or "", RPC_ERROR and a
+-- message. Free the body with string.str ptr.free.
+func rpc.reader.next (rpc.reader) (string, int, string) in
+    match r in
+        0 -1 RPC_MESSAGE "" true while loop -- scan, at, status, err
+            match scan _at _status _err in
+                r r rpc.reader.first scan + rpc.reader.find match at in
+                    at 0 >= if
+                        scan at at r rpc.reader.first - RPC_MAX_HEADER > if RPC_ERROR "header is too large" else RPC_MESSAGE "" fi false
+                    else r rpc.reader.used RPC_MAX_HEADER 4 + >= if
+                        scan at RPC_ERROR "header is too large" false
+                    else
+                        r rpc.reader.used 3 - dup 0 < if pop 0 fi
+                        r rpc.reader.fill match n in
+                            n 0 > if at RPC_MESSAGE "" true
+                            else n 0 = if
+                                at r rpc.reader.used 0 = if RPC_EOF "" else RPC_ERROR "unexpected end of input in header" fi false
+                            else
+                                at RPC_ERROR "failed to read input" false
+                            fi fi
+                        end
+                    fi fi
+                end
+            end
+        pool
+        match _scan at status err in
+            status RPC_MESSAGE = not if
+                "" status err
+            else
+                r r rpc.reader.first at rpc.reader.headers match len herr in
+                    herr string.len 0 > if
+                        "" RPC_ERROR herr
+                    else
+                        at 4 + r rpc.reader.first - match skip in
+                            RPC_MESSAGE "" while -- status, err
+                                match st _e in st _e st RPC_MESSAGE = r rpc.reader.used skip len + < and end loop
+                                pop2
+                                r rpc.reader.fill match n in
+                                    n 0 > if RPC_MESSAGE ""
+                                    else n 0 = if RPC_ERROR "unexpected end of input in body"
+                                    else RPC_ERROR "failed to read input" fi fi
+                                end
+                            pool
+                            match st e in
+                                st RPC_MESSAGE = if
+                                    len string.memory-needed ptr.alloc match buf in
+                                        buf r rpc.reader.bytes r rpc.reader.first skip + ptr.+ len ptr.@ pop
+                                        r r rpc.reader.first skip + len + rpc.reader.first.set
+                                        len buf string.init RPC_MESSAGE ""
+                                    end
+                                else "" st e fi
+                            end
+                        end
+                    fi
+                end
+            fi
+        end
+    end
+end
+
+-- Write all n bytes at p. Retries partial writes and EINTR.
+func rpc.write (int, ptr, int) (bool) in
+    match fd p n in
+        0 true while -- done, ok
+            match done ok in done ok ok done n < and end loop
+            match done _ok in
+                fd p done ptr.+ n done - sys.write match w in
+                    w 0 > if done w + true
+                    else w RPC_EINTR = if done true
+                    else done false fi fi
+                end
+            end
+        pool
+        swp pop
+    end
+end
+
+-- Write n >= 0 in decimal at p. Returns the number of bytes.
+func rpc.digits (ptr, int) (int) in
+    match p n in
+        1 n 10 / while dup 0 > loop 10 / swp 1 + swp pool pop
+        match k in
+            k 1 - n true while loop -- i, v
+                match i v in
+                    p i ptr.+ v 10 % BYTE_0 + int.& 1 ptr.@ pop
+                    i 1 - v 10 / dup 0 >
+                end
+            pool
+            pop2 k
+        end
+    end
+end
+
+func rpc.send (int, string) (bool) in
+    match fd body in
+        40 ptr.alloc match head in
+            head "Content-Length: " string.str 16 ptr.@ pop
+            head 16 ptr.+ body string.len rpc.digits 16 + match n in
+                head n ptr.+ "\r\n\r\n" string.str 4 ptr.@ pop
+                fd head n 4 + rpc.write
+            end
+            fd body string.str body string.len rpc.write and
+            head ptr.free
+        end
+    end
+end

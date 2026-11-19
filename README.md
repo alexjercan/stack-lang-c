@@ -30,10 +30,11 @@ runtime errors if not used carefully.
 ## 2. Quickstart
 
 This repository includes a `Stack` compiler that can be used for each step of
-converting a `.stack` file into an executable.
+converting a `.stack` file into an executable. It also includes `stackls`, a
+language server for `Stack` (see [7. Language Server](#7-language-server)).
 
-To build the `Stack` compiler you can easily use `nix` with the default build
-target, or just run make.
+To build the `Stack` compiler and `stackls` you can easily use `nix` with the
+default build target, or just run make.
 
 ```console
 nix build
@@ -44,6 +45,11 @@ or
 ```console
 make
 ```
+
+The default package has `bin/slc`, `bin/stackls` and the libraries in `lib`.
+The packages `.#slc` and `.#stackls` have only one tool. `make` writes
+`out/slc` and `out/stackls`. `make install` builds and installs both tools and
+the libraries into `PREFIX`.
 
 To compile a `Stack` program using the `slc` compiler:
 
@@ -66,6 +72,19 @@ Runtime tests check that generated assembly contains only printable ASCII.
 
 ```fish
 nix develop --command bash scripts/checker.sh --preprocessor --no-build -v
+```
+
+Run the `stackls` protocol tests. `make test-lsp` builds the compiler and the
+server from the current source, then runs `tests/lsp/protocol.py`:
+
+```fish
+nix develop --command make test-lsp
+```
+
+Run them on the Nix package:
+
+```fish
+nix flake check
 ```
 
 ## 3. Stack
@@ -631,3 +650,77 @@ end
 
 The stack starts with `argc` and `argv` and must end with the `int` return
 code.
+
+## 7. Language Server
+
+`stackls` is a language server for `Stack`. It reads LSP messages on stdin,
+writes them on stdout, and writes logs to stderr.
+
+```console
+stackls [-h | --help] [-v | --version] [--stdio]
+```
+
+The server has only the transport and the lifecycle at this time. It
+advertises no capabilities (`"capabilities": {}`). Hover, go to definition,
+references and diagnostics will use the `Stack` compiler.
+
+The source is `stackls.stack`. It uses the libraries `lib/rpc.stack` (message
+framing) and `lib/lsp.stack` (JSON-RPC and the lifecycle), and `lib/json.stack`.
+Other programs can import `rpc` and `lsp`.
+
+`tests/lsp/protocol.py` uses only the Python standard library. It acts as a
+client: it starts one server per case, sends bytes, and checks the exit code
+and every byte on stdout. You can run it on any binary:
+
+```fish
+python3 tests/lsp/protocol.py result/bin/stackls
+```
+
+### 7.1. Protocol
+
+Framing:
+
+- Header lines end with `\r\n`, and an empty line ends the header.
+- Header names do not use case. `Content-Length` must be one decimal number
+  of at most 64 MiB, and it must occur one time. Other valid headers, for
+  example `Content-Type`, are ignored.
+- The header can have at most 8 KiB.
+- A bad header, or the end of input inside a message, stops the server with
+  exit code 1 and a message on stderr. The end of input between messages
+  stops the server with exit code 0.
+
+JSON-RPC:
+
+- A body that is not valid JSON gets error `-32700` with `"id": null`. The
+  server then reads the next message.
+- A message that is not a valid request or notification gets error `-32600`.
+  `jsonrpc` must be `"2.0"`, `method` must be a string, `params` must be an
+  object, an array or `null`, and `id` must be a string or an integer that
+  fits in 64 bits. Ids are sent back as they are.
+- A message without `method` and with `result` or `error` is a response. The
+  server ignores it.
+- Notifications get no response. Unknown notifications are ignored.
+
+Lifecycle:
+
+- Before `initialize`, requests get `-32002`.
+- `initialize` accepts `params` that are `null`, missing or an object.
+  `clientInfo` is optional. When it is present, it must be an object with a
+  string `name` and an optional string `version`, or the request gets
+  `-32602`. Other fields are ignored.
+- After `initialize`, unknown requests get `-32601`, and `initialize` again
+  gets `-32600`.
+- `shutdown` gets `null`. After it, requests get `-32600`.
+- `exit` stops the server with code 0 after `shutdown`, and 1 if there was no
+  `shutdown`.
+
+### 7.2. Known limitations
+
+- Memory grows with each message. The `Stack` runtime puts each computed
+  `int`, `bool` and `ptr` into a cell that it never frees (see
+  [3. Stack](#3-stack)). The server frees each JSON tree and each frame buffer
+  with `ptr.free`, but cells stay. A measurement gave about 150 KB for each
+  small request.
+- The server handles one message at a time. `$/cancelRequest` is ignored.
+- If the client closes stdout, the write gets `SIGPIPE` and the server stops.
+- The server runs only on x86-64 Linux, as the `Stack` compiler.
