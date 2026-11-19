@@ -1,0 +1,96 @@
+@import "json"
+@import "tests/04-runtime/modules/json-check"
+
+func expect.dumps (json_object, string, int) () in
+    match v out n in
+        v json.dumps match d in
+            d out string.= not if d "\n" string.concat string.stderr fi
+            d out string.= n check
+            d json.str.free
+        end
+    end
+end
+
+func main () (int) in
+    -- Keys and values are escaped. DEL and valid UTF-8 stay raw.
+    "a\"b\\c\n" 1 byte.chr string.concat 31 byte.chr string.concat
+    0 byte.chr string.concat 127 byte.chr string.concat "/" string.concat
+    match s in
+        json.map match obj in
+            obj s s json.string json_object.put
+            obj "\b\f\r\t" "" json.string json_object.put
+            obj
+            "{\"a\\\"b\\\\c\\n\\u0001\\u001f\\u0000" 127 byte.chr string.concat "/\":"
+            string.concat "\"a\\\"b\\\\c\\n\\u0001\\u001f\\u0000" string.concat 127 byte.chr string.concat
+            "/\",\"\\b\\f\\r\\t\":\"\"}" string.concat 1 expect.dumps
+            obj json.dumps match d in
+                d json.parse match v e in
+                    e error.ok 2 check
+                    v s json_object.get match x ok in
+                        ok 3 check
+                        x json_object.string match y yok in yok 4 check y s string.= 5 check end
+                    end
+                    v json.free e json.error.free
+                end
+                d json.str.free
+            end
+            obj json.free
+        end
+    end
+
+    -- Invalid UTF-8 becomes U+FFFD, valid UTF-8 is kept.
+    "a" 255 byte.chr string.concat 195 byte.chr string.concat "b" string.concat
+    226 byte.chr string.concat 130 byte.chr string.concat 172 byte.chr string.concat
+    237 byte.chr string.concat 160 byte.chr string.concat 128 byte.chr string.concat
+    json.string match v in
+        v "\"a\\ufffd\\ufffdb" 226 byte.chr string.concat 130 byte.chr string.concat 172 byte.chr string.concat
+        "\\ufffd\\ufffd\\ufffd\"" string.concat 6 expect.dumps
+        v json.free
+    end
+
+    -- Builders.
+    json.array match arr in
+        arr 0 json.int json_object.push
+        arr -5 json.int json_object.push
+        arr 1 63 << json.int json_object.push
+        arr 1 63 << 1 - json.int json_object.push
+        arr true json.bool json_object.push
+        arr false json.bool json_object.push
+        arr json.null json_object.push
+        arr json.invalid json_object.push
+        arr json.map json_object.push
+        arr json.array json_object.push
+        arr "[0,-5,-9223372036854775808,9223372036854775807,true,false,null,null,{},[]]" 7 expect.dumps
+        arr json_object.array match xs ok in
+            ok 8 check
+            xs 2 array.get unwrap json_object.* json_object.int match n iok in iok 9 check n 1 63 << = 10 check end
+        end
+        arr json.free
+    end
+    json.invalid match v in v "null" 11 expect.dumps v json.free end
+
+    -- A copy owns its values.
+    "{\"k\":[1.50,\"s\\u00e9\",{\"x\":null}],\"t\":true}" json.parse match v e in
+        e error.ok 12 check
+        v json.copy match c in
+            v json.free
+            c "{\"k\":[1.50,\"s" 195 byte.chr string.concat 169 byte.chr string.concat "\",{\"x\":null}],\"t\":true}" string.concat 13 expect.dumps
+            c json.copy match c2 in
+                c json.free
+                c2 "t" json_object.get match t ok in ok 14 check t json_object.bool match b bok in bok 15 check b 16 check end end
+                c2 json.free
+            end
+        end
+        e json.error.free
+    end
+
+    -- Parse, serialize and free many values. Bad frees stop the program.
+    0 while dup 2000 < loop
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"m\",\"params\":{\"a\":[1,2,3],\"b\":\"x\"}}" json.parse
+        match v e in e error.ok 17 check v json.dumps json.str.free v json.free e json.error.free end
+        "[1,{\"a\":@}]" json.parse match v e in e error.ok not 18 check v json.free e json.error.free end
+        1 +
+    pool pop
+
+    0
+end

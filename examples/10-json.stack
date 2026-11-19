@@ -1,11 +1,17 @@
 @import "json"
 @import "stdlib"
 
+-- Read JSON from stdin and write it back without whitespace.
 func main () (int) in
-    STDIN stdlib.fread.<eof> unwrap json.loads
-
-    -- json_object.item json_map.* "some" json.map_get unwrap
-
-    json.dumps string.stdout
-    0
+    STDIN stdlib.fread.<eof> unwrap json.parse match v e in
+        e error.ok if
+            v json.dumps match s in s "\n" string.concat string.stdout s json.str.free end
+            0
+        else
+            "error: " e error.message string.concat "\n" string.concat string.stderr
+            1
+        fi
+        v json.free
+        e json.error.free
+    end
 end

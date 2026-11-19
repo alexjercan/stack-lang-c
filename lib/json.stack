@@ -1,5 +1,8 @@
 @import "stdlib"
 
+-- JSON values, parser and serializer. See the JSON section in README.md for
+-- the ownership rules.
+
 const JSON_OBJECT_INVALID   0
 const JSON_OBJECT_STRING    1
 const JSON_OBJECT_NUMBER    2
@@ -8,486 +11,909 @@ const JSON_OBJECT_NULL      4
 const JSON_OBJECT_ARRAY     5
 const JSON_OBJECT_MAP       6
 
+const JSON_MAX_DEPTH 512
+const JSON_INT_MIN 1 63 <<
+
 data json_string (string s)
-data json_number (int n)
+-- text is the number as written. n is valid only when exact is true.
+data json_number (int n, bool exact, string text)
 data json_boolean (bool b)
-data json_null ()
 data json_array (array a) -- array<json_object>
 
 data json_kv (string key, json_object value)
 data json_map (array a) -- array<json_kv>
 
+-- item is ptr.null for null and invalid values.
 data json_object (int kind, ptr item)
 
-func util.pos_to_lc (string, int) (int, int) in
-    match buf ps in
-        1 1 0 while -- ln cl idx
-            dup ps < loop -- ln cl idx
-            match ln cl idx in
-                buf idx string.!! BYTE_\N = if
-                    ln 1 + 1
-                else
-                    ln cl 1 +
-                fi
-                idx 1 +
+-- BYTES
+
+func json.byte.put (ptr, int) () in int.& 1 ptr.@ pop end
+
+-- Byte i of s, or BYTE_EOF after the end.
+func json.byte.at (string, int) (int) in
+    match s i in i s string.len < if s i string.!! else BYTE_EOF fi end
+end
+
+-- Free the bytes and the header of an owned string.
+func json.str.free (string) () in
+    match s in s string.str ptr.free s string.& ptr.free end
+end
+
+-- Concatenate and free the owned string l.
+func json.str.append (string, string) (string) in
+    match l r in l r string.concat l json.str.free end
+end
+
+-- Copy the bytes of s to a new block.
+func json.str.copy (string) (string) in
+    match s in s 0 s string.len string.substr end
+end
+
+-- k bytes at s[i] are UTF-8 continuation bytes.
+func json.utf8.cont (string, int, int) (bool) in
+    match s i k in
+        true 0 while -- ok, j
+            match ok j in ok j ok j k < and end loop
+            match _ok j in
+                s i j + json.byte.at 192 & 128 = j 1 +
             end
-        pool -- ln cl idx+1
+        pool
         pop
     end
 end
 
-const JSON_TOKEN_EOF        0
-const JSON_TOKEN_ILLEGAL    1
-const JSON_TOKEN_NULL       2
-const JSON_TOKEN_LBRACE     3
-const JSON_TOKEN_RBRACE     4
-const JSON_TOKEN_LSQRLY     5
-const JSON_TOKEN_RSQRLY     6
-const JSON_TOKEN_COLON      7
-const JSON_TOKEN_COMMA      8
-const JSON_TOKEN_BOOLEAN    9
-const JSON_TOKEN_NUMBER     10
-const JSON_TOKEN_STRING     11
-
-func json_token_kind.map (int) (string) in
-    dup JSON_TOKEN_EOF = if pop "<EOF>"
-    else dup JSON_TOKEN_ILLEGAL = if pop "ILLEGAL"
-    else dup JSON_TOKEN_NULL = if pop "NULL"
-    else dup JSON_TOKEN_LBRACE = if pop "["
-    else dup JSON_TOKEN_RBRACE = if pop "]"
-    else dup JSON_TOKEN_LSQRLY = if pop "{"
-    else dup JSON_TOKEN_RSQRLY = if pop "}"
-    else dup JSON_TOKEN_COLON = if pop ":"
-    else dup JSON_TOKEN_COMMA = if pop ","
-    else dup JSON_TOKEN_BOOLEAN = if pop "BOOLEAN"
-    else dup JSON_TOKEN_NUMBER = if pop "NUMBER"
-    else dup JSON_TOKEN_STRING = if pop "STRING"
-    else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi
-end
-
-const JSON_ILLEGAL_NO_ERROR     0
-const JSON_ILLEGAL_INVALID      1
-const JSON_ILLEGAL_STRING_NULL  2
-const JSON_ILLEGAL_STRING_\N    3
-const JSON_ILLEGAL_STRING_EOF   4
-
-data json_token (int kind, string value, int pos, int err)
-
-func json_token.init.empty () (json_token) in
-    0 "" 0 0 json_token.init
-end
-
-func json_token.init.ok (int, string, int) (json_token) in -- kind, value, pos
-    JSON_ILLEGAL_NO_ERROR json_token.init
-end
-
-data json_lexer (string buffer, int pos, int read_pos, int ch, string filename)
-
-func json_lexer.init.with_buffer (string, string) (json_lexer) in -- buffer, filename
-    0 0 0 rot4 json_lexer.init dup json_lexer.read pop -- json_lexer
-end
-
-func json_lexer.pos.to_lc (json_lexer, int) (int, int) in -- lexer, pos
-    swp json_lexer.buffer swp util.pos_to_lc
-end
-
-func json_lexer.peek (json_lexer) (int) in
-    dup json_lexer.buffer dup2 -- lexer, buffer, lexer, buffer
-
-    string.len swp json_lexer.read_pos <= if -- lexer, buffer
-        pop2 BYTE_EOF
-    else
-        swp json_lexer.read_pos string.!!
-    fi -- byte
-end
-
-func json_lexer.read (json_lexer) (int) in
-    dup json_lexer.peek dup2 json_lexer.ch.set swp -- chr, json_lexer
-    dup json_lexer.read_pos dup2 json_lexer.pos.set -- chr, json_lexer, rpos
-    1 + dup2 json_lexer.read_pos.set pop2 -- chr
-end
-
-func json_lexer.skip.whitespace (json_lexer) () in
-    while
-        dup json_lexer.ch byte.isspace loop
-        dup json_lexer.read pop
-    pool
-    pop
-end
-
-func json_lexer.skip.until_newline (json_lexer) () in
-    while
-        dup json_lexer.ch -- json_lexer, ch
-        dup BYTE_\N = swp -- json_lexer, bool, ch
-        dup BYTE_EOF = swp -- json_lexer, bool, bool, ch
-        pop or not loop
-        dup json_lexer.read pop
-    pool
-    pop
-end
-
-func json_lexer.next.name (json_lexer) (string) in -- lexer
-    match lxr in
-        "" lxr json_lexer.ch -- string, ch
-        while -- string, ch
-            dup byte.isalnum loop -- string, ch
-            byte.chr string.concat -- string
-            lxr json_lexer.read -- string, ch
-        pool
-
-        pop
+-- Length of the valid UTF-8 sequence at s[i], or 0. The sequence must not be
+-- overlong, a surrogate, or larger than U+10FFFF.
+func json.utf8.len (string, int) (int) in
+    match s i in
+        s i json.byte.at match c in
+            c 194 >= c 223 <= and if 128 191 1
+            else c 224 = if 160 191 2
+            else c 225 >= c 236 <= and c 238 >= c 239 <= and or if 128 191 2
+            else c 237 = if 128 159 2
+            else c 240 = if 144 191 3
+            else c 241 >= c 243 <= and if 128 191 3
+            else c 244 = if 128 143 3
+            else 0 0 0 fi fi fi fi fi fi fi
+        end
+        match lo hi k in
+            s i 1 + json.byte.at match c1 in c1 lo >= c1 hi <= and end
+            k 0 > and s i 2 + k 1 - json.utf8.cont and
+            if k 1 + else 0 fi
+        end
     end
 end
 
-func json_lexer.next.number (json_lexer) (string) in -- lexer
-    match lxr in
-        lxr json_lexer.ch -- ch
-        dup BYTE_- = if -- ch
-            pop "-" lxr json_lexer.read -- string, ch
+-- Write cp as UTF-8 and return the number of bytes.
+func json.utf8.put (ptr, int) (int) in
+    match p cp in
+        cp 128 < if
+            p cp json.byte.put 1
+        else cp 2048 < if
+            p cp 6 >> 192 | json.byte.put
+            p 1 ptr.+ cp 63 & 128 | json.byte.put 2
+        else cp 65536 < if
+            p cp 12 >> 224 | json.byte.put
+            p 1 ptr.+ cp 6 >> 63 & 128 | json.byte.put
+            p 2 ptr.+ cp 63 & 128 | json.byte.put 3
         else
-            "" swp
-        fi -- string, ch
-
-        while -- string, ch
-            dup byte.isdigit loop -- string, ch
-            byte.chr string.concat -- string
-            lxr json_lexer.read -- string, ch
-        pool
-
-        pop
+            p cp 18 >> 240 | json.byte.put
+            p 1 ptr.+ cp 12 >> 63 & 128 | json.byte.put
+            p 2 ptr.+ cp 6 >> 63 & 128 | json.byte.put
+            p 3 ptr.+ cp 63 & 128 | json.byte.put 4
+        fi fi fi
     end
 end
 
-func json_lexer.next.string (json_lexer) (string, int) in
-    match lxr in
-        "" JSON_ILLEGAL_NO_ERROR lxr json_lexer.read while -- string, int, ch
-            dup BYTE_QUOTE = not loop -- string, int, ch
-            match s err ch in
-                ch BYTE_EOF = if
-                    "" JSON_ILLEGAL_STRING_EOF BYTE_QUOTE
-                else ch BYTE_NULL = if
-                    "" JSON_ILLEGAL_STRING_NULL BYTE_QUOTE
-                else ch BYTE_\N = if
-                    "" JSON_ILLEGAL_STRING_\N BYTE_QUOTE
-                else
-                    s ch ch BYTE_\ = if -- s, ch
-                        byte.chr string.concat -- s
-                        lxr json_lexer.read -- s, ch
-                    fi -- string, ch
+-- NUMBERS
 
-                    dup BYTE_EOF = if -- string, ch
-                        err swp -- string, int, ch
-                    else
-                        byte.chr string.concat -- s
-                        err lxr json_lexer.read -- string, int, ch
-                    fi
-                fi fi fi
-            end
-        pool
-
-        pop lxr json_lexer.read pop
-    end
-end
-
-func json_lexer.next (json_lexer) (json_token) in
-    dup json_lexer.skip.whitespace -- lexer
-    dup json_lexer.pos 0 + swp -- pos, lexer
-    dup json_lexer.ch -- pos, lexer, ch
-
-    match pos lxr ch in
-        ch BYTE_EOF = if
-            lxr json_lexer.read pop JSON_TOKEN_EOF "" pos json_token.init.ok
-        else ch BYTE_[ = if
-            lxr json_lexer.read pop JSON_TOKEN_LBRACE "" pos json_token.init.ok
-        else ch BYTE_] = if
-            lxr json_lexer.read pop JSON_TOKEN_RBRACE "" pos json_token.init.ok
-        else ch BYTE_{ = if
-            lxr json_lexer.read pop JSON_TOKEN_LSQRLY "" pos json_token.init.ok
-        else ch BYTE_} = if
-            lxr json_lexer.read pop JSON_TOKEN_RSQRLY "" pos json_token.init.ok
-        else ch BYTE_: = if
-            lxr json_lexer.read pop JSON_TOKEN_COLON "" pos json_token.init.ok
-        else ch BYTE_COMMA = if
-            lxr json_lexer.read pop JSON_TOKEN_COMMA "" pos json_token.init.ok
-        else ch byte.isdigit ch BYTE_- = lxr json_lexer.peek byte.isdigit and or if
-            lxr json_lexer.next.number -- string
-            JSON_TOKEN_NUMBER swp pos json_token.init.ok
-        else ch BYTE_QUOTE = if
-            lxr json_lexer.next.string -- string, int
-            match s err in
-                err JSON_ILLEGAL_NO_ERROR = if
-                    JSON_TOKEN_STRING s pos json_token.init.ok
-                else
-                    JSON_TOKEN_ILLEGAL "" pos err json_token.init
-                fi
-            end
-        else ch byte.isalnum if
-            lxr json_lexer.next.name -- string
-            match name in
-                name "true" string.= if
-                    JSON_TOKEN_BOOLEAN "true" pos json_token.init.ok
-                else name "false" string.= if
-                    JSON_TOKEN_BOOLEAN "false" pos json_token.init.ok
-                else name "null" string.= if
-                    JSON_TOKEN_NULL "" pos json_token.init.ok
-                else
-                    lxr json_lexer.read pop
-                    JSON_TOKEN_ILLEGAL name pos JSON_ILLEGAL_INVALID json_token.init
-                fi fi fi
-            end
-        else
-            JSON_TOKEN_ILLEGAL ch int.show pos JSON_ILLEGAL_INVALID json_token.init
-            lxr json_lexer.read pop
-        fi fi fi fi fi fi fi fi fi fi
-    end
-end
-
-func json_lexer.dump (json_lexer) () in
-    match lxr in
-        true while loop
-            lxr json_lexer.next match t in
-                t json_token.kind json_token_kind.map -- s
-                t json_token.value dup string.len 0 > if -- s value
-                    swp "(" string.concat swp string.concat ")" string.concat
-                else pop fi -- s
-                "\n" string.concat string.stdout -- ()
-
-                t json_token.kind JSON_TOKEN_EOF = not
-            end
-        pool
-    end
-end
-
-data json_parser (json_lexer lexer, json_token tok, json_token next_tok)
-
-func json_parser.init.with_lexer (json_lexer) (json_parser) in
-    json_token.init.empty json_token.init.empty json_parser.init
-    dup json_parser.read pop
-end
-
-func json_parser.peek (json_parser) (json_token) in json_parser.next_tok end
-
-func json_parser.read (json_parser) (json_token) in
-    dup dup json_parser.peek json_parser.tok.set
-    dup dup json_parser.lexer json_lexer.next json_parser.next_tok.set
-    json_parser.tok
-end
-
-func json_parser.parse (json_parser) (json_object) in -- ast
-    dup json_parser.peek dup json_token.kind match prs tok knd in
-        knd JSON_TOKEN_LSQRLY = if
-            prs json_parser.parse_map
-        else knd JSON_TOKEN_LBRACE = if
-            prs json_parser.parse_array
-        else knd JSON_TOKEN_STRING = if
-            prs json_parser.parse_string
-        else knd JSON_TOKEN_NUMBER = if
-            prs json_parser.parse_number
-        else knd JSON_TOKEN_BOOLEAN = if
-            prs json_parser.parse_boolean
-        else knd JSON_TOKEN_NULL = if
-            prs json_parser.parse_null
-        else
-            JSON_OBJECT_INVALID ptr.null json_object.init
-        fi fi fi fi fi fi
-    end
-end
-
-func json_parser.parse_array (json_parser) (json_object) in
-    match prs in
-        prs json_parser.read json_token.kind JSON_TOKEN_LBRACE = unwrap
-        prs json_parser.peek json_token.kind JSON_TOKEN_RBRACE = if
-            prs json_parser.read pop JSON_OBJECT_ARRAY json_object.sizeof array.init.with_sz array.& json_object.init
-        else
-            json_object.sizeof array.init.with_sz true while -- array<json_object>, run
-                loop -- array<json_object>
-                dup prs json_parser.parse -- array, array, json_object
-                json_object.& array.append unwrap -- array<json_object>
-
-                prs json_parser.read json_token.kind dup JSON_TOKEN_RBRACE = if
-                    pop false
-                else dup JSON_TOKEN_COMMA = if
-                    pop true
-                else
-                    panic pop false
-                fi fi
-            pool -- array<json_object>, run
-
-            json_array.init
-            JSON_OBJECT_ARRAY swp json_array.& json_object.init
-        fi
-    end
-end
-
-func json_parser.parse_map (json_parser) (json_object) in
-    match prs in
-        prs json_parser.read json_token.kind JSON_TOKEN_LSQRLY = unwrap
-        prs json_parser.peek json_token.kind JSON_TOKEN_RSQRLY = if
-            prs json_parser.read pop JSON_OBJECT_MAP json_kv.sizeof array.init.with_sz array.& json_object.init
-        else
-            json_kv.sizeof array.init.with_sz true while -- array<json_kv>, run
-                loop -- array<json_kv>
-                dup -- array<json_kv>, array<json_kv>
-
-                prs json_parser.parse_string -- array<json_kv>, array<json_kv>, json_object
-                dup json_object.kind JSON_OBJECT_STRING = unwrap json_object.item json_string.* json_string.s -- array<json_kv>, array<json_kv>, string
-                prs json_parser.read json_token.kind JSON_TOKEN_COLON = unwrap -- array<json_kv>, array<json_kv>, string
-                prs json_parser.parse -- array<json_kv>, array<json_kv>, string, json_object
-                json_kv.init -- array<json_kv>, array<json_kv>, json_kv
-                json_kv.& array.append unwrap -- array<json_kv>
-
-                prs json_parser.read json_token.kind dup JSON_TOKEN_RSQRLY = if
-                    pop false
-                else dup JSON_TOKEN_COMMA = if
-                    pop true
-                else
-                    prs json_parser.peek match tok in
-                        tok json_token.pos int.show ":" string.concat "Got " string.concat
-                        tok json_token.kind json_token_kind.map string.concat " expected } or ,\n" string.concat string.stderr
+-- Read an optional minus sign and one or more digits. Fails on other bytes
+-- and when the value does not fit in int.
+func json.int.read (string) (int, bool) in
+    match s in
+        s string.len 0 > if s 0 string.!! BYTE_- = else false fi if 1 else 0 fi
+        match first in
+            first 0 + 0 first s string.len < while -- i, n, ok (n <= 0)
+                match i n ok in i n ok ok i s string.len < and end loop
+                match i n _ok in
+                    s i string.!! match c in
+                        c byte.isdigit if
+                            c BYTE_0 - match d in
+                                n JSON_INT_MIN d + 10 / >= if i 1 + n 10 * d - true else i n false fi
+                            end
+                        else i n false fi
                     end
-                    panic pop false
-                fi fi
-            pool -- array<json_kv>, run
+                end
+            pool
+            match _i n ok in
+                ok not if 0 false
+                else first 1 = if n true
+                else n JSON_INT_MIN = if 0 false else 0 n - true fi fi fi
+            end
+        end
+    end
+end
 
-            json_map.init
-            JSON_OBJECT_MAP swp json_map.& json_object.init
+-- Decimal text of n in a new block. Works for the smallest int.
+func json.int.text (int) (string) in
+    match n in
+        n 0 < if 2 else 1 fi n 10 / while dup 0 = not loop 10 / swp 1 + swp pool pop
+        match len in
+            len string.memory-needed ptr.alloc match buf in
+                n 0 < if buf BYTE_- json.byte.put fi
+                len 1 - n true while loop -- k, v
+                    match k v in
+                        buf k ptr.+ v 10 % abs BYTE_0 + json.byte.put
+                        k 1 - v 10 / dup 0 = not
+                    end
+                pool
+                pop2
+                len buf string.init
+            end
+        end
+    end
+end
+
+-- BUILDERS
+
+func json.invalid () (json_object) in
+    JSON_OBJECT_INVALID ptr.null json_object.init
+end
+
+-- Take the bytes of s. The string header of s is freed.
+func json.string.own (string) (json_object) in
+    match s in
+        s json_string.init json_string.& JSON_OBJECT_STRING swp json_object.init
+        s string.& ptr.free
+    end
+end
+
+-- Take the bytes of text. text must be a valid JSON number.
+func json.number.own (string) (json_object) in
+    match text in
+        text json.int.read text json_number.init json_number.& JSON_OBJECT_NUMBER swp json_object.init
+        text string.& ptr.free
+    end
+end
+
+func json.string (string) (json_object) in json.str.copy json.string.own end
+
+func json.int (int) (json_object) in json.int.text json.number.own end
+
+func json.bool (bool) (json_object) in
+    json_boolean.init json_boolean.& JSON_OBJECT_BOOLEAN swp json_object.init
+end
+
+func json.null () (json_object) in
+    JSON_OBJECT_NULL ptr.null json_object.init
+end
+
+func json.array () (json_object) in
+    json_object.sizeof array.init.with_sz match xs in
+        xs json_array.init json_array.& JSON_OBJECT_ARRAY swp json_object.init
+        xs array.& ptr.free
+    end
+end
+
+func json.map () (json_object) in
+    json_kv.sizeof array.init.with_sz match xs in
+        xs json_map.init json_map.& JSON_OBJECT_MAP swp json_object.init
+        xs array.& ptr.free
+    end
+end
+
+-- Move value to the end of the array arr. value must be a root; its handle
+-- is freed.
+func json_object.push (json_object, json_object) () in
+    match arr value in
+        arr json_object.kind JSON_OBJECT_ARRAY = unwrap
+        arr json_object.item json_array.* json_array.a value json_object.& array.append pop
+        value json_object.& ptr.free
+    end
+end
+
+-- Move value to the end of the map obj with the key key. The key bytes are
+-- taken and the string header is freed. Keys are not checked for duplicates.
+func json_object.put.own (json_object, string, json_object) () in
+    match obj key value in
+        obj json_object.kind JSON_OBJECT_MAP = unwrap
+        key value json_kv.init match kv in
+            obj json_object.item json_map.* json_map.a kv json_kv.& array.append pop
+            kv json_kv.& ptr.free
+        end
+        key string.& ptr.free
+        value json_object.& ptr.free
+    end
+end
+
+-- Like json_object.put.own, but the key is copied.
+func json_object.put (json_object, string, json_object) () in
+    match obj key value in obj key json.str.copy value json_object.put.own end
+end
+
+-- CHECKED ACCESSORS
+-- Results alias the value. See README.md.
+
+func json_object.string (json_object) (string, bool) in
+    match obj in
+        obj json_object.kind JSON_OBJECT_STRING = if
+            obj json_object.item json_string.* json_string.s true
+        else "" false fi
+    end
+end
+
+-- Only integers that fit in int succeed.
+func json_object.int (json_object) (int, bool) in
+    match obj in
+        obj json_object.kind JSON_OBJECT_NUMBER = if
+            obj json_object.item json_number.* match num in
+                num json_number.exact if num json_number.n true else 0 false fi
+            end
+        else 0 false fi
+    end
+end
+
+-- The number as written in the source, or as built by json.int.
+func json_object.number (json_object) (string, bool) in
+    match obj in
+        obj json_object.kind JSON_OBJECT_NUMBER = if
+            obj json_object.item json_number.* json_number.text true
+        else "" false fi
+    end
+end
+
+func json_object.bool (json_object) (bool, bool) in
+    match obj in
+        obj json_object.kind JSON_OBJECT_BOOLEAN = if
+            obj json_object.item json_boolean.* json_boolean.b true
+        else false false fi
+    end
+end
+
+-- array<json_object>. On failure the array is a new empty array.
+func json_object.array (json_object) (array, bool) in
+    match obj in
+        obj json_object.kind JSON_OBJECT_ARRAY = if
+            obj json_object.item json_array.* json_array.a true
+        else json_object.sizeof array.init.with_sz false fi
+    end
+end
+
+-- array<json_kv>. On failure the array is a new empty array.
+func json_object.entries (json_object) (array, bool) in
+    match obj in
+        obj json_object.kind JSON_OBJECT_MAP = if
+            obj json_object.item json_map.* json_map.a true
+        else json_kv.sizeof array.init.with_sz false fi
+    end
+end
+
+-- The first value with the key. On failure the value is obj.
+func json_object.get (json_object, string) (json_object, bool) in
+    match obj key in
+        obj json_object.kind JSON_OBJECT_MAP = not if
+            obj false
+        else
+            obj json_object.item json_map.* json_map.a match kvs in
+                0 obj false while -- idx, value, found
+                    match idx value found in
+                        idx value found found not idx kvs array.count < and
+                    end loop
+                    match idx _value _found in
+                        kvs idx array.get unwrap json_kv.* match kv in
+                            idx 1 + kv json_kv.value kv json_kv.key key string.=
+                        end
+                    end
+                pool
+                rot pop match value found in found if value else obj fi found end
+            end
         fi
     end
 end
 
-func json_parser.parse_number (json_parser) (json_object) in
-    match prs in
-        prs json_parser.read dup json_token.kind JSON_TOKEN_NUMBER = unwrap -- token
-        json_token.value int.read unwrap json_number.init
-        JSON_OBJECT_NUMBER swp json_number.& json_object.init
+-- FREE AND COPY
+
+func json.free.item (int, ptr) () in
+    match k itm in
+        k JSON_OBJECT_STRING = if
+            itm json_string.* json_string.s string.str ptr.free
+        else k JSON_OBJECT_NUMBER = if
+            itm json_number.* json_number.text string.str ptr.free
+        else k JSON_OBJECT_ARRAY = if
+            itm json_array.* json_array.a match xs in
+                0 while dup xs array.count < loop
+                    match i in
+                        xs i array.get unwrap json_object.* match e in
+                            e json_object.kind e json_object.item json.free.item
+                        end
+                        i 1 +
+                    end
+                pool pop
+                xs array.items ptr.free
+            end
+        else k JSON_OBJECT_MAP = if
+            itm json_map.* json_map.a match kvs in
+                0 while dup kvs array.count < loop
+                    match j in
+                        kvs j array.get unwrap json_kv.* match kv in
+                            kv json_kv.key string.str ptr.free
+                            kv json_kv.value match v in v json_object.kind v json_object.item json.free.item end
+                        end
+                        j 1 +
+                    end
+                pool pop
+                kvs array.items ptr.free
+            end
+        fi fi fi fi
+        itm ptr.free
     end
 end
 
-func json_parser.parse_string (json_parser) (json_object) in
-    match prs in
-        prs json_parser.read dup json_token.kind JSON_TOKEN_STRING = unwrap -- token
-        json_token.value json_string.init
-        JSON_OBJECT_STRING swp json_string.& json_object.init
-    end
-end
-
-func json_parser.parse_boolean (json_parser) (json_object) in
-    match prs in
-        prs json_parser.read dup json_token.kind JSON_TOKEN_BOOLEAN = unwrap -- token
-        json_token.value "true" string.= json_boolean.init
-        JSON_OBJECT_BOOLEAN swp json_boolean.& json_object.init
-    end
-end
-
-func json_parser.parse_null (json_parser) (json_object) in
-    match prs in
-        prs json_parser.read json_token.kind JSON_TOKEN_NULL = unwrap
-        JSON_OBJECT_NULL json_null.init json_null.& json_object.init
-    end
-end
-
-func json_object.dump (json_object) (string) in
+-- Free a root value and all values that it owns.
+func json.free (json_object) () in
     match obj in
-        obj json_object.kind
-        obj json_object.item
-        match knd itm in
-            knd JSON_OBJECT_STRING = if
-                "\"" itm json_string.* json_string.s string.concat "\"" string.concat
-            else knd JSON_OBJECT_NUMBER = if
-                itm json_number.* json_number.n int.show
-            else knd JSON_OBJECT_BOOLEAN = if
-                itm json_boolean.* json_boolean.b bool.show
-            else knd JSON_OBJECT_NULL = if
-                "null"
-            else knd JSON_OBJECT_ARRAY = if
-                itm json_array.* json_array.dump
-            else knd JSON_OBJECT_MAP = if
-                itm json_map.* json_map.dump
+        obj json_object.kind obj json_object.item json.free.item
+        obj json_object.& ptr.free
+    end
+end
+
+-- Deep copy to a new root.
+func json.copy (json_object) (json_object) in
+    match obj in
+        obj json_object.kind obj json_object.item match k itm in
+            k JSON_OBJECT_STRING = if
+                itm json_string.* json_string.s json.string
+            else k JSON_OBJECT_NUMBER = if
+                itm json_number.* json_number.text json.str.copy json.number.own
+            else k JSON_OBJECT_BOOLEAN = if
+                itm json_boolean.* json_boolean.b json.bool
+            else k JSON_OBJECT_NULL = if
+                json.null
+            else k JSON_OBJECT_ARRAY = if
+                json.array match dst in
+                    itm json_array.* json_array.a match xs in
+                        0 while dup xs array.count < loop
+                            match i in
+                                dst xs i array.get unwrap json_object.* json.copy json_object.push
+                                i 1 +
+                            end
+                        pool pop
+                    end
+                    dst
+                end
+            else k JSON_OBJECT_MAP = if
+                json.map match dst in
+                    itm json_map.* json_map.a match kvs in
+                        0 while dup kvs array.count < loop
+                            match j in
+                                kvs j array.get unwrap json_kv.* match kv in
+                                    dst kv json_kv.key kv json_kv.value json.copy json_object.put
+                                end
+                                j 1 +
+                            end
+                        pool pop
+                    end
+                    dst
+                end
             else
-                "INVALID"
+                json.invalid
             fi fi fi fi fi fi
         end
     end
 end
 
-func json_array.dump (json_array) (string) in
-    "[" swp
-    json_array.a match arr in
-        0 while -- idx
-            dup arr array.count < loop -- idx
-            match idx in
-                arr idx array.get unwrap json_object.* json_object.dump string.concat
+-- STRING ESCAPES
 
-                idx arr array.count 1 - < if
-                    "," string.concat
-                fi
+func json.hex.digit (int) (int, bool) in
+    match c in
+        c byte.isdigit if c BYTE_0 - true
+        else c 97 >= c 102 <= and if c 87 - true
+        else c 65 >= c 70 <= and if c 55 - true
+        else 0 false fi fi fi
+    end
+end
 
-                idx 1 +
+-- 4 hex digits at s[i].
+func json.hex4 (string, int) (int, bool) in
+    match s i in
+        0 true 0 while -- n, ok, k
+            match n ok k in n ok k ok k 4 < and end loop
+            match n _ok k in
+                s i k + json.byte.at json.hex.digit match d dok in n 16 * d + dok k 1 + end
             end
-        pool -- idx+1
+        pool
         pop
     end
-    "]" string.concat
 end
 
-func json_map.dump (json_map) (string) in
-    "{" swp
-    json_map.a match arr in
-        0 while -- idx
-            dup arr array.count < loop -- idx
-            match idx in
-                arr idx array.get unwrap json_kv.* json_kv.dump string.concat
-
-                idx arr array.count 1 - < if
-                    "," string.concat
-                fi
-
-                idx 1 +
-            end
-        pool -- idx+1
-        pop
-    end
-    "}" string.concat
-end
-
-func json_kv.dump (json_kv) (string) in
-    match kv in
-        "\"" kv json_kv.key string.concat "\":" string.concat
-        kv json_kv.value json_object.dump string.concat
+func json.escape.simple (int) (int) in
+    match e in
+        e BYTE_QUOTE = if BYTE_QUOTE
+        else e BYTE_\ = if BYTE_\
+        else e BYTE_/ = if BYTE_/
+        else e BYTE_b = if 8
+        else e BYTE_f = if 12
+        else e BYTE_n = if BYTE_\N
+        else e BYTE_r = if 13
+        else e BYTE_t = if BYTE_\T
+        else -1 fi fi fi fi fi fi fi fi
     end
 end
 
-func json.loads (string) (json_object) in
-    "string" json_lexer.init.with_buffer
-    json_parser.init.with_lexer
-    json_parser.parse
-end
-
-func json.dumps (json_object) (string) in
-    json_object.dump
-end
-
-func json.map_get (json_map, string) (json_object, bool) in -- json_map, key
-    swp json_map.a match key arr in
-        true 0 while -- run, idx
-            match run idx in run idx run idx arr array.count < and end loop
-            match run idx in
-                arr idx array.get unwrap json_kv.* match kv in
-                    kv json_kv.key key string.= if
-                        false idx
+-- Decode the escape at s[i]. Returns the code point, the escape length and an
+-- error message, which is empty on success. Unpaired surrogates are errors.
+func json.escape.decode (string, int) (int, int, string) in
+    match s i in
+        s i 1 + json.byte.at match e in
+            e 117 = if
+                s i 2 + json.hex4 match hi ok in
+                    ok not if
+                        0 0 "invalid unicode escape in string"
+                    else hi 55296 >= hi 56320 < and if
+                        s i 6 + json.byte.at BYTE_\ = s i 7 + json.byte.at 117 = and if
+                            s i 8 + json.hex4
+                        else 0 false fi
+                        match lo lok in
+                            lok lo 56320 >= and lo 57344 < and if
+                                hi 55296 - 10 << lo 56320 - + 65536 + 12 ""
+                            else 0 0 "unpaired surrogate in string" fi
+                        end
+                    else hi 56320 >= hi 57344 < and if
+                        0 0 "unpaired surrogate in string"
                     else
-                        true idx 1 +
-                    fi
+                        hi 6 ""
+                    fi fi fi
                 end
-            end
-        pool -- run, idx+1
-
-        swp not match idx found in
-            found if
-                arr idx array.get unwrap json_kv.* json_kv.value true
             else
-                JSON_OBJECT_INVALID ptr.null json_object.init false
+                e json.escape.simple match v in
+                    v 0 < if 0 0 "invalid escape in string" else v 2 "" fi
+                end
             fi
         end
+    end
+end
+
+-- Decode the string body s[a..b). Returns the string, an error message, which
+-- is empty on success, and the error position. The result is never longer
+-- than the source.
+func json.unescape (string, int, int) (string, string, int) in
+    match s a b in
+        b a - string.memory-needed ptr.alloc match out in
+            a 0 "" while -- i, w, err
+                match i w err in i w err i b < err string.len 0 = and end loop
+                match i w _err in
+                    s i string.!! match c in
+                        c BYTE_\ = if
+                            s i json.escape.decode match cp n msg in
+                                msg string.len 0 = if
+                                    i n + w out w ptr.+ cp json.utf8.put + ""
+                                else i w msg fi
+                            end
+                        else c 32 < if
+                            i w "control character in string"
+                        else c 128 < if
+                            out w ptr.+ c json.byte.put i 1 + w 1 + ""
+                        else
+                            s i json.utf8.len match n in
+                                n 0 = if
+                                    i w "invalid UTF-8 in string"
+                                else
+                                    out w ptr.+ s string.str i ptr.+ n ptr.@ pop i n + w n + ""
+                                fi
+                            end
+                        fi fi fi
+                    end
+                end
+            pool
+            match i w err in
+                err string.len 0 = if w out string.init else out ptr.free "" fi err i
+            end
+        end
+    end
+end
+
+-- PARSER
+
+data json_parser (string s, int pos, int depth, error err)
+
+func json_parser.new (string) (json_parser) in
+    match s in
+        error.nil match e in
+            s 0 0 e json_parser.init
+            e error.& ptr.free
+        end
+    end
+end
+
+func json_parser.ok (json_parser) (bool) in json_parser.err error.ok end
+
+func json_parser.ch (json_parser) (int) in
+    match prs in prs json_parser.s prs json_parser.pos json.byte.at end
+end
+
+func json_parser.advance (json_parser, int) () in
+    match prs n in prs prs json_parser.pos n + json_parser.pos.set end
+end
+
+func json_parser.ws (json_parser) () in
+    match prs in
+        while
+            prs json_parser.ch match c in c byte.isspace c 13 = or end loop
+            prs 1 json_parser.advance
+        pool
+    end
+end
+
+-- Keep the first error. The message starts with the 1 based line and byte
+-- column of pos.
+func json_parser.fail (json_parser, int, string) () in
+    match prs ps msg in
+        prs json_parser.ok if
+            1 1 0 while -- ln, cl, idx
+                dup ps < loop
+                match ln cl idx in
+                    prs json_parser.s idx string.!! BYTE_\N = if ln 1 + 1 else ln cl 1 + fi
+                    idx 1 +
+                end
+            pool
+            pop
+            match ln cl in
+                ln int.show ":" json.str.append
+                cl int.show match col in col json.str.append col json.str.free end
+                ": " json.str.append msg json.str.append
+            end
+            match text in
+                text error.fail match e in
+                    prs e json_parser.err.set
+                    e error.& ptr.free
+                end
+                text string.& ptr.free
+            end
+        fi
+    end
+end
+
+-- Fail at the current byte: at end of input, or with the expected text.
+func json_parser.expected (json_parser, string) () in
+    match prs what in
+        prs json_parser.ch BYTE_EOF = if
+            prs prs json_parser.pos 0 + "unexpected end of input" json_parser.fail
+        else
+            "expected " what string.concat match msg in
+                prs prs json_parser.pos 0 + msg json_parser.fail
+                msg json.str.free
+            end
+        fi
+    end
+end
+
+-- Consume word when it is at the current position.
+func json_parser.word (json_parser, string) (bool) in
+    match prs w in
+        prs json_parser.pos w string.len + prs json_parser.s string.len <= if
+            prs json_parser.s string.str prs json_parser.pos ptr.+ w string.str w string.len ptr.memcmp 0 =
+        else false fi
+        dup if prs w string.len json_parser.advance fi
+    end
+end
+
+func json_parser.digits (json_parser) (int) in
+    match prs in
+        0 while prs json_parser.ch byte.isdigit loop prs 1 json_parser.advance 1 + pool
+    end
+end
+
+func json_parser.enter (json_parser) (bool) in
+    match prs in
+        prs json_parser.depth JSON_MAX_DEPTH < if
+            prs prs json_parser.depth 1 + json_parser.depth.set
+            prs 1 json_parser.advance
+            prs json_parser.ws
+            true
+        else
+            prs prs json_parser.pos 0 + "nesting is too deep" json_parser.fail false
+        fi
+    end
+end
+
+func json_parser.leave (json_parser) () in
+    dup json_parser.depth 1 - json_parser.depth.set
+end
+
+-- After an item: true on ',', false on close or on an error.
+func json_parser.more (json_parser, int, string) (bool) in
+    match prs close what in
+        prs json_parser.ok if
+            prs json_parser.ws
+            prs json_parser.ch match c in
+                c BYTE_COMMA = if prs 1 json_parser.advance true
+                else c close = if prs 1 json_parser.advance false
+                else prs what json_parser.expected false fi fi
+            end
+        else false fi
+    end
+end
+
+-- -?(0|[1-9][0-9]*)(.[0-9]+)?([eE][+-]?[0-9]+)?
+func json_parser.number (json_parser) (json_object) in
+    match prs in
+        prs json_parser.pos 0 + match start in
+            prs json_parser.ch BYTE_- = if prs 1 json_parser.advance fi
+            prs json_parser.ch BYTE_0 = if prs 1 json_parser.advance true else prs json_parser.digits 0 > fi
+            prs json_parser.ch BYTE_. = if prs 1 json_parser.advance prs json_parser.digits 0 > and fi
+            prs json_parser.ch match c in c 101 = c 69 = or end if
+                prs 1 json_parser.advance
+                prs json_parser.ch match c in c BYTE_+ = c BYTE_- = or end if prs 1 json_parser.advance fi
+                prs json_parser.digits 0 > and
+            fi
+            if
+                prs json_parser.s start prs json_parser.pos start - string.substr json.number.own
+            else
+                prs start "invalid number" json_parser.fail json.invalid
+            fi
+        end
+    end
+end
+
+-- The string at the current '"'.
+func json_parser.str (json_parser) (string, bool) in
+    match prs in
+        prs json_parser.s prs json_parser.pos 1 + match s a in
+            a while -- i
+                dup s string.len < if s over string.!! BYTE_QUOTE = not else false fi loop
+                dup s swp string.!! BYTE_\ = if 2 else 1 fi +
+            pool
+            match b in
+                b s string.len >= if
+                    prs a 1 - "unterminated string" json_parser.fail "" false
+                else
+                    s a b json.unescape match out err epos in
+                        err string.len 0 = if
+                            prs b 1 + json_parser.pos.set out true
+                        else
+                            prs epos err json_parser.fail "" false
+                        fi
+                    end
+                fi
+            end
+        end
+    end
+end
+
+func json_parser.string (json_parser) (json_object) in
+    json_parser.str if json.string.own else pop json.invalid fi
+end
+
+func json_parser.array (json_parser) (json_object) in
+    match prs in
+        prs json_parser.enter if
+            json.array match arr in
+                prs json_parser.ch BYTE_] = if
+                    prs 1 json_parser.advance
+                else
+                    true while loop
+                        prs json_parser.value match v in
+                            prs json_parser.ok if arr v json_object.push else v json.free fi
+                        end
+                        prs BYTE_] "',' or ']'" json_parser.more
+                    pool
+                fi
+                prs json_parser.leave
+                arr
+            end
+        else json.invalid fi
+    end
+end
+
+-- A key and the ':' after it.
+func json_parser.key (json_parser) (string, bool) in
+    match prs in
+        prs json_parser.ws
+        prs json_parser.ch BYTE_QUOTE = if
+            prs json_parser.str match key ok in
+                ok if
+                    prs json_parser.ws
+                    prs json_parser.ch BYTE_: = if
+                        prs 1 json_parser.advance key true
+                    else
+                        prs "':'" json_parser.expected
+                        key json.str.free "" false
+                    fi
+                else key false fi
+            end
+        else
+            prs "string" json_parser.expected "" false
+        fi
+    end
+end
+
+func json_parser.map (json_parser) (json_object) in
+    match prs in
+        prs json_parser.enter if
+            json.map match obj in
+                prs json_parser.ch BYTE_} = if
+                    prs 1 json_parser.advance
+                else
+                    true while loop
+                        prs json_parser.key match key ok in
+                            ok if
+                                prs json_parser.value match v in
+                                    prs json_parser.ok if
+                                        obj key v json_object.put.own
+                                    else
+                                        v json.free key json.str.free
+                                    fi
+                                end
+                                prs BYTE_} "',' or '}'" json_parser.more
+                            else false fi
+                        end
+                    pool
+                fi
+                prs json_parser.leave
+                obj
+            end
+        else json.invalid fi
+    end
+end
+
+func json_parser.value (json_parser) (json_object) in
+    match prs in
+        prs json_parser.ws
+        prs json_parser.ch match c in
+            c BYTE_{ = if prs json_parser.map
+            else c BYTE_[ = if prs json_parser.array
+            else c BYTE_QUOTE = if prs json_parser.string
+            else c BYTE_- = c byte.isdigit or if prs json_parser.number
+            else prs "true" json_parser.word if true json.bool
+            else prs "false" json_parser.word if false json.bool
+            else prs "null" json_parser.word if json.null
+            else prs "value" json_parser.expected json.invalid
+            fi fi fi fi fi fi fi
+        end
+    end
+end
+
+-- Parse one JSON text. On success the error is ok and the value is a new
+-- root. On error the value is invalid and the error message starts with
+-- line:column. Free the error with json.error.free.
+func json.parse (string) (json_object, error) in
+    json_parser.new match prs in
+        prs json_parser.value
+        prs json_parser.ok if
+            prs json_parser.ws
+            prs json_parser.ch BYTE_EOF = not if prs "end of input" json_parser.expected fi
+        fi
+        prs json_parser.ok not if json.free json.invalid fi
+        prs json_parser.err match e in e error.ok e error.message error.init end
+        prs json_parser.& ptr.free
+    end
+end
+
+-- Free an error from json.parse and its message.
+func json.error.free (error) () in
+    match e in
+        e error.ok not if e error.message string.str ptr.free fi
+        e error.& ptr.free
+    end
+end
+
+-- Like json.parse, but the error is dropped.
+func json.loads (string) (json_object) in json.parse json.error.free end
+
+-- SERIALIZER
+
+func json.buf.byte (array, int) () in int.& array.append pop end
+
+func json.buf.bytes (array, ptr, int) () in
+    match buf p n in n 0 > if buf buf array.count p n array.insert' fi end
+end
+
+func json.buf.str (array, string) () in
+    match buf s in buf s string.str s string.len json.buf.bytes end
+end
+
+func json.buf.hex (array, int) () in
+    match buf c in buf "0123456789abcdef" c string.!! json.buf.byte end
+end
+
+-- Write the escape for byte c. False when c needs no escape.
+func json.buf.escape (array, int) (bool) in
+    match buf c in
+        c BYTE_QUOTE = if buf "\\\"" json.buf.str true
+        else c BYTE_\ = if buf "\\\\" json.buf.str true
+        else c BYTE_\N = if buf "\\n" json.buf.str true
+        else c 13 = if buf "\\r" json.buf.str true
+        else c BYTE_\T = if buf "\\t" json.buf.str true
+        else c 8 = if buf "\\b" json.buf.str true
+        else c 12 = if buf "\\f" json.buf.str true
+        else c 32 < if
+            buf "\\u00" json.buf.str buf c 4 >> json.buf.hex buf c 15 & json.buf.hex true
+        else false fi fi fi fi fi fi fi fi
+    end
+end
+
+-- Bytes that are not valid UTF-8 are written as �.
+func json.dump.string (array, string) () in
+    match buf s in
+        buf BYTE_QUOTE json.buf.byte
+        0 0 while -- start, i
+            dup s string.len < loop
+            match start i in
+                s i string.!! match c in
+                    c 128 >= if s i json.utf8.len
+                    else c 32 >= c BYTE_QUOTE = not and c BYTE_\ = not and if 1 else 0 fi fi
+                    match n in
+                        n 0 > if
+                            start i n +
+                        else
+                            buf s string.str start ptr.+ i start - json.buf.bytes
+                            c 128 >= if buf "\\ufffd" json.buf.str else buf c json.buf.escape pop fi
+                            i 1 + i 1 +
+                        fi
+                    end
+                end
+            end
+        pool
+        match start stop in buf s string.str start ptr.+ stop start - json.buf.bytes end
+        buf BYTE_QUOTE json.buf.byte
+    end
+end
+
+func json.dump.array (array, array) () in -- buf, array<json_object>
+    match buf xs in
+        buf BYTE_[ json.buf.byte
+        0 while dup xs array.count < loop
+            match i in
+                i 0 > if buf BYTE_COMMA json.buf.byte fi
+                buf xs i array.get unwrap json_object.* json.dump
+                i 1 +
+            end
+        pool
+        pop
+        buf BYTE_] json.buf.byte
+    end
+end
+
+func json.dump.map (array, array) () in -- buf, array<json_kv>
+    match buf kvs in
+        buf BYTE_{ json.buf.byte
+        0 while dup kvs array.count < loop
+            match i in
+                i 0 > if buf BYTE_COMMA json.buf.byte fi
+                kvs i array.get unwrap json_kv.* match kv in
+                    buf kv json_kv.key json.dump.string
+                    buf BYTE_: json.buf.byte
+                    buf kv json_kv.value json.dump
+                end
+                i 1 +
+            end
+        pool
+        pop
+        buf BYTE_} json.buf.byte
+    end
+end
+
+-- Invalid values are written as null.
+func json.dump (array, json_object) () in
+    match buf obj in
+        obj json_object.kind obj json_object.item match k itm in
+            k JSON_OBJECT_STRING = if buf itm json_string.* json_string.s json.dump.string
+            else k JSON_OBJECT_NUMBER = if buf itm json_number.* json_number.text json.buf.str
+            else k JSON_OBJECT_BOOLEAN = if buf itm json_boolean.* json_boolean.b bool.show json.buf.str
+            else k JSON_OBJECT_ARRAY = if buf itm json_array.* json_array.a json.dump.array
+            else k JSON_OBJECT_MAP = if buf itm json_map.* json_map.a json.dump.map
+            else buf "null" json.buf.str
+            fi fi fi fi fi
+        end
+    end
+end
+
+-- Serialize to a new string. Free it with string.str ptr.free.
+func json.dumps (json_object) (string) in
+    1 array.init.with_sz match buf in
+        buf swp json.dump
+        buf array.count buf array.items string.init
+        buf array.& ptr.free
     end
 end

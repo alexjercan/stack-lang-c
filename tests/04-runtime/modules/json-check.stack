@@ -1,0 +1,46 @@
+@import "json"
+@import "tests/04-runtime/utils"
+
+-- Parse s and check the error message. A wrong message goes to stderr.
+func expect.error (string, string, int) () in
+    match s msg n in
+        s json.parse match v e in
+            v json_object.kind JSON_OBJECT_INVALID = n check
+            e error.ok not n check
+            e error.message msg string.= not if e error.message "\n" string.concat string.stderr fi
+            e error.message msg string.= n check
+            v json.free
+            e json.error.free
+        end
+    end
+end
+
+-- Parse s and check that it serializes to out.
+func expect.dump (string, string, int) () in
+    match s out n in
+        s json.parse match v e in
+            e error.ok not if e error.message "\n" string.concat string.stderr fi
+            e error.ok n check
+            v json.dumps match d in
+                d out string.= not if d "\n" string.concat string.stderr fi
+                d out string.= n check
+                d json.str.free
+            end
+            v json.free
+            e json.error.free
+        end
+    end
+end
+
+-- Parse s as one string value and return its bytes.
+func parse.string (string, int) (string) in
+    match s n in
+        s json.parse match v e in
+            e error.ok not if e error.message "\n" string.concat string.stderr fi
+            e error.ok n check
+            v json_object.string n check json.str.copy
+            v json.free
+            e json.error.free
+        end
+    end
+end

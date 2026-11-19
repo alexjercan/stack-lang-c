@@ -1,0 +1,148 @@
+@import "json"
+@import "tests/04-runtime/modules/json-check"
+
+-- A string from bytes. The list ends with -1.
+func bytes (int, int, int, int, int) (string) in
+    match a b c d e in
+        "" a byte.chr string.concat
+        b 0 >= if b byte.chr string.concat fi
+        c 0 >= if c byte.chr string.concat fi
+        d 0 >= if d byte.chr string.concat fi
+        e 0 >= if e byte.chr string.concat fi
+    end
+end
+
+func quoted (string) (string) in "\"" swp string.concat "\"" string.concat end
+
+func expect.number (string, int, bool, int) () in
+    match s n exact k in
+        s json.parse match v e in
+            e error.ok k check
+            v json_object.int match m ok in
+                exact if ok else ok not fi k check
+                exact if m n = k check fi
+            end
+            v json_object.number match text ok in ok k check text s string.= k check end
+            v json.free e json.error.free
+        end
+    end
+end
+
+func nested (string, string, int) (string) in
+    match open close n in
+        open n string.repeat close n string.repeat string.concat
+    end
+end
+
+-- Address of a new 32 byte block. The block is freed again.
+func probe () (int) in 32 ptr.alloc match p in p addr p ptr.free end end
+
+func main () (int) in
+    -- Values and whitespace.
+    " \t\r\n{ \"a\" : [ true , false , null , \"x\" , -1 , { } , [ ] ] }\r\n "
+    "{\"a\":[true,false,null,\"x\",-1,{},[]]}" 1 expect.dump
+    "\"\"" "\"\"" 2 expect.dump
+    "[[[]],{\"\":{}}]" "[[[]],{\"\":{}}]" 3 expect.dump
+
+    -- Checked accessors.
+    "{\"id\": 7, \"name\": \"n\", \"ok\": true, \"xs\": [1, 2], \"id\": 8}" json.parse match v e in
+        e error.ok 4 check
+        v "id" json_object.get match id ok in ok 5 check id json_object.int match n iok in iok 6 check n 7 = 7 check end end
+        v "name" json_object.get match name ok in ok 8 check name json_object.string match s sok in sok 9 check s "n" string.= 10 check end end
+        v "ok" json_object.get match b ok in ok 11 check b json_object.bool match x bok in bok 12 check x 13 check end end
+        v "xs" json_object.get match xs ok in ok 14 check xs json_object.array match a aok in aok 15 check a array.count 2 = 16 check end end
+        v "none" json_object.get not 17 check pop
+        v "name" json_object.get pop json_object.int match n ok in ok not 18 check n 0 = 19 check end
+        v json_object.string match s ok in ok not 20 check s "" string.= 21 check end
+        v json_object.entries match kvs ok in ok 22 check kvs array.count 5 = 23 check end
+        v "x" json_object.get match id ok in ok not 24 check id json_object.kind JSON_OBJECT_MAP = 25 check end
+        v "name" json_object.get pop "a" json_object.get not 26 check pop
+        v json.free e json.error.free
+    end
+
+    -- A get on a value that is not a map gives the value back and allocates
+    -- no block.
+    "[1]" json.parse match v e in
+        probe pop
+        probe match before in
+            v "a" json_object.get match x ok in ok not 92 check x json_object.& addr v json_object.& addr = 93 check end
+            v json_object.array pop 0 array.get unwrap json_object.* "a" json_object.get not 94 check pop
+            probe before = 95 check
+        end
+        v json.free e json.error.free
+    end
+
+    -- Escapes.
+    "\"\\\"\\\\\\/\\b\\f\\n\\r\\t\"" 27 parse.string
+    "\"\\/" 8 byte.chr string.concat 12 byte.chr string.concat "\n" string.concat 13 byte.chr string.concat "\t" string.concat
+    string.= 28 check
+    "\"\\u0041\\u00e9\\u00E9\\u20ac\"" 29 parse.string
+    "A" 195 169 195 169 -1 bytes string.concat 226 130 172 -1 -1 bytes string.concat string.= 30 check
+    "\"\\ud83d\\ude00\"" 31 parse.string 240 159 152 128 -1 bytes string.= 32 check
+    "\"\\uDBFF\\uDFFF\"" 33 parse.string 244 143 191 191 -1 bytes string.= 34 check
+    "\"\\u0000\\u007f\\u0080\\u07ff\\u0800\\uffff\"" 35 parse.string string.len 1 1 + 2 + 2 + 3 + 3 + = 36 check
+
+    "\"\\ud800\"" "1:2: unpaired surrogate in string" 37 expect.error
+    "\"\\udc00\"" "1:2: unpaired surrogate in string" 38 expect.error
+    "\"a\\ud800\\u0041\"" "1:3: unpaired surrogate in string" 39 expect.error
+    "\"\\ud800x\"" "1:2: unpaired surrogate in string" 40 expect.error
+    "\"\\ud800\\udbff\"" "1:2: unpaired surrogate in string" 41 expect.error
+    "\"\\u12g4\"" "1:2: invalid unicode escape in string" 42 expect.error
+    "\"\\u12\"" "1:2: invalid unicode escape in string" 43 expect.error
+    "\"\\x41\"" "1:2: invalid escape in string" 44 expect.error
+    "\"\\U0041\"" "1:2: invalid escape in string" 45 expect.error
+    "\"a\nb\"" "1:3: control character in string" 46 expect.error
+    "\"a\tb\"" "1:3: control character in string" 47 expect.error
+
+    -- Raw UTF-8 is kept. Invalid UTF-8 is an error.
+    195 169 226 130 172 bytes 240 159 152 128 -1 bytes string.concat match s in
+        s quoted 48 parse.string s string.= 49 check
+    end
+    127 -1 -1 -1 -1 bytes quoted 50 parse.string string.len 1 = 51 check
+    128 -1 -1 -1 -1 bytes quoted "1:2: invalid UTF-8 in string" 52 expect.error
+    191 -1 -1 -1 -1 bytes quoted "1:2: invalid UTF-8 in string" 53 expect.error
+    192 128 -1 -1 -1 bytes quoted "1:2: invalid UTF-8 in string" 54 expect.error
+    193 191 -1 -1 -1 bytes quoted "1:2: invalid UTF-8 in string" 55 expect.error
+    224 128 128 -1 -1 bytes quoted "1:2: invalid UTF-8 in string" 56 expect.error
+    237 160 128 -1 -1 bytes quoted "1:2: invalid UTF-8 in string" 57 expect.error
+    240 128 128 128 -1 bytes quoted "1:2: invalid UTF-8 in string" 58 expect.error
+    244 144 128 128 -1 bytes quoted "1:2: invalid UTF-8 in string" 59 expect.error
+    245 128 128 128 -1 bytes quoted "1:2: invalid UTF-8 in string" 60 expect.error
+    255 -1 -1 -1 -1 bytes quoted "1:2: invalid UTF-8 in string" 61 expect.error
+    "a" 226 130 -1 -1 -1 bytes string.concat quoted "1:3: invalid UTF-8 in string" 62 expect.error
+    "\"" 226 130 -1 -1 -1 bytes string.concat "1:1: unterminated string" 63 expect.error
+    226 130 -1 -1 -1 bytes "1:1: expected value" 64 expect.error
+    "{\"" 195 -1 -1 -1 -1 bytes string.concat "\":1}" string.concat "1:3: invalid UTF-8 in string" 65 expect.error
+
+    -- Numbers keep their text. Only integers that fit in int are exact.
+    "0" 0 true 66 expect.number
+    "-0" 0 true 67 expect.number
+    "123" 123 true 68 expect.number
+    "-42" -42 true 69 expect.number
+    "9223372036854775807" 1 63 << 1 - true 70 expect.number
+    "-9223372036854775808" 1 63 << true 71 expect.number
+    "9223372036854775808" 0 false 72 expect.number
+    "-9223372036854775809" 0 false 73 expect.number
+    "100000000000000000000000000000" 0 false 74 expect.number
+    "1.5" 0 false 75 expect.number
+    "1E+2" 0 false 76 expect.number
+    "-0.0e-0" 0 false 77 expect.number
+    "1e400" 0 false 78 expect.number
+    "[1.50,2e10,-0]" "[1.50,2e10,-0]" 79 expect.dump
+
+    "" json.int.read match n ok in ok not 80 check n 0 = 81 check end
+    "-" json.int.read match _n ok in ok not 82 check end
+    "12a" json.int.read match _n ok in ok not 83 check end
+    "-12" json.int.read match n ok in ok 84 check n -12 = 85 check end
+    "+1" json.int.read match _n ok in ok not 86 check end
+
+    -- Nesting depth.
+    "[" "]" JSON_MAX_DEPTH nested json.parse match v e in e error.ok 87 check v json.free e json.error.free end
+    "{\"a\":" JSON_MAX_DEPTH string.repeat "1" string.concat "}" JSON_MAX_DEPTH string.repeat string.concat
+    json.parse match v e in e error.ok 88 check v json.free e json.error.free end
+    "[" "]" JSON_MAX_DEPTH 1 + nested "1:513: nesting is too deep" 89 expect.error
+    "[{\"a\":" 257 string.repeat "1:1537: nesting is too deep" 90 expect.error
+    "[" 100000 string.repeat "1:513: nesting is too deep" 91 expect.error
+
+    0
+end

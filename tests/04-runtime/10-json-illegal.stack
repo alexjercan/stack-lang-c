@@ -1,67 +1,61 @@
 @import "json"
-@import "tests/04-runtime/utils"
+@import "tests/04-runtime/modules/json-check"
 
-func lex (string) (json_lexer) in "test" json_lexer.init.with_buffer end
-
-func expect (json_lexer, int, string, int, int, int) () in
-    match lxr kind value pos err n in
-        lxr json_lexer.next match tok in
-            tok json_token.kind kind = n check
-            tok json_token.value value string.= n check
-            tok json_token.pos pos = n check
-            tok json_token.err err = n check
-        end
-    end
-end
-
-func invalid.byte (int) (bool) in
+-- Bytes that can start a value or are whitespace.
+func value.start (int) (bool) in
     match b in
-        b byte.isspace not b 13 = not and
-        b byte.isalnum not and
-        b BYTE_QUOTE = not and
-        b BYTE_[ = not and b BYTE_] = not and
-        b BYTE_{ = not and b BYTE_} = not and
-        b BYTE_: = not and b BYTE_COMMA = not and
+        b byte.isspace b 13 = or b byte.isdigit or
+        b BYTE_- = or b BYTE_QUOTE = or b BYTE_[ = or b BYTE_{ = or
     end
 end
 
+-- Illegal input and its line:column.
 func main () (int) in
-    "@" lex match lxr in
-        lxr JSON_TOKEN_ILLEGAL "64" 0 JSON_ILLEGAL_INVALID 1 expect
-        lxr JSON_TOKEN_EOF "" 1 JSON_ILLEGAL_NO_ERROR 2 expect
-    end
+    "@" "1:1: expected value" 1 expect.error
+    "@true" "1:1: expected value" 2 expect.error
+    "true@" "1:5: expected end of input" 3 expect.error
+    "\t\n @true" "2:2: expected value" 4 expect.error
+    "[\n1,\n  @]" "3:3: expected value" 5 expect.error
+    "\r\n\r\n?" "3:1: expected value" 6 expect.error
 
-    "@true" lex match lxr in
-        lxr JSON_TOKEN_ILLEGAL "64" 0 JSON_ILLEGAL_INVALID 3 expect
-        lxr JSON_TOKEN_BOOLEAN "true" 1 JSON_ILLEGAL_NO_ERROR 4 expect
-        lxr JSON_TOKEN_EOF "" 5 JSON_ILLEGAL_NO_ERROR 5 expect
-    end
+    "[1 2]" "1:4: expected ',' or ']'" 7 expect.error
+    "[1,]" "1:4: expected value" 8 expect.error
+    "[,1]" "1:2: expected value" 9 expect.error
+    "{1:2}" "1:2: expected string" 10 expect.error
+    "{\"a\" 1}" "1:6: expected ':'" 11 expect.error
+    "{\"a\":1 \"b\":2}" "1:8: expected ',' or '}'" 12 expect.error
+    "{\"a\":1,}" "1:8: expected string" 13 expect.error
+    "{\"a\"}" "1:5: expected ':'" 14 expect.error
+    "[}" "1:2: expected value" 15 expect.error
+    "{]" "1:2: expected string" 16 expect.error
+    "tru" "1:1: expected value" 17 expect.error
+    "truex" "1:5: expected end of input" 18 expect.error
+    "nul" "1:1: expected value" 19 expect.error
+    "True" "1:1: expected value" 20 expect.error
+    "[] []" "1:4: expected end of input" 21 expect.error
+    "'a'" "1:1: expected value" 22 expect.error
 
-    "@?42" lex match lxr in
-        lxr JSON_TOKEN_ILLEGAL "64" 0 JSON_ILLEGAL_INVALID 6 expect
-        lxr JSON_TOKEN_ILLEGAL "63" 1 JSON_ILLEGAL_INVALID 7 expect
-        lxr JSON_TOKEN_NUMBER "42" 2 JSON_ILLEGAL_NO_ERROR 8 expect
-        lxr JSON_TOKEN_EOF "" 4 JSON_ILLEGAL_NO_ERROR 9 expect
-    end
+    "01" "1:2: expected end of input" 23 expect.error
+    "-" "1:1: invalid number" 24 expect.error
+    "--1" "1:1: invalid number" 25 expect.error
+    "-a" "1:1: invalid number" 26 expect.error
+    "1." "1:1: invalid number" 27 expect.error
+    "1.e5" "1:1: invalid number" 28 expect.error
+    "1e" "1:1: invalid number" 29 expect.error
+    "1e+" "1:1: invalid number" 30 expect.error
+    "[0x1]" "1:3: expected ',' or ']'" 31 expect.error
+    ".5" "1:1: expected value" 32 expect.error
+    "+1" "1:1: expected value" 33 expect.error
+    "1.5.2" "1:4: expected end of input" 34 expect.error
 
-    "\t\n @true" lex match lxr in
-        lxr JSON_TOKEN_ILLEGAL "64" 3 JSON_ILLEGAL_INVALID 10 expect
-        lxr 3 json_lexer.pos.to_lc match line col in
-            line 2 = 11 check
-            col 2 = 12 check
-        end
-        lxr JSON_TOKEN_BOOLEAN "true" 4 JSON_ILLEGAL_NO_ERROR 13 expect
-        lxr JSON_TOKEN_EOF "" 8 JSON_ILLEGAL_NO_ERROR 14 expect
-    end
-
+    -- Every other byte is illegal as the first byte of a value.
     0 while dup 256 < loop
         match b in
-            b invalid.byte if
-                b byte.chr "," string.concat lex match lxr in
-                    lxr JSON_TOKEN_ILLEGAL b int.show 0 JSON_ILLEGAL_INVALID 15 expect
-                    lxr JSON_TOKEN_COMMA "" 1 JSON_ILLEGAL_NO_ERROR 16 expect
-                    lxr JSON_TOKEN_EOF "" 2 JSON_ILLEGAL_NO_ERROR 17 expect
-                end
+            b value.start not if
+                b byte.chr "," string.concat "1:1: expected value" 35 expect.error
+                b BYTE_] = not if
+                    "[" b byte.chr string.concat "]" string.concat "1:2: expected value" 36 expect.error
+                fi
             fi
             b 1 +
         end
