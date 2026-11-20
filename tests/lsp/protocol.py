@@ -320,7 +320,53 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(SERVER)))
 URI = "file:///nonexistent/stackls-test/main.stack"
 MARKDOWN = {"textDocument": {"hover": {"contentFormat": ["markdown", "plaintext"]}}}
 PLAINTEXT = {"textDocument": {"hover": {"contentFormat": ["plaintext", "markdown"]}}}
-BUILTIN = "Builtin function."
+SIGNATURES = [
+    ("dup", "(a) (a, a)", "Duplicate the top item."), ("swp", "(a, b) (b, a)", "Swap the top two items."),
+    ("rot", "(a, b, c) (b, c, a)", "Rotate (a, b, c) to (b, c, a)."),
+    ("rot4", "(a, b, c, d) (b, c, d, a)", "Rotate (a, b, c, d) to (b, c, d, a)."),
+    ("pop", "(a) ()", "Remove the top item."), ("pick", "(int) (ptr)", "duplicate item n on top of the stack as a pointer"),
+    ("+", "(int, int) (int)", "Add two integers."), ("-", "(int, int) (int)", "Subtract two integers."),
+    ("*", "(int, int) (int)", "Multiply two integers."), ("/", "(int, int) (int)", "Signed integer division."),
+    ("%", "(int, int) (int)", "Signed integer remainder."), ("|", "(int, int) (int)", "Bitwise OR."),
+    ("&", "(int, int) (int)", "Bitwise AND."), ("^", "(int, int) (int)", "Bitwise XOR."),
+    (">>", "(int, int) (int)", "Shift right"), ("<<", "(int, int) (int)", "Shift left"),
+    (">", "(int, int) (bool)", "Greater than."), ("<", "(int, int) (bool)", "Less than."),
+    ("=", "(int, int) (bool)", "Equal."), ("ptr.alloc", "(int) (ptr)", "Allocate n bytes."),
+    ("ptr.free", "(ptr) ()", "Free an allocated block."), ("ptr.+", "(ptr, int) (ptr)", "Add a byte offset."),
+    ("ptr.@", "(ptr, ptr, int) (ptr)", "Copy n bytes from src to dst and return dst."),
+    ("int.&", "(int) (ptr)", "Address of the value."), ("int.*", "(ptr) (int)", "Dereference as int."),
+    ("ptr.&", "(ptr) (ptr)", "Address of the value."), ("ptr.*", "(ptr) (ptr)", "Dereference as ptr."),
+    ("bool.&", "(bool) (ptr)", "Address of the value."), ("bool.*", "(ptr) (bool)", "Dereference as bool."),
+    ("os.env", "() (ptr)", "Pointer to the environment variable array."),
+    ("syscall1", "(a, int) (int)", "Linux syscall with one argument."),
+    ("syscall3", "(a, b, c, int) (int)", "Linux syscall with three arguments."),
+]
+
+
+def literal(text):
+    """Markdown that shows text as it is."""
+    out, prev = [], 0
+    for line in text.split("\n"):
+        blank = line.strip(" \t") == ""
+        out.append(("\\" if prev == 2 and not blank else "") + ("\n" if prev else ""))
+        ws = True
+        for c in "" if blank else line:
+            if c == "\t":
+                out.append("&nbsp;" * 4)
+            elif c == " ":
+                out.append("&nbsp;" if ws else " ")
+            else:
+                out.append("\\" + c if c.isascii() and not c.isalnum() and c.isprintable() else c)
+            ws = c in " \t"
+        prev = 1 if blank else 2
+    return "".join(out)
+
+
+def builtin(name, markdown=True):
+    sig, doc = next((s, d) for n, s, d in SIGNATURES if n == name)
+    return "func %s %s" % (name, sig), literal(doc) if markdown else doc
+
+
 BUILTIN_DATA = "Builtin data type."
 NEWLINE = re.compile(r"\r\n|\r|\n")
 TOKEN = re.compile(r"[^\s(),]+")
@@ -403,11 +449,11 @@ def hover_builtins():
             '    true if 3 else 4 fi int.sizeof +\n'
             'end\n')
     hovers(text, [
-        ("+", 0, 0, ("func + (int, int) (int)", BUILTIN)),
-        ("dup", 0, 0, ("func dup (a) (a, a)", BUILTIN)),
-        ("dup", 0, 2, ("func dup (a) (a, a)", BUILTIN)),
+        ("+", 0, 0, builtin("+")),
+        ("dup", 0, 0, builtin("dup")),
+        ("dup", 0, 2, builtin("dup")),
         ("dup", 0, 3, None),
-        ("pop", 0, 1, ("func pop (a) ()", BUILTIN)),
+        ("pop", 0, 1, builtin("pop")),
         ("dup", 1, 0, None),
         ("dup", 2, 0, None),
         ("1", 0, 0, None),
@@ -448,7 +494,7 @@ def hover_declarations():
         ("swap2", 0, 0, ("func swap2 (a, b) (b, a)", "")),
         ("a, b)", 0, 0, None),
         ("swap2", 1, 0, ("func swap2 (a, b) (b, a)", "")),
-        ("swp", 0, 0, ("func swp (a, b) (b, a)", BUILTIN)),
+        ("swp", 0, 0, builtin("swp")),
     ])
 
 
@@ -491,8 +537,8 @@ def hover_bindings():
         ("x", 2, 0, None),
         ("x", 3, 0, None),
         ("dup", 2, 0, None),
-        ("+", 0, 0, ("func + (int, int) (int)", BUILTIN)),
-        ("dup", 3, 0, ("func dup (a) (a, a)", BUILTIN)),
+        ("+", 0, 0, builtin("+")),
+        ("dup", 3, 0, builtin("dup")),
     ])
 
 
@@ -515,7 +561,7 @@ def hover_imports():
         ], cwd=tmp, env=env)
         # A missing import keeps the declarations of the open file.
         text = '@import "missing"\nfunc main () () in main dup end\n'
-        hovers(text, [("main", 1, 0, ("func main () ()", "")), ("dup", 0, 0, ("func dup (a) (a, a)", BUILTIN))],
+        hovers(text, [("main", 1, 0, ("func main () ()", "")), ("dup", 0, 0, builtin("dup"))],
                cwd=tmp, env=env)
         env = dict(os.environ, STACK_HOME=ROOT)
         text = '@import "stdlib"\nfunc f (string) (int) in string.len end\n'
@@ -589,10 +635,10 @@ def hover_positions():
     # A carriage return is not valid in Stack code, but it ends a line in a comment.
     text = 'func main () () in\n    "é€\U0001F600" pop -- \U0001F600 \U0001F600\r\n    "\U0001F600" swp -- a\r-- b\n    dup\nend\n'
     hovers(text, [
-        ("pop", 0, 0, ("func pop (a) ()", BUILTIN)),
-        ("pop", 0, 2, ("func pop (a) ()", BUILTIN)),
-        ("swp", 0, 1, ("func swp (a, b) (b, a)", BUILTIN)),
-        ("dup", 0, 0, ("func dup (a) (a, a)", BUILTIN)),
+        ("pop", 0, 0, builtin("pop")),
+        ("pop", 0, 2, builtin("pop")),
+        ("swp", 0, 1, builtin("swp")),
+        ("dup", 0, 0, builtin("dup")),
     ])
     line = position(text, find(text, "pop"))["line"]
     expect([init(), frame(did_open(text)),
@@ -605,13 +651,12 @@ def hover_positions():
     # A position inside a surrogate pair.
     text = 'func main () () in "\U0001F600"dup end\n'
     expect([init(), frame(did_open(text)), frame(hover(2, pos(0, 21))), frame(hover(3, pos(0, 23)))],
-           [ok(1, INIT_RESULT), ok(2, None), ok(3, hover_result("func dup (a) (a, a)", BUILTIN, pos(0, 23), pos(0, 26)))])
+           [ok(1, INIT_RESULT), ok(2, None), ok(3, hover_result(*builtin("dup"), pos(0, 23), pos(0, 26)))])
 
 
 @test
 def hover_formats():
     text = 'func main () () in dup end\n'
-    dup = ("func dup (a) (a, a)", BUILTIN, pos(0, 19), pos(0, 22))
     for caps, markdown in [(MARKDOWN, True), (PLAINTEXT, False), ({}, False), ({"textDocument": {"hover": {}}}, False),
                            ({"textDocument": {"hover": {"contentFormat": []}}}, False),
                            ({"textDocument": {"hover": {"contentFormat": ["x", 1, "plaintext", "markdown"]}}}, False),
@@ -619,7 +664,7 @@ def hover_formats():
                            ({"textDocument": {"hover": {"contentFormat": "markdown"}}}, False),
                            ({"textDocument": 5}, False)]:
         expect([init(caps), frame(did_open(text)), frame(hover(2, pos(0, 20)))],
-               [ok(1, INIT_RESULT), ok(2, hover_result(*dup, markdown))])
+               [ok(1, INIT_RESULT), ok(2, hover_result(*builtin("dup", markdown), pos(0, 19), pos(0, 22), markdown))])
 
 
 @test
@@ -627,8 +672,8 @@ def hover_documents():
     one = 'func f () () in dup end\n'
     two = 'func g () () in\n  swp end\n'
     p, q = pos(0, 16), pos(1, 2)
-    dup = hover_result("func dup (a) (a, a)", BUILTIN, p, pos(0, 19))
-    swp = hover_result("func swp (a, b) (b, a)", BUILTIN, q, pos(1, 5))
+    dup = hover_result(*builtin("dup"), p, pos(0, 19))
+    swp = hover_result(*builtin("swp"), q, pos(1, 5))
     untitled = "untitled:Untitled-1"
     expect([init(), frame(hover(2, p)), frame(did_open(one)), frame(hover(3, p)),
             frame(did_change(two)), frame(hover(4, p)), frame(hover(5, pos(0, 5))), frame(hover(6, q)),
@@ -661,7 +706,7 @@ def hover_params():
     chunks += [frame(req(10 + i, "textDocument/hover", p)) for i, p in enumerate(bad)]
     chunks += [frame(hover(2, pos(0, 16))), frame(hover(3, pos(2147483647, 0))), frame(hover(4, pos(0, 2147483647)))]
     expect(chunks, [ok(1, INIT_RESULT)] + [err(10 + i, -32602) for i in range(len(bad))] +
-           [ok(2, hover_result("func dup (a) (a, a)", BUILTIN, pos(0, 16), pos(0, 19))), ok(3, None), ok(4, None)])
+           [ok(2, hover_result(*builtin("dup"), pos(0, 16), pos(0, 19))), ok(3, None), ok(4, None)])
     expect([init(), frame(note("textDocument/didOpen", {})), frame(note("textDocument/didOpen", {"textDocument": {}})),
             frame(note("textDocument/didChange", {})), frame(note("textDocument/didClose", {"textDocument": 5})),
             frame(hover(2, pos(0, 0)))], [ok(1, INIT_RESULT), ok(2, None)])
@@ -689,7 +734,7 @@ def hover_deep_nesting():
         text = good + "func bad () () in " + block * 10000
         hovers(text, [("good", 0, 0, want), ("bad", 0, 0, None)])
     # At most 2048 nested blocks.
-    for n, inner in [(2048, ("func dup (a) (a, a)", BUILTIN)), (2049, None)]:
+    for n, inner in [(2048, builtin("dup")), (2049, None)]:
         text = good + "func bad () () in\n" + "true if " * n + "dup" + " fi" * n + "\nend\n"
         hovers(text, [("good", 0, 0, want), ("dup", 0, 1, inner)])
     # The server continues after a deep document.
@@ -697,7 +742,7 @@ def hover_deep_nesting():
     expect([init(), frame(did_open(deep)), frame(hover(2, pos(0, 5))), frame(did_change("func f () () in dup end\n")),
             frame(hover(3, pos(0, 16)))],
            [ok(1, INIT_RESULT), ok(2, hover_result(*want, pos(0, 5), pos(0, 9))),
-            ok(3, hover_result("func dup (a) (a, a)", BUILTIN, pos(0, 16), pos(0, 19)))])
+            ok(3, hover_result(*builtin("dup"), pos(0, 16), pos(0, 19)))])
 
 
 @test
@@ -761,6 +806,150 @@ def hover_import_changes():
                                 {"line": at["line"], "character": at["character"] + 5}, False)
             assert srv.read() == ok(10 + k, want)
         srv.close()
+
+
+DOCS = ('-- Body of g.\nfunc g () () in\n  -- body\n  end -- trailing\n-- First line.\n--\n'
+        '--   `code` *x* _y_ <b>t</b> \\ [a](b) 1. # & &amp; a  b\tc\nfunc -- between\n  -- inside\n  f () () in g end\n\n'
+        '-- detached\n\nfunc h () () in f end\nconst K 1 -- k\nfunc i () () in end\n'
+        '--no space\n---- dashes\n  -- indent\nfunc j () () in end\n')
+DOC_F = "First line.\n\n  `code` *x* _y_ <b>t</b> \\ [a](b) 1. # & &amp; a  b\tc"
+DOC_F_MD = ("First line\\.\n\n&nbsp;&nbsp;\\`code\\` \\*x\\* \\_y\\_ \\<b\\>t\\<\\/b\\> \\\\ \\[a\\]\\(b\\) 1\\. \\# \\& "
+            "\\&amp\\; a &nbsp;b&nbsp;&nbsp;&nbsp;&nbsp;c")
+
+
+@test
+def hover_docs():
+    for caps, doc_f, doc_g, doc_j in [(PLAINTEXT, DOC_F, "Body of g.", "no space\n-- dashes\nindent"),
+                                      (MARKDOWN, DOC_F_MD, "Body of g\\.", "no space\\\n\\-\\- dashes\\\nindent")]:
+        hovers(DOCS, [
+            ("g ()", 0, 0, ("func g () ()", doc_g)),
+            ("f ()", 0, 0, ("func f () ()", doc_f)),
+            ("g end", 0, 0, ("func g () ()", doc_g)),
+            ("f end", 0, 0, ("func f () ()", doc_f)),
+            ("h ()", 0, 0, ("func h () ()", "")),
+            ("i ()", 0, 0, ("func i () ()", "")),
+            ("j ()", 0, 0, ("func j () ()", doc_j)),
+            ("K", 0, 0, None),
+        ], caps=caps)
+
+
+@test
+def hover_builtin_docs():
+    text = "func main () () in\n" + "".join("    %s\n" % name for name, _, _ in SIGNATURES) + "end\n"
+
+    def at(name):
+        """The needle and n of name on its own line."""
+        i = text.index("\n    %s\n" % name) + 5
+        return name, sum(text.startswith(name, k) for k in range(i)), 0
+
+    for caps, markdown in [(PLAINTEXT, False), (MARKDOWN, True)]:
+        hovers(text, [at(name) + (builtin(name, markdown),) for name, _, _ in SIGNATURES], caps=caps)
+    hovers(text, [
+        at("rot") + (("func rot (a, b, c) (b, c, a)", "Rotate \\(a\\, b\\, c\\) to \\(b\\, c\\, a\\)\\."),),
+        at("ptr.@") + (("func ptr.@ (ptr, ptr, int) (ptr)", "Copy n bytes from src to dst and return dst\\."),),
+        at("<<") + (("func << (int, int) (int)", "Shift left"),),
+        at("<") + (("func < (int, int) (bool)", "Less than\\."),),
+        at("&") + (("func & (int, int) (int)", "Bitwise AND\\."),),
+        at("int.&") + (("func int.& (int) (ptr)", "Address of the value\\."),),
+        at("pick") + (("func pick (int) (ptr)", "duplicate item n on top of the stack as a pointer"),),
+    ])
+    assert literal(DOC_F) == DOC_F_MD
+
+
+@test
+def hover_doc_lines():
+    text = ("func a () () in\n  -- body\nend\n-- x\n\n-- doc ü \U0001F600\r\n-- two\r-- three\rraw\n\t-- tab\r\n"
+            "func b () () in a end\n")
+    hovers(text, [("b ()", 0, 0, ("func b () ()", "doc ü \U0001F600\ntwo\nthree\nraw\ntab")),
+                  ("a end", 0, 0, ("func a () ()", ""))], caps=PLAINTEXT)
+    hovers(text, [("b ()", 0, 0, ("func b () ()", "doc ü \U0001F600\\\ntwo\\\nthree\\\nraw\\\ntab"))])
+    # The lexer decides what is a comment: a continued string is not a doc.
+    text = ('const X "continued\\\n-- NOT A DOC"\nfunc f () () in end\n'
+            'const Y "a\\\nb" -- c\nfunc g () () in end\n'
+            'const Z "-- no\\\n" -- end\n\n-- yes\nfunc h () () in end\n')
+    for caps in [PLAINTEXT, MARKDOWN]:
+        hovers(text, [("f ()", 0, 0, ("func f () ()", "")), ("g ()", 0, 0, ("func g () ()", "")),
+                      ("h ()", 0, 0, ("func h () ()", "yes"))], caps=caps)
+    # A broken header keeps the docs of the functions before it.
+    text = "-- e doc\nfunc e () () in end\n-- d doc\nfunc d ( in e end\n"
+    hovers(text, [("e ()", 0, 0, ("func e () ()", "e doc")), ("e end", 0, 0, None), ("d (", 0, 0, None)],
+           caps=PLAINTEXT)
+    text = "-- e doc\nfunc e () () in end\n-- f doc\nfunc\n"
+    hovers(text, [("e ()", 0, 0, ("func e () ()", "e doc"))], caps=PLAINTEXT)
+    # Edits change the docs.
+    text = "-- old\nfunc e () () in e end\n"
+    new = "-- new\n-- doc\nfunc e () () in e end\n"
+    at = position(new, find(new, "e ("))
+    expect([init(PLAINTEXT), frame(did_open(text)), frame(did_change(new)), frame(hover(2, at))],
+           [ok(1, INIT_RESULT), ok(2, hover_result("func e () ()", "new\ndoc", at,
+                                                   {"line": at["line"], "character": 6}, False))])
+
+
+@test
+def hover_doc_imports():
+    with tempfile.TemporaryDirectory() as tmp:
+        dep = os.path.join(tmp, "dep.stack")
+        with open(dep, "w") as f:
+            f.write("-- disk *doc*\nfunc dep.f () () in end\n")
+        uri = "file://" + os.path.join(tmp, "main.stack")
+        text = '@import "dep"\nfunc main () () in dep.f end\n'
+        hovers(text, [("dep.f", 0, 0, ("func dep.f () ()", "disk *doc*"))], uri=uri, caps=PLAINTEXT, cwd=tmp)
+        hovers(text, [("dep.f", 0, 0, ("func dep.f () ()", "disk \\*doc\\*"))], uri=uri, cwd=tmp)
+        unsaved = did_open("data x (int y)\n\n-- unsaved\nfunc dep.f () () in end\n", "file://" + dep)
+        hovers(text, [("dep.f", 0, 0, ("func dep.f () ()", "unsaved"))], uri=uri, caps=PLAINTEXT,
+               before=[unsaved], cwd=tmp)
+        at = position(text, find(text, "dep.f"))
+        stop = {"line": at["line"], "character": at["character"] + 5}
+        srv = Session(cwd=tmp)
+        srv.send(req(1, "initialize", {"capabilities": {}}))
+        assert srv.read() == ok(1, INIT_RESULT)
+        srv.send(did_open(text, uri))
+        for k, doc in enumerate(["one", "one", "two\nlines", ""]):
+            with open(dep, "w") as f:
+                f.write("".join("-- %s\n" % line for line in doc.split("\n") if doc) + "func dep.f () () in end\n")
+            srv.send(did_change(text + "-- %d\n" % k, uri, version=k + 2))
+            srv.send(hover(10 + k, at, uri))
+            assert srv.read() == ok(10 + k, hover_result("func dep.f () ()", doc, at, stop, False))
+        srv.close()
+
+
+def warm_hovers(text, at, n, cwd, edit=False):
+    """The seconds of the first hover and of n more hovers, after an edit
+    each when edit is true."""
+    uri = "file://" + os.path.join(cwd, "main.stack")
+    srv = Session(cwd=cwd)
+    srv.send(req(1, "initialize", {"capabilities": {}}))
+    assert srv.read() == ok(1, INIT_RESULT)
+    t = time.monotonic()
+    srv.send(did_open(text, uri))
+    srv.send(hover(2, at, uri))
+    want = srv.read()
+    assert want["result"] is not None, want
+    first = time.monotonic() - t
+    t = time.monotonic()
+    for k in range(n):
+        if edit:
+            srv.send(did_change(text + "-- %d\n" % k, uri, version=k + 2))
+        srv.send(hover(2, at, uri))
+        assert srv.read() == want
+    warm = time.monotonic() - t
+    srv.close()
+    return first, warm
+
+
+@test
+def hover_doc_cache():
+    """A text is lexed for docs once, not at each hover."""
+    big = "".join('const C%d "%s"\n' % (k, "x" * 1500) for k in range(20))
+    with tempfile.TemporaryDirectory() as tmp:
+        text = big + "-- doc\nfunc f () () in end\n"
+        first, warm = warm_hovers(text, position(text, find(text, "f ()")), 20, tmp)
+        assert warm < first, (first, warm)
+        with open(os.path.join(tmp, "dep.stack"), "w") as f:
+            f.write(big + "-- dep doc\nfunc dep.f () () in end\n")
+        text = '@import "dep"\nfunc main () () in dep.f end\n'
+        first, warm = warm_hovers(text, position(text, find(text, "dep.f")), 20, tmp, edit=True)
+        assert warm < first, (first, warm)
 
 
 def main():

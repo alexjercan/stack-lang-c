@@ -14,8 +14,7 @@ Backlog:
 
 This manual describes the programming language `Stack`. Stack is a stack based
 programming language. The language uses data structures and functions to define
-programs. It includes static typing with inference and manual memory
-management with `ptr.alloc` and `ptr.free`.
+programs. It includes static typing with inference.
 
 `Stack` programs are sets of functions with a main entrypoint. `Stack` programs
 can also define custom data types, which can be used to describe how memory
@@ -30,11 +29,9 @@ runtime errors if not used carefully.
 ## 2. Quickstart
 
 This repository includes a `Stack` compiler that can be used for each step of
-converting a `.stack` file into an executable. It also includes `stackls`, a
-language server for `Stack` (see [7. Language Server](#7-language-server)).
+converting a `.stack` file into an executable.
 
-To build the `Stack` compiler and `stackls` you can easily use `nix` with the
-default build target, or just run make.
+To build the compiler, use `nix` or `make`.
 
 ```console
 nix build
@@ -46,89 +43,17 @@ or
 make
 ```
 
-The default package has `bin/slc`, `bin/stackls` and the libraries in `lib`.
-The packages `.#slc` and `.#stackls` have only one tool. `make` writes
-`out/slc` and `out/stackls`. `make install` builds and installs both tools and
-the libraries into `PREFIX`.
-
 To compile a `Stack` program using the `slc` compiler:
 
 ```console
 slc [ -o main ] main.stack
 ```
 
-### Running tests
-
-Run the test suite from the repository root:
-
-```fish
-nix develop --command bash scripts/checker.sh --all
-```
-
-Run one stage with `--lexer`, `--parser`, `--preprocessor`, `--typecheck`,
-`--io`, `--import`, or `--runtime`. Add `--no-build` to use the existing `out/slc`.
-
-Runtime tests check that generated assembly contains only printable ASCII.
-
-```fish
-nix develop --command bash scripts/checker.sh --preprocessor --no-build -v
-```
-
-Run the `stackls` protocol tests. `make test-lsp` builds the compiler and the
-server from the current source, then runs `tests/lsp/protocol.py`:
-
-```fish
-nix develop --command make test-lsp
-```
-
-Run them on the Nix package:
-
-```fish
-nix flake check
-```
-
-Run the tests of the Nixvim module (see [7.3. Neovim](#73-neovim)). `eval`
-evaluates the module in some configurations and builds nothing. `headless`
-builds Neovim with the module and the default package. Then it opens a
-`.stack` file and checks the filetype, the syntax groups, the `stackls`
-client and hover. `NIXVIM` selects the Nixvim flake. Use the revision of your
-configuration, for example from its `flake.lock`:
-
-```fish
-env NIXVIM=github:nix-community/nixvim/<rev> tests/nixvim/run.sh eval
-env NIXVIM=github:nix-community/nixvim/<rev> tests/nixvim/run.sh headless
-```
-
-The tests use `path:` of the repository, so new files that git does not track
-are included. Set `STACK` to use another reference of this flake.
+[Documentation](docs/)
 
 ## 3. Stack
 
-The stack in a `Stack` program is an array with a fixed size of 64 KiB. The
-stack is used to store pointers to data that lives on the heap. The heap grows
-with `brk` until the system refuses more memory. The runtime does not give
-memory back to the operating system.
-
-The heap holds two kinds of memory:
-
-- Scalar cells. Each `int`, `bool` or `ptr` value that the runtime computes
-  goes into an 8 byte cell. Cells are in 64 KiB chunks. Cells have no header
-  and you cannot free them.
-- Blocks. Each `ptr.alloc` makes one block. An 8 byte header comes before the
-  returned pointer. The header holds the block size, with the header, and bit
-  0 is set while the block is in use. A block has at least 8 bytes of memory.
-
-Cells and block pointers are 8 byte aligned. `ptr.free` puts a block in a free
-list that is sorted by address and merges adjacent free blocks. `ptr.alloc`
-uses the first free block that is large enough. It splits off the rest when at
-least 16 bytes remain. Memory from `ptr.alloc` is always zero.
-
-These errors write a message to stderr and exit with status 1:
-
-- `Runtime error: negative allocation size`: `ptr.alloc` got a negative size.
-- `Runtime error: out of memory`: the heap cannot grow.
-- `Runtime error: invalid free` and `Runtime error: double free`: `ptr.free`
-  found a problem (see `ptr.free`).
+The stack stores pointers to data that lives on the heap.
 
 Type checking will make sure that the stack is valid for a program before
 allowing it to be compiled.
@@ -404,38 +329,7 @@ func ptr.free (ptr) () in
 end
 ```
 
-The free function gives a block from `ptr.alloc` back to the heap. Use the
-exact pointer that `ptr.alloc` returned. `ptr.null` does nothing. The free is
-shallow: memory that the block points to stays allocated. After the free, all
-copies of the pointer and all pointers into the block are dangling. You must
-not use them.
-
-Nothing frees memory automatically. The standard library frees only memory
-that it owns:
-
-- `src old new ptr.realloc` allocates `new` bytes, copies the first `old` or
-  `new` bytes (the smaller one), frees `src` and returns the new block. `src`
-  must be `ptr.null` or a block from `ptr.alloc`. All pointers into `src` are
-  dangling after the call.
-- An empty array has no items block (`array.items` is `ptr.null`). When
-  `array.append`, `array.insert`, `array.insert_many` or `array.extend` need
-  more capacity, the items move to a new block and the old block is freed. The
-  new capacity is two times the old capacity (`array.SIZE` for an empty
-  array), or the new count if that is larger. Pointers from `array.get` and
-  `array.last`, and headers that share the items of the array, are not valid
-  after a growth. The item
-  or source array can point into the destination array: the functions copy
-  the source bytes before they move or free anything. An array that wraps
-  borrowed memory, such as `argv`, must use `array.copy` before it grows.
-- Temporary buffers of the standard library are freed. Except for realloc
-  and array growth as described above, the functions do not free memory
-  that the caller gives them.
-
-The free checks are best effort. `ptr.free` stops the program for some
-pointers that are not 8 byte aligned, not in the heap (for example the address
-of a literal), with a bad header, or already free. It cannot find
-all bad pointers. The result of a free of any other pointer, for example a
-pointer into a block, a scalar cell, or a made up value, is not defined.
+The free function releases a block returned by `ptr.alloc`.
 
 ### 4.8. `ptr.+`
 
@@ -462,30 +356,27 @@ Function should be called like
 dest src n ptr.@
 ```
 
-### 4.10. `data.&`
+### 4.10. `.&`
 
 ```stack
-func data.& (a) (ptr) in
+func <data>.& (<data>) (ptr) in
     ...
 end
 ```
 
-The ref function will generate a reference to a data. This function is
-currently implemented by the compiler for each data type and it will be for
-example `ptr.&` or `int.&`. (in other terms it will box the data into a
-container and give us the new address of that).
+The compiler generates `<data>.&` for each data type. It returns the address
+of a value, for example `point.&`.
 
-### 4.11. `data.*`
+### 4.11. `.*`
 
 ```stack
-func data.* (ptr) (a) in
+func <data>.* (ptr) (<data>) in
     ...
 end
 ```
 
-The deref function will dereference a ptr value (in other words it will unbox a
-ptr and give us the value which should the data contained by the box). This
-function is also implemented by the compiler for each data type.
+The compiler generates `<data>.*` for each data type. It accesses a value
+at an address, for example `point.*`.
 
 ### 4.12. `syscall1`
 
@@ -668,235 +559,3 @@ end
 
 The stack starts with `argc` and `argv` and must end with the `int` return
 code.
-
-## 7. Language Server
-
-`stackls` is a language server for `Stack`. It reads LSP messages on stdin,
-writes them on stdout, and writes logs to stderr.
-
-```console
-stackls [-h | --help] [-v | --version] [--stdio]
-```
-
-The server supports hover. It advertises `"hoverProvider": true` and full
-text synchronization (`"textDocumentSync": {"openClose": true, "change": 1}`).
-Go to definition, references, completion and diagnostics are not supported.
-
-The source is `stackls.stack`. It uses these libraries:
-
-- `lib/rpc.stack`: message framing.
-- `lib/lsp.stack`: JSON-RPC, the lifecycle, open documents and positions. It
-  does not know `Stack`, and other programs can import it.
-- `lib/json.stack`: JSON values.
-- `lib/stack/service.stack` and `lib/stack/analysis.stack`: the `Stack`
-  requests. They use the parts of the compiler: `lib/stack/lexer.stack`,
-  `lib/stack/parser.stack`, `lib/stack/preprocessor.stack` and
-  `lib/stack/typecheck.stack`. `stack.stack` uses the same files.
-
-`tests/lsp/protocol.py` uses only the Python standard library. It acts as a
-client: it starts one server per case, sends bytes, and checks the exit code
-and every byte on stdout. The hover tests that import `stdlib` use
-`../lib` from the directory of the server: the repository for `out/stackls`,
-and the package for `result/bin/stackls`. You can run it on such a binary:
-
-```fish
-python3 tests/lsp/protocol.py result/bin/stackls
-```
-
-### 7.1. Protocol
-
-Framing:
-
-- Header lines end with `\r\n`, and an empty line ends the header.
-- Header names do not use case. `Content-Length` must be one decimal number
-  of at most 64 MiB, and it must occur one time. Other valid headers, for
-  example `Content-Type`, are ignored.
-- The header can have at most 8 KiB.
-- A bad header, or the end of input inside a message, stops the server with
-  exit code 1 and a message on stderr. The end of input between messages
-  stops the server with exit code 0.
-
-JSON-RPC:
-
-- A body that is not valid JSON gets error `-32700` with `"id": null`. The
-  server then reads the next message.
-- A message that is not a valid request or notification gets error `-32600`.
-  `jsonrpc` must be `"2.0"`, `method` must be a string, `params` must be an
-  object, an array or `null`, and `id` must be a string or an integer that
-  fits in 64 bits. Ids are sent back as they are.
-- A message without `method` and with `result` or `error` is a response. The
-  server ignores it.
-- Notifications get no response. Unknown notifications are ignored.
-
-Lifecycle:
-
-- Before `initialize`, requests get `-32002`.
-- `initialize` accepts `params` that are `null`, missing or an object.
-  `clientInfo` is optional. When it is present, it must be an object with a
-  string `name` and an optional string `version`, or the request gets
-  `-32602`. Other fields are ignored.
-- After `initialize`, unknown requests get `-32601`, and `initialize` again
-  gets `-32600`.
-- `shutdown` gets `null`. After it, requests get `-32600`.
-- `exit` stops the server with code 0 after `shutdown`, and 1 if there was no
-  `shutdown`.
-
-Documents:
-
-- `textDocument/didOpen`, `textDocument/didChange` and
-  `textDocument/didClose` keep the text and the version of each open
-  document. A change must have the full text. A change with a `range` is
-  ignored and logged. Notifications with bad `params` are ignored and logged.
-- The version of an open document must increase. `didChange`, or `didOpen`
-  of a document that is open, with the same or a lower version is ignored
-  and logged.
-- The text of an open document is used in place of the file on disk, also
-  when another file imports it. A URI that is not a `file://` URI can be
-  open, but other files cannot import it.
-
-Hover (`textDocument/hover`):
-
-- Positions use UTF-16 code units, and lines end with `\n`, `\r\n` or `\r`.
-  `line` and `character` must be integers from 0 to 2147483647, or the
-  request gets `-32602`. A character after the end of a line is the end of
-  the line, and a line after the end of the document gets `null`.
-- The result has the code of the definition and a short note, and the range
-  of the name. The content is Markdown with a `stack` code block when the
-  first known kind in `capabilities.textDocument.hover.contentFormat` is
-  `markdown`, else plain text.
-- These names get a result: builtin functions and data types, the `func` and
-  `data` definitions of the file and of its imports, the type names in
-  signatures and fields, `T.&` and `T.*`, and the generated constants
-  `T.init`, `T.sizeof`, `T.f`, `T.f.set` and `T.f.offset` with their stack
-  effect.
-- These positions get `null`: literals, keywords, comments, match bindings
-  and the names that they bind, constants of the program, type variables,
-  names that do not resolve, and documents that are not open.
-- Bad `params` get `-32602`.
-- Imports resolve as in `slc`: `name.stack` relative to the directory where
-  the server runs, then `$STACK_HOME/lib/name.stack`.
-- If a file has a syntax error, the definitions before the error are used.
-  Names after the error get `null`. A missing or broken import keeps the
-  definitions that were loaded before it.
-
-### 7.2. Known limitations
-
-- Memory grows with each message. The `Stack` runtime puts each computed
-  `int`, `bool` and `ptr` into a cell that it never frees (see
-  [3. Stack](#3-stack)). The server frees each JSON tree, frame buffer,
-  document text and the lists of an analysis with `ptr.free`, but cells and
-  syntax trees stay. A measurement gave about 150 KB for each small request.
-- The first hover after a change analyses the document again. Later hovers
-  use the same analysis until a document opens, changes or closes. The server
-  keeps the parsed imports and parses an import again only when its text
-  changes. Measurements on x86-64 Linux: the first hover in a file that
-  imports `stdlib` adds about 50 MB, and each hover after a change about
-  5 MB. For a file that imports the compiler (`stackls.stack`) the first hover
-  adds about 620 MB and each hover after a change about 50 MB. Restart the
-  server to give the memory back.
-- The server reads an import that is not open from disk at each analysis.
-  It does not watch files, so a change on disk is seen at the next analysis.
-- Imports resolve from the directory where the editor starts the server.
-- The server handles one message at a time. `$/cancelRequest` is ignored.
-- If the client closes stdout, the write gets `SIGPIPE` and the server stops.
-- The server runs only on x86-64 Linux, as the `Stack` compiler.
-
-### 7.3. Neovim
-
-The flake exports a [Nixvim](https://github.com/nix-community/nixvim) module
-as `nixvimModules.default`. The flake does not depend on Nixvim. The module
-uses the `lib` and `pkgs` of the configuration that imports it. It needs
-Neovim 0.11 or later, because it uses `vim.lsp.config` and `vim.lsp.enable`.
-The syntax file is also in `editors/neovim/syntax/stack.vim`.
-
-Add this repository to the inputs of your flake, and give the inputs to
-Home Manager:
-
-```nix
-{
-  inputs.stack-lang-c.url = "github:alexjercan/stack-lang-c";
-
-  # home-manager.lib.homeManagerConfiguration {
-  #   extraSpecialArgs = {inherit inputs;};
-  #   ...
-  # }
-}
-```
-
-Then import the module in `programs.nixvim`:
-
-```nix
-{inputs, ...}: {
-  programs.nixvim = {
-    imports = [inputs.stack-lang-c.nixvimModules.default];
-    stack.syntax.enable = true;
-    stack.lsp.enable = true;
-    stack.lsp.config = {root_markers = [".git"];};
-  };
-}
-```
-
-Options:
-
-- `stack.syntax.enable` (default `false`): adds `syntax/stack.vim`.
-- `stack.lsp.enable` (default `false`): configures and enables the client
-  `stackls` with `vim.lsp.config` and `vim.lsp.enable`.
-- `stack.lsp.package` (default: the `default` package of this flake): the
-  package that gives `bin/stackls`.
-- `stack.lsp.config` (default `{}`): client options for
-  `vim.lsp.config("stackls", ...)`, see `:h vim.lsp.Config`.
-
-Each of the two features also maps `*.stack` to the filetype `stack`. If
-both are `false`, the module changes nothing.
-
-The default client options are:
-
-- `cmd`: the absolute path of `bin/stackls` in `stack.lsp.package`.
-- `filetypes`: `["stack"]`.
-- `cmd_env.STACK_HOME`: the root of `stack.lsp.package`. `@import` finds
-  the libraries in `$STACK_HOME/lib`.
-
-A key in `stack.lsp.config` replaces the default value of that key. Other
-keys of `cmd_env` are added to `STACK_HOME`. `stack.lsp.config` configures
-only the client. `stackls` supports only hover, and it does not read
-`settings` or `init_options`.
-
-The module adds no keymaps. Use your own keymap for hover, for example `K`
-from `plugins.lsp.keymaps`.
-
-`STACK_HOME` must have the libraries of the same version as the server. The
-default package has `bin/slc`, `bin/stackls` and `lib`, so its root is
-correct. The package `stackls` has only the server. If you use it, set
-`STACK_HOME` to a directory that has `lib`:
-
-```nix
-{inputs, pkgs, ...}: let
-  stack = inputs.stack-lang-c.packages.${pkgs.stdenv.hostPlatform.system};
-in {
-  programs.nixvim.stack.lsp = {
-    enable = true;
-    package = stack.stackls;
-    config.cmd_env.STACK_HOME = "${stack.default}";
-  };
-}
-```
-
-To use a development build from `make`, set `cmd` and `STACK_HOME` to the
-repository:
-
-```nix
-{
-  programs.nixvim.stack.lsp = {
-    enable = true;
-    config = {
-      cmd = ["/home/me/stack-lang-c/out/stackls"];
-      cmd_env.STACK_HOME = "/home/me/stack-lang-c";
-    };
-  };
-}
-```
-
-Neovim starts the server in its current directory. `@import` of a relative
-path resolves from that directory (see [7.2. Known
-limitations](#72-known-limitations)). Set `cmd_cwd` in `stack.lsp.config`
-to use another directory.

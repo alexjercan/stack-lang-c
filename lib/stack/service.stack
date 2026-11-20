@@ -10,15 +10,18 @@
 data stack_cached (string uri, stack_analysis an)
 
 -- cache: array<stack_cached> for the server generation. modules:
--- array<stack_module>, the imports that the analyses parsed.
-data stack_service (int generation, array cache, array modules)
+-- array<stack_module>, the imports that the analyses parsed. docs:
+-- array<stack_doc> of the modules.
+data stack_service (int generation, array cache, array modules, array docs)
 
 func stack_service.new (lsp.server) (stack_service) in
     match srv in
-        stack_cached.sizeof array.init.with_sz stack_module.sizeof array.init.with_sz match cache modules in
-            srv lsp.server.generation cache modules stack_service.init
+        stack_cached.sizeof array.init.with_sz stack_module.sizeof array.init.with_sz stack_doc.sizeof array.init.with_sz
+        match cache modules docs in
+            srv lsp.server.generation cache modules docs stack_service.init
             cache array.& ptr.free
             modules array.& ptr.free
+            docs array.& ptr.free
         end
     end
 end
@@ -137,7 +140,9 @@ func stack_service.analyse (stack_service, lsp.server, lsp.document) (stack_anal
             ok if path else doc lsp.document.uri fi
             match id filename in
                 srv stack_service.sources match sources in
-                    doc lsp.document.text filename id sources svc stack_service.modules stack_analysis.build
+                    doc lsp.document.text filename id sources svc stack_service.modules
+                    svc stack_service.docs array.& stack_analysis.build
+                    svc stack_service.docs svc stack_service.modules stack_docs.prune
                     sources array.items ptr.free
                     sources array.& ptr.free
                 end
@@ -188,9 +193,11 @@ func stack_service.hover (stack_service, lsp.server, json_object) () in -- svc, 
                 else doc line character lsp.document.offset match offset ok' in
                     ok' not if
                         msg json.null lsp.reply
-                    else svc srv doc stack_service.analysis offset stack_analysis.hover match found start stop code note in
+                    else svc srv doc stack_service.analysis offset stack_analysis.hover match found start stop code note text in
                         found if
-                            msg srv "stack" code note lsp.server.markup doc start stop lsp.hover
+                            text string.len 0 > if srv text lsp.server.literal else note fi match note' in
+                                msg srv "stack" code note' lsp.server.markup doc start stop lsp.hover
+                            end
                             lsp.reply
                         else
                             msg json.null lsp.reply
