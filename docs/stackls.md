@@ -98,6 +98,8 @@ Hover (`textDocument/hover`):
   names in signatures and fields, `T.&` and `T.*`, and the generated constants
   `T.init`, `T.sizeof`, `T.f`, `T.f.set` and `T.f.offset` with their stack
   effect. A `const` shows its original text.
+- The `--` lines just above a `func`, `data` or `const` are its description.
+  It is raw Markdown, so write `array<...>` in backticks.
 - These positions get `null`: literals, keywords, comments, match bindings
   and the names that they bind, type variables, names that do not resolve,
   and documents that are not open. A bound name that is also a constant is

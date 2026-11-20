@@ -692,8 +692,8 @@ func lsp.markdown.fence (string) (string) in
     end
 end
 
--- Hover content with a block of code in language and a note. The note is
--- plain text. The format is the one that the client prefers.
+-- Hover content with a block of code in language and a note. The format is
+-- the one that the client prefers, and the note is used as it is.
 func lsp.server.markup (lsp.server, string, string, string) (json_object) in -- srv, language, code, note
     match srv language code note in
         json.map match m in
@@ -713,74 +713,6 @@ func lsp.server.markup (lsp.server, string, string, string) (json_object) in -- 
             m
         end
     end
-end
-
-func lsp.byte.punct (int) (bool) in
-    match c in
-        c 33 >= c 47 <= and c 58 >= c 64 <= and or c 91 >= c 96 <= and or c 123 >= c 126 <= and or
-    end
-end
-
-func lsp.blank (string, int, int) (bool) in -- text, s, e
-    match text s e in
-        true s while dup e < loop
-            match ok i in ok text i string.!! match c in c BYTE_SPACE = c BYTE_\T = or end and i 1 + end
-        pool pop
-    end
-end
-
--- Write the line [s, e) of text. prev is 0 for the first line, 1 after a
--- blank line, else 2. The result is prev for the next line.
-func lsp.markdown.line (array, string, int, int, int) (int) in -- buf, text, s, e, prev
-    match buf text s e prev in
-        text s e lsp.blank match blank in
-            prev 2 = blank not and if buf BYTE_\ json.buf.byte fi
-            prev 0 > if buf BYTE_\N json.buf.byte fi
-            blank not if
-                true s while dup e < loop -- space before, i
-                    match ws i in
-                        text i string.!! match c in
-                            c BYTE_\T = if
-                                buf "&nbsp;&nbsp;&nbsp;&nbsp;" json.buf.str true
-                            else c BYTE_SPACE = if
-                                buf ws if "&nbsp;" else " " fi json.buf.str true
-                            else
-                                c lsp.byte.punct if buf BYTE_\ json.buf.byte fi
-                                buf c json.buf.byte false
-                            fi fi
-                        end
-                        i 1 +
-                    end
-                pool pop2
-            fi
-            blank if 1 else 2 fi
-        end
-    end
-end
-
--- Markdown that shows text as it is: escaped punctuation, kept spaces and
--- kept line breaks.
-func lsp.markdown.literal (string) (string) in
-    match text in
-        1 array.init.with_sz match buf in
-            0 0 0 while dup text string.len <= loop -- prev, s, i
-                match prev s i in
-                    i text string.len = if true else text i string.!! BYTE_\N = fi if
-                        buf text s i prev lsp.markdown.line i 1 + i 1 +
-                    else
-                        prev s i 1 +
-                    fi
-                end
-            pool pop2 pop
-            buf 0 json.buf.byte
-            buf array.count 1 - buf array.items string.init
-        end
-    end
-end
-
--- text for lsp.server.markup, shown as it is.
-func lsp.server.literal (lsp.server, string) (string) in
-    match srv text in srv lsp.server.markdown if text lsp.markdown.literal else text fi end
 end
 
 -- A Hover result with contents for the bytes [start, stop) of the document.

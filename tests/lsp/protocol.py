@@ -343,28 +343,9 @@ SIGNATURES = [
 ]
 
 
-def literal(text):
-    """Markdown that shows text as it is."""
-    out, prev = [], 0
-    for line in text.split("\n"):
-        blank = line.strip(" \t") == ""
-        out.append(("\\" if prev == 2 and not blank else "") + ("\n" if prev else ""))
-        ws = True
-        for c in "" if blank else line:
-            if c == "\t":
-                out.append("&nbsp;" * 4)
-            elif c == " ":
-                out.append("&nbsp;" if ws else " ")
-            else:
-                out.append("\\" + c if c.isascii() and not c.isalnum() and c.isprintable() else c)
-            ws = c in " \t"
-        prev = 1 if blank else 2
-    return "".join(out)
-
-
-def builtin(name, markdown=True):
+def builtin(name):
     sig, doc = next((s, d) for n, s, d in SIGNATURES if n == name)
-    return "func %s %s" % (name, sig), literal(doc) if markdown else doc
+    return "func %s %s" % (name, sig), doc
 
 
 BUILTIN_DATA = "Builtin data type."
@@ -665,7 +646,7 @@ def hover_formats():
                            ({"textDocument": {"hover": {"contentFormat": "markdown"}}}, False),
                            ({"textDocument": 5}, False)]:
         expect([init(caps), frame(did_open(text)), frame(hover(2, pos(0, 20)))],
-               [ok(1, INIT_RESULT), ok(2, hover_result(*builtin("dup", markdown), pos(0, 19), pos(0, 22), markdown))])
+               [ok(1, INIT_RESULT), ok(2, hover_result(*builtin("dup"), pos(0, 19), pos(0, 22), markdown))])
 
 
 @test
@@ -814,22 +795,19 @@ DOCS = ('-- Body of g.\nfunc g () () in\n  -- body\n  end -- trailing\n-- First 
         '-- detached\n\nfunc h () () in f end\nconst K 1 -- k\nfunc i () () in end\n'
         '--no space\n---- dashes\n  -- indent\nfunc j () () in end\n')
 DOC_F = "First line.\n\n  `code` *x* _y_ <b>t</b> \\ [a](b) 1. # & &amp; a  b\tc"
-DOC_F_MD = ("First line\\.\n\n&nbsp;&nbsp;\\`code\\` \\*x\\* \\_y\\_ \\<b\\>t\\<\\/b\\> \\\\ \\[a\\]\\(b\\) 1\\. \\# \\& "
-            "\\&amp\\; a &nbsp;b&nbsp;&nbsp;&nbsp;&nbsp;c")
 
 
 @test
 def hover_docs():
-    for caps, doc_f, doc_g, doc_j in [(PLAINTEXT, DOC_F, "Body of g.", "no space\n-- dashes\nindent"),
-                                      (MARKDOWN, DOC_F_MD, "Body of g\\.", "no space\\\n\\-\\- dashes\\\nindent")]:
+    for caps in [PLAINTEXT, MARKDOWN]:
         hovers(DOCS, [
-            ("g ()", 0, 0, ("func g () ()", doc_g)),
-            ("f ()", 0, 0, ("func f () ()", doc_f)),
-            ("g end", 0, 0, ("func g () ()", doc_g)),
-            ("f end", 0, 0, ("func f () ()", doc_f)),
+            ("g ()", 0, 0, ("func g () ()", "Body of g.")),
+            ("f ()", 0, 0, ("func f () ()", DOC_F)),
+            ("g end", 0, 0, ("func g () ()", "Body of g.")),
+            ("f end", 0, 0, ("func f () ()", DOC_F)),
             ("h ()", 0, 0, ("func h () ()", "")),
             ("i ()", 0, 0, ("func i () ()", "")),
-            ("j ()", 0, 0, ("func j () ()", doc_j)),
+            ("j ()", 0, 0, ("func j () ()", "no space\n-- dashes\nindent")),
             ("K", 0, 0, ("const K 1", "")),
         ], caps=caps)
 
@@ -843,18 +821,29 @@ def hover_builtin_docs():
         i = text.index("\n    %s\n" % name) + 5
         return name, sum(text.startswith(name, k) for k in range(i)), 0
 
-    for caps, markdown in [(PLAINTEXT, False), (MARKDOWN, True)]:
-        hovers(text, [at(name) + (builtin(name, markdown),) for name, _, _ in SIGNATURES], caps=caps)
+    for caps in [PLAINTEXT, MARKDOWN]:
+        hovers(text, [at(name) + (builtin(name),) for name, _, _ in SIGNATURES], caps=caps)
     hovers(text, [
-        at("rot") + (("func rot (a, b, c) (b, c, a)", "Rotate \\(a\\, b\\, c\\) to \\(b\\, c\\, a\\)\\."),),
-        at("ptr.@") + (("func ptr.@ (ptr, ptr, int) (ptr)", "Copy n bytes from src to dst and return dst\\."),),
+        at("rot") + (("func rot (a, b, c) (b, c, a)", "Rotate (a, b, c) to (b, c, a)."),),
+        at("ptr.@") + (("func ptr.@ (ptr, ptr, int) (ptr)", "Copy n bytes from src to dst and return dst."),),
         at("<<") + (("func << (int, int) (int)", "Shift left"),),
-        at("<") + (("func < (int, int) (bool)", "Less than\\."),),
-        at("&") + (("func & (int, int) (int)", "Bitwise AND\\."),),
-        at("int.&") + (("func int.& (int) (ptr)", "Address of the value\\."),),
+        at("&") + (("func & (int, int) (int)", "Bitwise AND."),),
         at("pick") + (("func pick (int) (ptr)", "duplicate item n on top of the stack as a pointer"),),
     ])
-    assert literal(DOC_F) == DOC_F_MD
+
+
+@test
+def hover_raw_markdown():
+    doc = ("Takes `array<int>` and *n*, see [docs](https://example.com/a_b).\n\n- one\n- two_three\n"
+           "  indented \\ <b>\nlast  line")
+    text = "".join("-- %s\n" % line if line else "--\n" for line in doc.split("\n")) + "func f () () in f end\n"
+    for caps in [PLAINTEXT, MARKDOWN]:
+        hovers(text, [("f ()", 0, 0, ("func f () ()", doc)), ("f end", 0, 0, ("func f () ()", doc))], caps=caps)
+    at = position(text, find(text, "f ()"))
+    got, _ = expect([init(), frame(did_open(text)), frame(hover(2, at))],
+                    [ok(1, INIT_RESULT), ok(2, hover_result("func f () ()", doc, at, pos(at["line"], 6)))])
+    value = got[1]["result"]["contents"]["value"]
+    assert "&nbsp;" not in value and "\\`" not in value and "\\\n" not in value and "\\*" not in value, value
 
 
 @test
@@ -863,7 +852,7 @@ def hover_doc_lines():
             "func b () () in a end\n")
     hovers(text, [("b ()", 0, 0, ("func b () ()", "doc ü \U0001F600\ntwo\nthree\nraw\ntab")),
                   ("a end", 0, 0, ("func a () ()", ""))], caps=PLAINTEXT)
-    hovers(text, [("b ()", 0, 0, ("func b () ()", "doc ü \U0001F600\\\ntwo\\\nthree\\\nraw\\\ntab"))])
+    hovers(text, [("b ()", 0, 0, ("func b () ()", "doc ü \U0001F600\ntwo\nthree\nraw\ntab"))])
     # The lexer decides what is a comment: a continued string is not a doc.
     text = ('const X "continued\\\n-- NOT A DOC"\nfunc f () () in end\n'
             'const Y "a\\\nb" -- c\nfunc g () () in end\n'
@@ -895,7 +884,7 @@ def hover_doc_imports():
         uri = "file://" + os.path.join(tmp, "main.stack")
         text = '@import "dep"\nfunc main () () in dep.f end\n'
         hovers(text, [("dep.f", 0, 0, ("func dep.f () ()", "disk *doc*"))], uri=uri, caps=PLAINTEXT, cwd=tmp)
-        hovers(text, [("dep.f", 0, 0, ("func dep.f () ()", "disk \\*doc\\*"))], uri=uri, cwd=tmp)
+        hovers(text, [("dep.f", 0, 0, ("func dep.f () ()", "disk *doc*"))], uri=uri, cwd=tmp)
         unsaved = did_open("data x (int y)\n\n-- unsaved\nfunc dep.f () () in end\n", "file://" + dep)
         hovers(text, [("dep.f", 0, 0, ("func dep.f () ()", "unsaved"))], uri=uri, caps=PLAINTEXT,
                before=[unsaved], cwd=tmp)
@@ -922,7 +911,8 @@ CONST_D = "const D\n    -- inner\n    if 1 else match x in x end fi"
 
 @test
 def hover_consts():
-    for caps, doc in [(PLAINTEXT, "The answer."), (MARKDOWN, "The answer\\.")]:
+    doc = "The answer."
+    for caps in [PLAINTEXT, MARKDOWN]:
         hovers(CONSTS, [
             ("A", 0, 0, ("const A 42", doc)),
             ("A 1", 0, 0, ("const A 42", doc)),
@@ -962,8 +952,8 @@ def hover_consts():
 def hover_definition_docs():
     text = ('-- Pair doc.\ndata pair (int a, ptr b)\n-- K doc\nconst K 1 -- k\nconst L "a\\\n-- no" -- c\n'
             'const M 2\n\n-- no\n\ndata e ()\n-- f *doc*\nfunc f (pair) (pair) in pair.a pop pair.& pair.* K L M end\n')
-    for caps, pair, k, f in [(PLAINTEXT, "Pair doc.", "K doc", "f *doc*"),
-                             (MARKDOWN, "Pair doc\\.", "K doc", "f \\*doc\\*")]:
+    pair, k, f = "Pair doc.", "K doc", "f *doc*"
+    for caps in [PLAINTEXT, MARKDOWN]:
         hovers(text, [
             ("pair (", 0, 0, ("data pair (int a, ptr b)", pair)),
             ("pair)", 0, 0, ("data pair (int a, ptr b)", pair)),

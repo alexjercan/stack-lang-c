@@ -195,9 +195,8 @@ func stack_service.hover (stack_service, lsp.server, json_object) () in -- svc, 
                         msg json.null lsp.reply
                     else svc srv doc stack_service.analysis offset stack_analysis.hover match found start stop code note text in
                         found if
-                            text string.len 0 > if srv text lsp.server.literal else note fi match note' in
-                                msg srv "stack" code note' lsp.server.markup doc start stop lsp.hover
-                            end
+                            msg srv "stack" code text string.len 0 > if text else note fi lsp.server.markup
+                            doc start stop lsp.hover
                             lsp.reply
                         else
                             msg json.null lsp.reply
