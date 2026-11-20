@@ -93,14 +93,15 @@ Hover (`textDocument/hover`):
   of the name. The content is Markdown with a `stack` code block when the
   first known kind in `capabilities.textDocument.hover.contentFormat` is
   `markdown`, else plain text.
-- These names get a result: builtin functions and data types, the `func` and
-  `data` definitions of the file and of its imports, the type names in
-  signatures and fields, `T.&` and `T.*`, and the generated constants
+- These names get a result: builtin functions and data types, the `func`,
+  `data` and `const` definitions of the file and of its imports, the type
+  names in signatures and fields, `T.&` and `T.*`, and the generated constants
   `T.init`, `T.sizeof`, `T.f`, `T.f.set` and `T.f.offset` with their stack
-  effect.
+  effect. A `const` shows its original text.
 - These positions get `null`: literals, keywords, comments, match bindings
-  and the names that they bind, constants of the program, type variables,
-  names that do not resolve, and documents that are not open.
+  and the names that they bind, type variables, names that do not resolve,
+  and documents that are not open. A bound name that is also a constant is
+  the constant, as in `slc`.
 - Bad `params` get `-32602`.
 - Imports resolve as in `slc`: `name.stack` relative to the directory where
   the server runs, then `$STACK_HOME/lib/name.stack`.

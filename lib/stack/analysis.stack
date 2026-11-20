@@ -19,7 +19,8 @@ const STACK_REF_FIELD 6   -- the name of a data field
 const STACK_REF_CONST 7   -- the name of a const
 
 -- The bytes [start, stop) of a name. decl is the stack_ast_func of
--- STACK_REF_FUNC and the stack_ast_data of STACK_REF_DATA, else ptr.null.
+-- STACK_REF_FUNC, the stack_ast_data of STACK_REF_DATA and the stack_ast_const
+-- of STACK_REF_CONST, else ptr.null.
 data stack_ref (int kind, int start, int stop, string name, ptr decl)
 
 -- Kinds of definitions that the type checker accepts.
@@ -150,10 +151,10 @@ func stack_analysis.names (stack_ast) (array) in
                                     end
                                 end
                             else kind STACK_AST_FEATURE_CONST = if
-                                feat stack_ast_feature.feature stack_ast_const.* match c in
-                                    refs STACK_REF_CONST c stack_ast_const.name ptr.null stack_ref.add
+                                feat stack_ast_feature.feature match p in p stack_ast_const.* match c in
+                                    refs STACK_REF_CONST c stack_ast_const.name p stack_ref.add
                                     refs scope c stack_ast_const.exprs stack_analysis.names.exprs
-                                end
+                                end end
                             fi fi fi
                         end
                     end
@@ -272,9 +273,7 @@ func stack_analysis.free (stack_analysis) () in
         an stack_analysis.docs array.* match docs in
             0 while dup docs array.count < loop
                 match i in
-                    docs i array.get unwrap stack_doc.* stack_doc.text match t in
-                        t string.len 0 > if t string.str ptr.free fi
-                    end
+                    docs i array.get unwrap stack_doc.* stack_doc.free
                     i 1 +
                 end
             pool pop
@@ -349,22 +348,26 @@ func stack_analysis.helper (stack_analysis, string) (stack_helper, bool) in -- a
     end
 end
 
--- A constant of a file, not a data helper.
-func stack_analysis.const (stack_analysis, string) (bool) in -- an, name
+-- The first constant of the files with the name, not a data helper.
+func stack_analysis.const (stack_analysis, string) (stack_ast_const, bool) in -- an, name
     match an name in
         an stack_analysis.pre stack_preprocessor.user stack_ast.features match features in
-            false 0 while dup features array.count < loop
+            -1 0 while dup features array.count < loop -- found, i
                 match found i in
                     features i array.get unwrap stack_ast_feature.* match feat in
-                        found
-                        feat stack_ast_feature.kind STACK_AST_FEATURE_CONST = if
+                        found 0 < feat stack_ast_feature.kind STACK_AST_FEATURE_CONST = and if
                             feat stack_ast_feature.feature stack_ast_const.* stack_ast_const.name stack_ast_node.value
-                            name string.= or
-                        fi
+                            name string.= if i else found fi
+                        else found fi
                     end
                     i 1 +
                 end
             pool pop
+            match found in
+                found 0 >= if
+                    features found array.get unwrap stack_ast_feature.* stack_ast_feature.feature stack_ast_const.* true
+                else ptr.null stack_ast_const.* false fi
+            end
         end
     end
 end
@@ -549,8 +552,8 @@ func stack_doc.block (string, int, int) (string) in -- text, s, lo
     end
 end
 
--- The doc of the func keyword at p. The token before it ends at q, or q is
--- -1. The doc is empty when the keyword is on the line of that token.
+-- The doc of the keyword at p. The token before it ends at q, or q is -1.
+-- The doc is empty when the keyword is on the line of that token.
 func stack_doc.of (string, int, int) (string) in -- text, p, q
     match text p q in
         q 0 < if
@@ -564,50 +567,125 @@ func stack_doc.of (string, int, int) (string) in -- text, p, q
     end
 end
 
--- The doc of the func with the name at pos in the text at buffer. id is the
--- module of the text, or -1 -1. pos is -1 for the mark of a text that is lexed.
-data stack_doc (stack_file_id id, ptr buffer, int pos, string text)
+-- The doc and the code of the definition with the name at pos in the text at
+-- buffer. code is the text of a const, else empty. id is the module of the
+-- text, or -1 -1. pos is -1 for the mark of a text that is lexed.
+data stack_doc (stack_file_id id, ptr buffer, int pos, string text, string code)
 
-func stack_doc.add (array, stack_file_id, ptr, int, string) () in -- array<stack_doc>, id, buffer, pos, text
-    match docs id buffer pos text in
-        id buffer pos text stack_doc.init stack_doc.& match p in docs p array.append unwrap p ptr.free end
+func stack_doc.add (array, stack_file_id, ptr, int, string, string) () in -- array<stack_doc>, id, buffer, pos, text, code
+    match docs id buffer pos text code in
+        id buffer pos text code stack_doc.init stack_doc.& match p in docs p array.append unwrap p ptr.free end
     end
 end
 
-func stack_doc.find (array, stack_file_id, ptr, int) (string, bool) in -- array<stack_doc>, id, buffer, pos
+func stack_doc.free (stack_doc) () in
+    match d in
+        d stack_doc.text string.len 0 > if d stack_doc.text string.str ptr.free fi
+        d stack_doc.code string.len 0 > if d stack_doc.code string.str ptr.free fi
+    end
+end
+
+func stack_doc.find (array, stack_file_id, ptr, int) (string, string, bool) in -- array<stack_doc>, id, buffer, pos
     match docs id buffer pos in
-        "" false 0 while dup docs array.count < loop
-            match s found i in
-                found if
-                    s true
-                else docs i array.get unwrap stack_doc.* match d in
-                    d stack_doc.buffer buffer ptr.= d stack_doc.pos pos = and d stack_doc.id id stack_file_id.= and
-                    if d stack_doc.text true else s false fi
-                end fi
+        -1 0 while dup docs array.count < loop -- found, i
+            match found i in
+                found 0 < if
+                    docs i array.get unwrap stack_doc.* match d in
+                        d stack_doc.buffer buffer ptr.= d stack_doc.pos pos = and d stack_doc.id id stack_file_id.= and
+                        if i else found fi
+                    end
+                else found fi
                 i 1 +
             end
         pool pop
+        match found in
+            found 0 >= if
+                docs found array.get unwrap stack_doc.* match d in d stack_doc.text d stack_doc.code true end
+            else "" "" false fi
+        end
     end
 end
 
--- Add the docs of the funcs in text. The lexer of the compiler finds the
--- comments, so the text of a string is never a doc.
+-- The state of stack_doc.lex. q is the end of the last token. kind is the
+-- keyword before a name, with its doc and its offset start. name is the
+-- offset of the name of an open const, depth its open blocks and stop the end
+-- of its last token, else -1.
+data stack_doc_scan (int q, int kind, string doc, int start, int name, int depth, int stop)
+
+-- Add the open const.
+func stack_doc_scan.close (stack_doc_scan, array, stack_file_id, string) () in -- s, docs, id, text
+    match s docs id text in
+        s stack_doc_scan.name 0 >= if
+            docs id text string.str s stack_doc_scan.name 0 + s stack_doc_scan.doc
+            text s stack_doc_scan.start 0 + s stack_doc_scan.stop s stack_doc_scan.start - string.substr
+            stack_doc.add
+            s -1 stack_doc_scan.name.set
+        fi
+    end
+end
+
+-- Read the token of kind k at the bytes [p, e). A const has the expressions
+-- that the parser reads after its name.
+func stack_doc_scan.step (stack_doc_scan, array, stack_file_id, string, int, int, int) () in -- s, docs, id, text, k, p, e
+    match s docs id text k p e in
+        k STACK_TOKEN_IF = k STACK_TOKEN_MATCH = or k STACK_TOKEN_WHILE = or
+        k STACK_TOKEN_FI = k STACK_TOKEN_END = or k STACK_TOKEN_POOL = or
+        match opens closes in
+            s stack_doc_scan.name 0 >= if
+                s stack_doc_scan.depth 0 > if
+                    s s stack_doc_scan.depth 0 + opens if 1 + fi closes if 1 - fi stack_doc_scan.depth.set true
+                else
+                    opens k STACK_TOKEN_NAME = or k STACK_TOKEN_NUMBER = or k STACK_TOKEN_BOOLEAN = or k STACK_TOKEN_STRING = or
+                    if
+                        s opens if 1 else 0 fi stack_doc_scan.depth.set true
+                    else
+                        s docs id text stack_doc_scan.close false
+                    fi
+                fi
+                dup if s e stack_doc_scan.stop.set fi
+            else false fi
+            not if
+                s stack_doc_scan.kind 0 + match pending in
+                    s 0 stack_doc_scan.kind.set
+                    pending 0 = not k STACK_TOKEN_NAME = and if
+                        pending STACK_TOKEN_CONST = if
+                            s p stack_doc_scan.name.set s 0 stack_doc_scan.depth.set s e stack_doc_scan.stop.set
+                        else s stack_doc_scan.doc string.len 0 > if
+                            docs id text string.str p s stack_doc_scan.doc "" stack_doc.add
+                        fi fi
+                    fi
+                end
+                k STACK_TOKEN_FUNC = k STACK_TOKEN_DATA = or k STACK_TOKEN_CONST = or if
+                    s k stack_doc_scan.kind.set
+                    s text p s stack_doc_scan.q 0 + stack_doc.of stack_doc_scan.doc.set
+                    s p stack_doc_scan.start.set
+                fi
+            fi
+            s e stack_doc_scan.q.set
+        end
+    end
+end
+
+-- Add the docs of the definitions in text and the code of its consts. The
+-- lexer of the compiler finds the comments, so the text of a string is never
+-- a doc.
 func stack_doc.lex (array, stack_file_id, string) () in -- array<stack_doc>, id, text
     match docs id text in
-        text "" stack_lexer.init.with_buffer match lexer in
-            -1 "" lexer stack_lexer.next -- end of the last token, doc of the last token
-            while dup stack_token.kind STACK_TOKEN_EOF = not loop
-                match q doc tok in
-                    tok stack_token.kind 0 + tok stack_token.pos 0 + match kind p in
-                        doc string.len 0 > kind STACK_TOKEN_NAME = and if docs id text string.str p doc stack_doc.add fi
-                        lexer stack_lexer.pos 0 +
-                        kind STACK_TOKEN_FUNC = if text p q stack_doc.of else "" fi
+        -1 0 "" 0 -1 0 0 stack_doc_scan.init match s in
+            text "" stack_lexer.init.with_buffer match lexer in
+                lexer stack_lexer.next
+                while dup stack_token.kind STACK_TOKEN_EOF = not loop
+                    match tok in
+                        s docs id text tok stack_token.kind 0 + tok stack_token.pos 0 + lexer stack_lexer.pos 0 +
+                        stack_doc_scan.step
+                        lexer stack_lexer.next
                     end
-                    lexer stack_lexer.next
-                end
-            pool pop2 pop
+                pool pop
+            end
+            s docs id text stack_doc_scan.close
+            s stack_doc_scan.& ptr.free
         end
-        docs id text string.str -1 "" stack_doc.add
+        docs id text string.str -1 "" "" stack_doc.add
     end
 end
 
@@ -639,11 +717,7 @@ func stack_docs.prune (array, array) () in -- array<stack_doc>, modules
                             modules d stack_doc.buffer stack_modules.with_text match id found in
                                 found if id d stack_doc.id stack_file_id.= else false fi
                             end
-                            if
-                                kept p array.append unwrap
-                            else d stack_doc.text string.len 0 > if
-                                d stack_doc.text string.str ptr.free
-                            fi fi
+                            if kept p array.append unwrap else d stack_doc.free fi
                         end
                     end
                     i 1 +
@@ -656,18 +730,19 @@ func stack_docs.prune (array, array) () in -- array<stack_doc>, modules
     end
 end
 
--- The doc of f. A text is lexed once: the docs of a module in the module
--- cache are in shared, the others in the analysis.
-func stack_analysis.doc (stack_analysis, stack_ast_func) (string) in
-    match an f in
-        f stack_ast_func.name match name in
-            name stack_ast_node.parser stack_parser.lexer stack_lexer.buffer name stack_ast_node.pos 0 +
-        end
+-- The doc and the code of the definition with the name node. A text is
+-- lexed once: the docs of a module in the module cache are in shared, the
+-- others in the analysis.
+func stack_analysis.doc (stack_analysis, stack_ast_node) (string, string) in -- an, name
+    match an name in
+        name stack_ast_node.parser stack_parser.lexer stack_lexer.buffer name stack_ast_node.pos 0 +
         match text p in
             an stack_analysis.pre stack_preprocessor.modules array.* text string.str stack_modules.with_text
             match id shared in
                 shared if an stack_analysis.shared else an stack_analysis.docs fi array.* match docs in
-                    docs id text string.str -1 stack_doc.find swp pop not if docs id text stack_doc.lex fi
+                    docs id text string.str -1 stack_doc.find match doc code lexed in
+                        lexed not if docs id text stack_doc.lex fi
+                    end
                     docs id text string.str p stack_doc.find pop
                 end
             end
@@ -718,19 +793,30 @@ func stack_builtin.doc (string) (string) in
 end
 
 
-func stack_analysis.hover.type (stack_analysis, string) (bool, string, string) in -- an, name
+func stack_analysis.hover.data (stack_analysis, stack_ast_data) (bool, string, string, string) in -- an, d
+    match an d in true d stack_ast_data.text "" an d stack_ast_data.name stack_analysis.doc pop end
+end
+
+func stack_analysis.hover.const (stack_analysis, stack_ast_const) (bool, string, string, string) in -- an, c
+    match an c in
+        an c stack_ast_const.name stack_analysis.doc match doc code in
+            true code string.len 0 > if code else "const " c stack_ast_const.name stack_ast_node.value string.concat fi
+            "" doc
+        end
+    end
+end
+
+func stack_analysis.hover.type (stack_analysis, string) (bool, string, string, string) in -- an, name
     match an name in
         an stack_analysis.ctx name stack_context.get_symbol match builtin symbol in
             builtin if
                 symbol stack_context_symbol.* stack_context_symbol.kind STACK_CONTEXT_SYMBOL_DATA = if
-                    true "data " name string.concat "Builtin data type."
-                else false "" "" fi
+                    true "data " name string.concat "Builtin data type." ""
+                else false "" "" "" fi
             else an name stack_analysis.decl match d found in
                 found if d stack_decl.kind STACK_DECL_DATA = else false fi if
-                    d stack_decl.decl stack_ast_data.* match dd in
-                        true dd stack_ast_data.text ""
-                    end
-                else false "" "" fi
+                    an d stack_decl.decl stack_ast_data.* stack_analysis.hover.data
+                else false "" "" "" fi
             end fi
         end
     end
@@ -740,7 +826,9 @@ func stack_analysis.hover.decl (stack_analysis, stack_decl) (bool, string, strin
     match an d in
         d stack_decl.kind match kind in
             kind STACK_DECL_FUNC = if
-                d stack_decl.decl stack_ast_func.* match f in true f stack_ast_func.text "" an f stack_analysis.doc end
+                d stack_decl.decl stack_ast_func.* match f in
+                    true f stack_ast_func.text "" an f stack_ast_func.name stack_analysis.doc pop
+                end
             else kind STACK_DECL_DATA = if
                 false "" "" ""
             else
@@ -762,9 +850,9 @@ func stack_analysis.hover.call (stack_analysis, string) (bool, string, string, s
                 true
                 h stack_helper.node stack_ast_node.value h stack_helper.args h stack_helper.rets stack_signature.text
                 h stack_helper.note ""
-            else an name stack_analysis.const
-                name STACK_SPECIAL_FILE string.= or name STACK_SPECIAL_LINE string.= or name STACK_SPECIAL_COL string.= or
-            if
+            else an name stack_analysis.const match c is_const in is_const if
+                an c stack_analysis.hover.const
+            else name STACK_SPECIAL_FILE string.= name STACK_SPECIAL_LINE string.= or name STACK_SPECIAL_COL string.= or if
                 false "" "" ""
             else an stack_analysis.ctx name stack_context.get_symbol match builtin symbol in
                 builtin if
@@ -779,14 +867,15 @@ func stack_analysis.hover.call (stack_analysis, string) (bool, string, string, s
                 else an name stack_analysis.decl match d found in
                     found if an d stack_analysis.hover.decl else false "" "" "" fi
                 end fi
-            end fi fi
+            end fi fi end fi
         end
     end
 end
 
 -- The hover text at offset: found, the bytes [start, stop) of the name, the
--- code, a note and the doc comment of a func. Not found for literals,
--- keywords, bindings, constants, type variables and names that do not resolve.
+-- code, a note and the doc comment of the definition. Not found for literals,
+-- keywords, bindings, type variables and names that do not resolve. A bound
+-- name that is a constant is the constant, as the preprocessor expands it.
 func stack_analysis.hover (stack_analysis, int) (bool, int, int, string, string, string) in -- an, offset
     match an offset in
         an offset stack_analysis.find match r found in
@@ -794,16 +883,23 @@ func stack_analysis.hover (stack_analysis, int) (bool, int, int, string, string,
                 false "" "" ""
             else r stack_ref.kind match kind in
                 kind STACK_REF_FUNC = if
-                    r stack_ref.decl stack_ast_func.* match f in true f stack_ast_func.text "" an f stack_analysis.doc end
+                    r stack_ref.decl stack_ast_func.* match f in
+                        true f stack_ast_func.text "" an f stack_ast_func.name stack_analysis.doc pop
+                    end
                 else kind STACK_REF_DATA = if
-                    true r stack_ref.decl stack_ast_data.* stack_ast_data.text "" ""
+                    an r stack_ref.decl stack_ast_data.* stack_analysis.hover.data
+                else kind STACK_REF_CONST = if
+                    an r stack_ref.decl stack_ast_const.* stack_analysis.hover.const
                 else kind STACK_REF_TYPE = if
-                    an r stack_ref.name stack_analysis.hover.type ""
+                    an r stack_ref.name stack_analysis.hover.type
                 else kind STACK_REF_CALL = if
                     an r stack_ref.name stack_analysis.hover.call
+                else kind STACK_REF_BOUND = if
+                    an r stack_ref.name stack_analysis.helper swp pop an r stack_ref.name stack_analysis.const swp pop or
+                    if an r stack_ref.name stack_analysis.hover.call else false "" "" "" fi
                 else
                     false "" "" ""
-                fi fi fi fi
+                fi fi fi fi fi fi
             end fi
             match ok code note doc in ok r stack_ref.start 0 + r stack_ref.stop 0 + code note doc end
         end

@@ -670,6 +670,28 @@ end
 
 -- HOVER
 
+-- A fence of backticks that is longer than each run of backticks in text.
+-- The caller frees its bytes.
+func lsp.markdown.fence (string) (string) in
+    match text in
+        2 0 0 while dup text string.len < loop -- longest, run, i
+            match longest run i in
+                text i string.!! 96 = if run 1 + else 0 fi match run' in
+                    run' longest > if run' else longest fi run' i 1 +
+                end
+            end
+        pool pop2
+        1 + match n in
+            1 array.init.with_sz match buf in
+                0 while dup n < loop buf 96 json.buf.byte 1 + pool pop
+                buf 0 json.buf.byte
+                n buf array.items string.init
+                buf array.& ptr.free
+            end
+        end
+    end
+end
+
 -- Hover content with a block of code in language and a note. The note is
 -- plain text. The format is the one that the client prefers.
 func lsp.server.markup (lsp.server, string, string, string) (json_object) in -- srv, language, code, note
@@ -677,7 +699,11 @@ func lsp.server.markup (lsp.server, string, string, string) (json_object) in -- 
         json.map match m in
             srv lsp.server.markdown if
                 m "kind" "markdown" json.string json_object.put
-                "```" language string.concat "\n" string.concat code string.concat "\n```" string.concat
+                code lsp.markdown.fence match fence in
+                    fence language string.concat "\n" string.concat code string.concat "\n" string.concat
+                    fence string.concat
+                    fence string.str ptr.free
+                end
             else
                 m "kind" "plaintext" json.string json_object.put
                 code

@@ -413,7 +413,8 @@ def pos(line, character):
 
 
 def hover_result(code, text, start, stop, markdown=True):
-    value = "```stack\n" + code + "\n```" if markdown else code
+    fence = "`" * max([3] + [len(run) + 1 for run in re.findall("`+", code)])
+    value = fence + "stack\n" + code + "\n" + fence if markdown else code
     if text:
         value += "\n\n" + text
     return {"contents": {"kind": "markdown" if markdown else "plaintext", "value": value},
@@ -486,8 +487,8 @@ def hover_declarations():
         ("int", 0, 1, ("data int", BUILTIN_DATA)),
         ("a,", 0, 0, None),
         ("ptr", 0, 2, ("data ptr", BUILTIN_DATA)),
-        ("N", 0, 0, None),
-        ("N", 1, 0, None),
+        ("N", 0, 0, ("const N 3", "")),
+        ("N", 1, 0, ("const N 3", "")),
         ("pair.first", 0, 0, ("func pair.first (pair) (int)", "")),
         ("pair)", 0, 0, ("data pair (int a, ptr b)", "")),
         ("pair.first", 1, 3, ("func pair.first (pair) (int)", "")),
@@ -567,7 +568,7 @@ def hover_imports():
         text = '@import "stdlib"\nfunc f (string) (int) in string.len end\n'
         hovers(text, [
             ("string.len", 0, 0, ("string.len (string) (int)", "string.len getter")),
-            ("string", 0, 1, ("data string (int len, ptr str)", "")),
+            ("string", 0, 1, ("data string (int len, ptr str)", "DATA STRING")),
         ], cwd=tmp, env=env)
 
 
@@ -829,7 +830,7 @@ def hover_docs():
             ("h ()", 0, 0, ("func h () ()", "")),
             ("i ()", 0, 0, ("func i () ()", "")),
             ("j ()", 0, 0, ("func j () ()", doc_j)),
-            ("K", 0, 0, None),
+            ("K", 0, 0, ("const K 1", "")),
         ], caps=caps)
 
 
@@ -910,6 +911,113 @@ def hover_doc_imports():
             srv.send(did_change(text + "-- %d\n" % k, uri, version=k + 2))
             srv.send(hover(10 + k, at, uri))
             assert srv.read() == ok(10 + k, hover_result("func dep.f () ()", doc, at, stop, False))
+        srv.close()
+
+
+CONSTS = ('-- The answer.\nconst A 42\nconst S "q\\"`x` ```"\nconst B true\nconst C A 1 +\nconst D\n'
+          '    -- inner\n    if 1 else match x in x end fi\nconst W while true loop pool -- trailing\nconst E\n'
+          'const X 5\nfunc main () (int) in 7 match X y in X y C D W E S B pop2 pop2 pop2 pop end end\n')
+CONST_D = "const D\n    -- inner\n    if 1 else match x in x end fi"
+
+
+@test
+def hover_consts():
+    for caps, doc in [(PLAINTEXT, "The answer."), (MARKDOWN, "The answer\\.")]:
+        hovers(CONSTS, [
+            ("A", 0, 0, ("const A 42", doc)),
+            ("A 1", 0, 0, ("const A 42", doc)),
+            ("S", 0, 0, ('const S "q\\"`x` ```"', "")),
+            ("B", 0, 0, ("const B true", "")),
+            ("C", 0, 0, ("const C A 1 +", "")),
+            ("D", 0, 0, (CONST_D, "")),
+            ("W", 0, 0, ("const W while true loop pool", "")),
+            ("E", 0, 0, ("const E", "")),
+            ("x in", 0, 0, None),
+            ("x end", 0, 0, None),
+            # A constant shadows a binding in the body, as the preprocessor expands it.
+            ("X 5", 0, 0, ("const X 5", "")),
+            ("X y", 0, 0, None),
+            ("y in", 0, 0, None),
+            ("X y", 1, 0, ("const X 5", "")),
+            ("y C", 0, 0, None),
+            ("C D", 0, 0, ("const C A 1 +", "")),
+            ("D W", 0, 0, (CONST_D, "")),
+            ("S B", 0, 0, ('const S "q\\"`x` ```"', "")),
+        ], caps=caps)
+    # The fence is longer than the backticks in the code.
+    i = find(CONSTS, "S B")
+    at, stop = position(CONSTS, i), position(CONSTS, i + 1)
+    expect([init(), frame(did_open(CONSTS)), frame(hover(2, at))],
+           [ok(1, INIT_RESULT), ok(2, {"contents": {"kind": "markdown", "value": '````stack\nconst S "q\\"`x` ```"\n````'},
+                                       "range": {"start": at, "end": stop}})])
+    text = 'const T "a%sb"\n' % ("`" * 40)
+    at, stop = position(text, 6), position(text, 7)
+    value = "`" * 41 + "stack\n" + text[:-1] + "\n" + "`" * 41
+    expect([init(), frame(did_open(text)), frame(hover(2, at))],
+           [ok(1, INIT_RESULT), ok(2, {"contents": {"kind": "markdown", "value": value},
+                                       "range": {"start": at, "end": stop}})])
+
+
+@test
+def hover_definition_docs():
+    text = ('-- Pair doc.\ndata pair (int a, ptr b)\n-- K doc\nconst K 1 -- k\nconst L "a\\\n-- no" -- c\n'
+            'const M 2\n\n-- no\n\ndata e ()\n-- f *doc*\nfunc f (pair) (pair) in pair.a pop pair.& pair.* K L M end\n')
+    for caps, pair, k, f in [(PLAINTEXT, "Pair doc.", "K doc", "f *doc*"),
+                             (MARKDOWN, "Pair doc\\.", "K doc", "f \\*doc\\*")]:
+        hovers(text, [
+            ("pair (", 0, 0, ("data pair (int a, ptr b)", pair)),
+            ("pair)", 0, 0, ("data pair (int a, ptr b)", pair)),
+            ("pair) in", 0, 0, ("data pair (int a, ptr b)", pair)),
+            ("pair.a", 0, 0, ("pair.a (pair) (int)", "pair.a getter")),
+            ("pair.&", 0, 0, ("func pair.& (pair) (ptr)", "pair reference")),
+            ("pair.*", 0, 0, ("func pair.* (ptr) (pair)", "pair dereference")),
+            ("K 1", 0, 0, ("const K 1", k)),
+            ("K L", 0, 0, ("const K 1", k)),
+            ("L", 0, 0, ('const L "a\\\n-- no"', "")),
+            ("M 2", 0, 0, ("const M 2", "")),
+            ("e ()", 0, 0, ("data e ()", "")),
+            ("f (", 0, 0, ("func f (pair) (pair)", f)),
+        ], caps=caps)
+
+
+@test
+def hover_const_errors():
+    text = 'const P 1\n-- Q doc\nconst Q P P\ndata d (int x)\nconst Z 3 )\nfunc f () () in Q P Z end\n'
+    hovers(text, [("P", 0, 0, ("const P 1", "")), ("Q P P", 0, 0, ("const Q P P", "Q doc")),
+                  ("P P", 0, 0, ("const P 1", "")), ("d (", 0, 0, ("data d (int x)", "")),
+                  ("Z", 0, 0, ("const Z 3", "")), ("Q P Z", 0, 0, None)], caps=PLAINTEXT)
+    # Incomplete declarations get null and keep the declarations before them.
+    for tail, needle in [("const R if 1\n", "R"), ("const R match x in\n", "R"), ('const R "a\n', "R"),
+                         ("data d (int\n", "d"), ("const\n", None)]:
+        cases = [("P", 0, 0, ("const P 1", ""))] + ([(needle, 0, 0, None)] if needle else [])
+        hovers("const P 1\n" + tail, cases, caps=PLAINTEXT)
+
+
+@test
+def hover_const_imports():
+    with tempfile.TemporaryDirectory() as tmp:
+        dep = os.path.join(tmp, "dep.stack")
+        with open(dep, "w") as f:
+            f.write("-- disk\nconst dep.K\n    1 2 +\n-- data doc\ndata dep.d (int x)\n")
+        uri = "file://" + os.path.join(tmp, "main.stack")
+        text = '@import "dep"\nfunc main (dep.d) (int) in pop dep.K end\n'
+        hovers(text, [("dep.K", 0, 0, ("const dep.K\n    1 2 +", "disk")),
+                      ("dep.d", 0, 0, ("data dep.d (int x)", "data doc"))], uri=uri, caps=PLAINTEXT, cwd=tmp)
+        unsaved = did_open("-- unsaved\nconst dep.K 7\ndata dep.d (int y)\n", "file://" + dep)
+        hovers(text, [("dep.K", 0, 0, ("const dep.K 7", "unsaved")), ("dep.d", 0, 0, ("data dep.d (int y)", ""))],
+               uri=uri, caps=PLAINTEXT, before=[unsaved], cwd=tmp)
+        at = position(text, find(text, "dep.K"))
+        stop = {"line": at["line"], "character": at["character"] + 5}
+        srv = Session(cwd=tmp)
+        srv.send(req(1, "initialize", {"capabilities": {}}))
+        assert srv.read() == ok(1, INIT_RESULT)
+        srv.send(did_open(text, uri))
+        for k, (doc, value) in enumerate([("one", "1"), ("one", "1"), ("", "if 1 else 2 fi"), ("two", '"x"')]):
+            with open(dep, "w") as f:
+                f.write(("-- %s\n" % doc if doc else "") + "const dep.K %s\ndata dep.d (int x)\n" % value)
+            srv.send(did_change(text + "-- %d\n" % k, uri, version=k + 2))
+            srv.send(hover(10 + k, at, uri))
+            assert srv.read() == ok(10 + k, hover_result("const dep.K " + value, doc, at, stop, False))
         srv.close()
 
 
