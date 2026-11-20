@@ -768,7 +768,7 @@ Hover (`textDocument/hover`):
   `data` definitions of the file and of its imports, the type names in
   signatures and fields, `T.&` and `T.*`, and the generated constants
   `T.init`, `T.sizeof`, `T.f`, `T.f.set` and `T.f.offset` with their stack
-  effect. The getter `T.f` gives a value that aliases the field.
+  effect.
 - These positions get `null`: literals, keywords, comments, match bindings
   and the names that they bind, constants of the program, type variables,
   names that do not resolve, and documents that are not open.

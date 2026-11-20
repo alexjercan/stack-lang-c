@@ -322,7 +322,6 @@ MARKDOWN = {"textDocument": {"hover": {"contentFormat": ["markdown", "plaintext"
 PLAINTEXT = {"textDocument": {"hover": {"contentFormat": ["plaintext", "markdown"]}}}
 BUILTIN = "Builtin function."
 BUILTIN_DATA = "Builtin data type."
-ALIAS = ". The result aliases the field."
 NEWLINE = re.compile(r"\r\n|\r|\n")
 TOKEN = re.compile(r"[^\s(),]+")
 
@@ -419,7 +418,7 @@ def hover_builtins():
         ("end", 0, 0, None),
         ("int", 0, 0, ("data int", BUILTIN_DATA)),
         ("main", 0, 0, ("func main () (int)", "")),
-        ("int.sizeof", 0, 4, ("int.sizeof () (int)", "Size in bytes of the builtin data type int.")),
+        ("int.sizeof", 0, 4, ("int.sizeof () (int)", "int size")),
         ("    1", 0, 1, None),
     ])
 
@@ -456,19 +455,19 @@ def hover_declarations():
 @test
 def hover_generated():
     hovers(DECLS, [
-        ("pair.a", 0, 0, ("pair.a (pair) (int)", "Generated getter of field a of data pair" + ALIAS)),
-        ("pair.sizeof", 0, 0, ("pair.sizeof () (int)", "Generated: the size in bytes of data pair.")),
-        ("pair.b.offset", 0, 0, ("pair.b.offset () (int)", "Generated: the byte offset of field b in data pair.")),
+        ("pair.a", 0, 0, ("pair.a (pair) (int)", "pair.a getter")),
+        ("pair.sizeof", 0, 0, ("pair.sizeof () (int)", "pair size")),
+        ("pair.b.offset", 0, 0, ("pair.b.offset () (int)", "pair.b offset")),
         ("pair.init", 0, 0, ("pair.init (int, ptr) (pair)",
-                             "Generated constructor of data pair. It allocates a new value and copies the fields into it.")),
+                             "pair constructor")),
         ("pair.b.set", 0, 0, ("pair.b.set (pair, ptr) ()",
-                              "Generated setter of field b of data pair. It copies the value into the field.")),
-        ("pair.&", 0, 0, ("func pair.& (pair) (ptr)", "Generated for data pair.")),
-        ("pair.*", 0, 0, ("func pair.* (ptr) (pair)", "Generated for data pair.")),
+                              "pair.b setter")),
+        ("pair.&", 0, 0, ("func pair.& (pair) (ptr)", "pair reference")),
+        ("pair.*", 0, 0, ("func pair.* (ptr) (pair)", "pair dereference")),
     ])
     text = 'data inner (int x)\ndata outer (inner i, int n)\nfunc f (outer) (inner) in outer.i end\n'
     hovers(text, [
-        ("outer.i", 0, 0, ("outer.i (outer) (inner)", "Generated getter of field i of data outer" + ALIAS)),
+        ("outer.i", 0, 0, ("outer.i (outer) (inner)", "outer.i getter")),
         ("inner i", 0, 0, ("data inner (int x)", "")),
         ("inner)", 0, 0, ("data inner (int x)", "")),
     ])
@@ -507,11 +506,10 @@ def hover_imports():
             f.write('@import "local"\nfunc shared.g () () in end\n')
         text = '@import "shared"\nfunc main () () in 1 local.f cell.v pop shared.g string.len end\n'
         env = dict(os.environ, STACK_HOME=tmp)
-        shared = os.path.join(tmp, "lib", "shared.stack")
         hovers(text, [
-            ("local.f", 0, 0, ("func local.f (int) (cell)", "Defined in local.stack.")),
-            ("cell.v", 0, 0, ("cell.v (cell) (int)", "Generated getter of field v of data cell" + ALIAS)),
-            ("shared.g", 0, 0, ("func shared.g () ()", "Defined in " + shared + ".")),
+            ("local.f", 0, 0, ("func local.f (int) (cell)", "")),
+            ("cell.v", 0, 0, ("cell.v (cell) (int)", "cell.v getter")),
+            ("shared.g", 0, 0, ("func shared.g () ()", "")),
             ("string.len", 0, 0, None),
             ('"shared"', 0, 1, None),
         ], cwd=tmp, env=env)
@@ -520,11 +518,10 @@ def hover_imports():
         hovers(text, [("main", 1, 0, ("func main () ()", "")), ("dup", 0, 0, ("func dup (a) (a, a)", BUILTIN))],
                cwd=tmp, env=env)
         env = dict(os.environ, STACK_HOME=ROOT)
-        stdlib = os.path.join(ROOT, "lib", "stdlib.stack")
         text = '@import "stdlib"\nfunc f (string) (int) in string.len end\n'
         hovers(text, [
-            ("string.len", 0, 0, ("string.len (string) (int)", "Generated getter of field len of data string" + ALIAS)),
-            ("string", 0, 1, ("data string (int len, ptr str)", "Defined in " + stdlib + ".")),
+            ("string.len", 0, 0, ("string.len (string) (int)", "string.len getter")),
+            ("string", 0, 1, ("data string (int len, ptr str)", "")),
         ], cwd=tmp, env=env)
 
 
@@ -540,9 +537,9 @@ def hover_unsaved_imports():
         uri = "file://" + os.path.join(tmp, "main.stack").replace(" ", "%20")
         text = '@import "dep"\nfunc main () () in dep.old dep.new end\n'
         unsaved = did_open('func dep.new (int) (int) in end\n', dep)
-        hovers(text, [("dep.old", 0, 0, None), ("dep.new", 0, 0, ("func dep.new (int) (int)", "Defined in dep.stack."))],
+        hovers(text, [("dep.old", 0, 0, None), ("dep.new", 0, 0, ("func dep.new (int) (int)", ""))],
                uri=uri, before=[unsaved], cwd=tmp)
-        hovers(text, [("dep.old", 0, 0, ("func dep.old () ()", "Defined in dep.stack.")), ("dep.new", 0, 0, None)],
+        hovers(text, [("dep.old", 0, 0, ("func dep.old () ()", "")), ("dep.new", 0, 0, None)],
                uri=uri, before=[unsaved, did_close(dep)], cwd=tmp)
         # The open file imports itself.
         with open(os.path.join(tmp, "main.stack"), "w") as f:
@@ -760,7 +757,7 @@ def hover_import_changes():
                     f.write("func dep.f () %s in end\n" % sig)
             srv.send(did_change(text + "-- %d\n" % k, uri, version=k + 2))
             srv.send(hover(10 + k, at, uri))
-            want = hover_result("func dep.f () %s" % sig, "Defined in dep.stack.", at,
+            want = hover_result("func dep.f () %s" % sig, "", at,
                                 {"line": at["line"], "character": at["character"] + 5}, False)
             assert srv.read() == ok(10 + k, want)
         srv.close()

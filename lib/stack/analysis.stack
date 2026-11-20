@@ -409,41 +409,21 @@ func stack_ast_data.text (stack_ast_data) (string) in
     end
 end
 
-func stack_ast_node.filename (stack_ast_node) (string) in
-    stack_ast_node.parser stack_parser.lexer stack_lexer.filename
-end
-
--- A note with the file of node when it is not the analysed file.
-func stack_analysis.origin (stack_analysis, stack_ast_node) (string) in -- an, node
-    match an node in
-        node stack_ast_node.filename match file in
-            file an stack_analysis.filename string.= if "" else "Defined in " file string.concat "." string.concat fi
-        end
-    end
-end
-
-func stack_helper.note (stack_analysis, stack_helper) (string) in -- an, helper
-    match an h in
+func stack_helper.note (stack_helper) (string) in
+    match h in
         h stack_helper.kind h stack_helper.owner h stack_helper.field match kind owner field in
-            an owner stack_analysis.decl match d found in found d stack_decl.kind STACK_DECL_DATA = and end not
-            match builtin in
-                kind STACK_HELPER_SIZEOF = if
-                    builtin if "Size in bytes of the builtin data type " owner string.concat "."
-                    else "Generated: the size in bytes of data " owner string.concat "." fi
-                else kind STACK_HELPER_OFFSET = if
-                    "Generated: the byte offset of field " field string.concat " in data " string.concat owner string.concat "."
-                else kind STACK_HELPER_INIT = if
-                    "Generated constructor of data " owner string.concat
-                    ". It allocates a new value and copies the fields into it."
-                else kind STACK_HELPER_GETTER = if
-                    "Generated getter of field " field string.concat " of data " string.concat owner string.concat
-                    ". The result aliases the field."
-                else
-                    "Generated setter of field " field string.concat " of data " string.concat owner string.concat
-                    ". It copies the value into the field."
-                fi fi fi fi
-                string.concat
-            end
+            kind STACK_HELPER_SIZEOF = if
+                owner " size"
+            else kind STACK_HELPER_OFFSET = if
+                owner "." string.concat field string.concat " offset"
+            else kind STACK_HELPER_INIT = if
+                owner " constructor"
+            else kind STACK_HELPER_GETTER = if
+                owner "." string.concat field string.concat " getter"
+            else
+                owner "." string.concat field string.concat " setter"
+            fi fi fi fi
+            string.concat
         end
     end
 end
@@ -460,7 +440,7 @@ func stack_analysis.hover.type (stack_analysis, string) (bool, string, string) i
             else an name stack_analysis.decl match d found in
                 found if d stack_decl.kind STACK_DECL_DATA = else false fi if
                     d stack_decl.decl stack_ast_data.* match dd in
-                        true dd stack_ast_data.text an dd stack_ast_data.name stack_analysis.origin
+                        true dd stack_ast_data.text ""
                     end
                 else false "" "" fi
             end fi
@@ -468,13 +448,11 @@ func stack_analysis.hover.type (stack_analysis, string) (bool, string, string) i
     end
 end
 
-func stack_analysis.hover.decl (stack_analysis, stack_decl) (bool, string, string) in -- an, decl
-    match an d in
+func stack_analysis.hover.decl (stack_decl) (bool, string, string) in
+    match d in
         d stack_decl.kind match kind in
             kind STACK_DECL_FUNC = if
-                d stack_decl.decl stack_ast_func.* stack_ast_func.name match name in
-                    true d stack_decl.decl stack_ast_func.* stack_ast_func.text an name stack_analysis.origin
-                end
+                true d stack_decl.decl stack_ast_func.* stack_ast_func.text ""
             else kind STACK_DECL_DATA = if
                 false "" ""
             else
@@ -482,7 +460,7 @@ func stack_analysis.hover.decl (stack_analysis, stack_decl) (bool, string, strin
                     true
                     owner kind STACK_DECL_REF = if stack_context_func.init.data_ref else stack_context_func.init.data_deref fi
                     stack_analysis.func.text
-                    "Generated for data " owner string.concat "." string.concat
+                    owner kind STACK_DECL_REF = if " reference" else " dereference" fi string.concat
                 end
             fi fi
         end
@@ -495,7 +473,7 @@ func stack_analysis.hover.call (stack_analysis, string) (bool, string, string) i
             is_helper if
                 true
                 h stack_helper.node stack_ast_node.value h stack_helper.args h stack_helper.rets stack_signature.text
-                an h stack_helper.note
+                h stack_helper.note
             else an name stack_analysis.const
                 name STACK_SPECIAL_FILE string.= or name STACK_SPECIAL_LINE string.= or name STACK_SPECIAL_COL string.= or
             if
@@ -508,7 +486,7 @@ func stack_analysis.hover.call (stack_analysis, string) (bool, string, string) i
                         else false "" "" fi
                     end
                 else an name stack_analysis.decl match d found in
-                    found if an d stack_analysis.hover.decl else false "" "" fi
+                    found if d stack_analysis.hover.decl else false "" "" fi
                 end fi
             end fi fi
         end
