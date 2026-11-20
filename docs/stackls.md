@@ -100,10 +100,13 @@ Hover (`textDocument/hover`):
   effect. A `const` shows its original text.
 - The `--` lines just above a `func`, `data` or `const` are its description.
   It is raw Markdown, so write `array<...>` in backticks.
-- These positions get `null`: literals, keywords, comments, match bindings
-  and the names that they bind, type variables, names that do not resolve,
-  and documents that are not open. A bound name that is also a constant is
-  the constant, as in `slc`.
+- A match binding and the names that it binds in a `func` show
+  `name: type` from the type checker of `slc`. They get `null` when the
+  checker gives no type: an error before the binding in the `func`, a
+  binding in a `const`, or a name with two definitions.
+- These positions get `null`: literals, keywords, comments, type variables,
+  names that do not resolve, and documents that are not open. A bound name
+  that is also a constant is the constant, as in `slc`.
 - Bad `params` get `-32602`.
 - Imports resolve as in `slc`: `name.stack` relative to the directory where
   the server runs, then `$STACK_HOME/lib/name.stack`.

@@ -1,0 +1,7 @@
+func args (int) () in "s" + pop end
+func empty_args () () in + pop end
+func branch (bool) () in if 1 else fi end
+func binds () () in match a b in end end
+func spin () () in true while false loop 1 pool end
+func rets () (int, bool) in end
+func ok () (int) in 1 match x in x end end

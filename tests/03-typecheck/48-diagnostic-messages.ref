@@ -1,0 +1,9 @@
+Semantic error: entrypoint func main is not defined
+tests/03-typecheck/48-diagnostic-messages.stack:1:27, Semantic error: func + has non matching args, expected (int, int) but got (int, string)
+tests/03-typecheck/48-diagnostic-messages.stack:2:26, Semantic error: func + has non matching args, expected (int, int) but got ()
+tests/03-typecheck/48-diagnostic-messages.stack:3:26, Semantic error: stack mismatch lhs execution (..., int) rhs execution (..., )
+tests/03-typecheck/48-diagnostic-messages.stack:3:6, Semantic error: func branch has non matching return, expected () but got (int)
+tests/03-typecheck/48-diagnostic-messages.stack:4:21, Semantic error: match tried to bind to many items, expected (a, b) but got ()
+tests/03-typecheck/48-diagnostic-messages.stack:5:25, Semantic error: stack mismatch while expects (..., bool) but pool gives (..., bool, int)
+tests/03-typecheck/48-diagnostic-messages.stack:5:6, Semantic error: func spin has non matching return, expected () but got (bool)
+tests/03-typecheck/48-diagnostic-messages.stack:6:6, Semantic error: func rets has non matching return, expected (int, bool) but got ()

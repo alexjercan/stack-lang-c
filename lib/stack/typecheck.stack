@@ -12,7 +12,13 @@ const STACK_CONTEXT_SYMBOL_FUNC 1
 
 data stack_context_symbol (int kind, ptr symbol)
 
-data stack_context (array symbols, bool ok)
+-- The type of a match binding: pos is the position of the binding.
+data stack_context_bind (int pos, string type)
+
+-- When quiet is true, the checker writes no diagnostics and, while ok is
+-- true, appends the types of the match bindings to binds
+-- (array<stack_context_bind>). The compiler uses quiet false.
+data stack_context (array symbols, bool ok, bool quiet, ptr binds)
 
 func stack_context.init.base () (stack_context) in
     stack_context_symbol.sizeof array.init.with_sz  -- symbols
@@ -376,7 +382,7 @@ func stack_context.init.base () (stack_context) in
     stack_context_symbol.init -- symbol
     stack_context_symbol.& array.append unwrap -- symbols
 
-    true stack_context.init
+    true false ptr.null stack_context.init
 end
 
 func stack_context.append.data (stack_context, stack_context_data) () in
@@ -434,22 +440,31 @@ func stack_context.has_data (stack_context, string) (bool) in
 end
 
 func stack_context.showf (stack_context, stack_ast_node, string) () in -- ctx, node, msg
-    swp dup -- ctx, str, node, node
-    stack_ast_node.parser -- ctx, str, node, parser
-    stack_parser.lexer -- ctx, str, node, lexer
-    dup stack_lexer.filename -- ctx, str, node, lexer, filename
-    string.stderr -- ctx, str, node, lexer
-    swp -- ctx, str, lexer, node
-    stack_ast_node.pos -- ctx, str, lexer, pos
-    stack_lexer.pos.to_lc -- ctx, str, line, col
-    ":" string.stderr -- ctx, str, line, col
-    swp int.show string.stderr  -- ctx, str, col
-    ":" string.stderr -- ctx, str, col
-    int.show string.stderr  -- ctx, str
-    ", Semantic error: " string.stderr -- ctx, str
-    string.stderr -- ctx
+    match ctx node msg in
+        ctx stack_context.quiet not if
+            node stack_ast_node.parser stack_parser.lexer match lexer in
+                lexer stack_lexer.filename string.stderr
+                lexer node stack_ast_node.pos stack_lexer.pos.to_lc match line col in
+                    ":" string.stderr line int.show string.stderr ":" string.stderr col int.show string.stderr
+                end
+            end
+            ", Semantic error: " string.stderr msg string.stderr
+        fi
+        ctx false stack_context.ok.set
+    end
+end
 
-    false stack_context.ok.set -- ()
+-- The strings joined with ", ".
+func array.string.show (array) (string) in -- array<string>
+    match items in
+        "" 0 while dup items array.count < loop
+            match text i in
+                text i 0 > if ", " string.concat fi
+                items i array.get unwrap string.* string.concat
+                i 1 +
+            end
+        pool pop
+    end
 end
 
 -- The function T.& (T) (ptr) of the data type T.
@@ -598,23 +613,13 @@ func stack_context.typecheck.expr.name.infer (stack_context, array, array, array
 end
 
 func stack_context.typecheck.infer.showf (stack_context, stack_ast_node, array, array) () in -- ctx, func, stack, stack'
-    rot4 rot4 -- stack, stack', ctx, func
-
-    dup2 -- ..., ctx, name
-    dup stack_ast_node.value "func " swp string.concat " has non matching args, expected (" string.concat -- ..., ctx, name, s
-    stack_context.showf -- stack, stack', ctx, func
-
-    pop swp -- stack, ctx, stack'
-    array.string.showf -- stack, ctx
-
-    ") but got (" string.stderr
-
-    swp -- ctx, stack
-    array.string.showf -- ctx
-
-    ")\n" string.stderr -- ctx
-
-    pop
+    match ctx node stack stack' in
+        ctx node
+        "func " node stack_ast_node.value string.concat " has non matching args, expected (" string.concat
+        stack' array.string.show string.concat ") but got (" string.concat
+        stack array.string.show string.concat ")\n" string.concat
+        stack_context.showf
+    end
 end
 
 func stack_context.typecheck.expr.name.stack_pop (array, int) () in -- stack, L
@@ -715,25 +720,13 @@ func stack_context.typecheck.expr.cond.has_boolean (array) (bool) in -- stack
     fi -- bool
 end
 
-func stack_context.typecheck.branch.showf (stack_context, stack_ast_cond, array, array) () in -- ctx, cond, stack, stack'
-    swp -- lhs, rhs
-    rot4 rot4 -- stack, stack', ctx, cond
-
-    dup2 stack_ast_cond.cond -- ..., ctx, name
-    "stack mismatch lhs execution (..., " -- ..., ctx, name, s
-    stack_context.showf -- stack, stack', ctx, cond
-
-    pop swp -- stack, ctx, stack'
-    array.string.showf -- stack, ctx
-
-    ") rhs execution (..., " string.stderr
-
-    swp -- ctx, stack
-    array.string.showf -- ctx
-
-    ")\n" string.stderr -- ctx
-
-    pop
+func stack_context.typecheck.branch.showf (stack_context, stack_ast_cond, array, array) () in -- ctx, cond, lhs, rhs
+    match ctx cond lhs rhs in
+        ctx cond stack_ast_cond.cond
+        "stack mismatch lhs execution (..., " lhs array.string.show string.concat
+        ") rhs execution (..., " string.concat rhs array.string.show string.concat ")\n" string.concat
+        stack_context.showf
+    end
 end
 
 func stack_context.typecheck.expr.cond.has_boolean.showf (stack_context, stack_ast_cond, array) () in -- ctx, cond, stack
@@ -802,22 +795,13 @@ func stack_context.typecheck.expr.cond (stack_context, array, stack_ast_cond) ()
 end
 
 func stack_context.typecheck.match.showf (stack_context, stack_ast_match, array) () in -- ctx, match, stack
-    rot' -- stack, ctx, match
-    dup2 -- ..., ctx, match
-    stack_ast_match.node "match tried to bind to many items, expected (" -- ..., ctx, name, s
-    stack_context.showf -- stack, ctx, match
-
-    stack_ast_match.binds -- stack, ctx, binds
-    stack_params.node_to_string -- stack, ctx, array<string>
-    array.string.showf -- stack, ctx
-
-    ") but got (" string.stderr -- stack, ctx
-
-    swp array.string.showf -- ctx
-
-    ")\n" string.stderr -- ctx
-
-    pop
+    match ctx m stack in
+        ctx m stack_ast_match.node
+        "match tried to bind to many items, expected (" m stack_ast_match.binds stack_params.node_to_string
+        array.string.show string.concat ") but got (" string.concat stack array.string.show string.concat
+        ")\n" string.concat
+        stack_context.showf
+    end
 end
 
 func stack_context.typecheck.match.init (stack_context, array, array) (bool) in -- ctx, stack, binds
@@ -864,6 +848,26 @@ func stack_context.typecheck.match.init (stack_context, array, array) (bool) in 
     end
 end
 
+-- Append the types of binds to ctx.binds. match.init added the symbol of
+-- the last bind first, so bind i is the symbol count - 1 - i.
+func stack_context.typecheck.match.capture (stack_context, array) () in -- ctx, binds
+    match ctx binds in
+        ctx stack_context.symbols match symbols in
+            0 while dup binds array.count < loop
+                match i in
+                    symbols symbols array.count 1 - i - array.get unwrap stack_context_symbol.*
+                    stack_context_symbol.symbol stack_context_func.* stack_context_func.rets 0 array.get unwrap string.*
+                    match type in
+                        binds i array.get unwrap stack_ast_node.* stack_ast_node.pos 0 + type stack_context_bind.init
+                        stack_context_bind.& match b in ctx stack_context.binds array.* b array.append unwrap b ptr.free end
+                    end
+                    i 1 +
+                end
+            pool pop
+        end
+    end
+end
+
 func stack_context.typecheck.match.clear (stack_context, array) () in -- ctx, binds
     match ctx binds in
         0 while dup binds array.count < loop
@@ -879,6 +883,9 @@ func stack_context.typecheck.expr.match (stack_context, array, stack_ast_match) 
             ctx node stack stack_context.typecheck.match.showf
         else
             ctx stack node stack_ast_match.binds stack_context.typecheck.match.init if
+                ctx stack_context.quiet ctx stack_context.ok and if
+                    ctx node stack_ast_match.binds stack_context.typecheck.match.capture
+                fi
                 ctx stack node stack_ast_match.exprs stack_context.typecheck.exprs
                 ctx node stack_ast_match.binds stack_context.typecheck.match.clear
             fi
@@ -896,23 +903,12 @@ func stack_context.typecheck.expr.while.has_boolean (array) (bool) in -- stack
 end
 
 func stack_context.typecheck.while.showf (stack_context, stack_ast_while, array, array) () in -- ctx, while, body, input
-    rot4 rot4 -- stack, stack', ctx, while
-
-    dup2 stack_ast_while.node -- ..., ctx, name
-    "stack mismatch while expects (..., " -- ..., ctx, name, s
-    stack_context.showf -- stack, stack', ctx, cond
-
-    pop swp -- stack, ctx, stack'
-    array.string.showf -- stack, ctx
-
-    ") but pool gives (..., " string.stderr
-
-    swp -- ctx, stack
-    array.string.showf -- ctx
-
-    ")\n" string.stderr -- ctx
-
-    pop
+    match ctx w body input in
+        ctx w stack_ast_while.node
+        "stack mismatch while expects (..., " input array.string.show string.concat
+        ") but pool gives (..., " string.concat body array.string.show string.concat ")\n" string.concat
+        stack_context.showf
+    end
 end
 func stack_context.typecheck.expr.while.has_boolean.showf (stack_context, stack_ast_while, array) () in -- ctx, while, stack
     array.last -- ctx, cond, ptr, ok
@@ -1012,34 +1008,15 @@ func stack_context.typecheck.exprs (stack_context, array, array) () in -- ctx, s
     end
 end
 
-func array.string.showf (array) () in -- array<string>
-    match items in
-        0 while dup items array.count < loop
-            dup 0 > if ", " string.stderr fi
-            dup items swp array.get unwrap string.* string.stderr
-            1 +
-        pool pop
-    end
-end
 
 func stack_context.typecheck.rets.showf (stack_context, stack_ast_func, array, array) () in -- ctx, func, stack, stack'
-    rot4 rot4 -- stack, stack', ctx, func
-
-    dup2 stack_ast_func.name -- ..., ctx, name
-    dup stack_ast_node.value "func " swp string.concat " has non matching return, expected (" string.concat -- ..., ctx, name, s
-    stack_context.showf -- stack, stack', ctx, func
-
-    pop swp -- stack, ctx, stack'
-    array.string.showf -- stack, ctx
-
-    ") but got (" string.stderr
-
-    swp -- ctx, stack
-    array.string.showf -- ctx
-
-    ")\n" string.stderr -- ctx
-
-    pop
+    match ctx f stack stack' in
+        ctx f stack_ast_func.name
+        "func " f stack_ast_func.name stack_ast_node.value string.concat " has non matching return, expected (" string.concat
+        stack' array.string.show string.concat ") but got (" string.concat stack array.string.show string.concat
+        ")\n" string.concat
+        stack_context.showf
+    end
 end
 
 func stack_ast_func.is_main (stack_ast_func) (bool) in

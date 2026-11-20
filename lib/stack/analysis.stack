@@ -19,9 +19,11 @@ const STACK_REF_FIELD 6   -- the name of a data field
 const STACK_REF_CONST 7   -- the name of a const
 
 -- The bytes [start, stop) of a name. decl is the stack_ast_func of
--- STACK_REF_FUNC, the stack_ast_data of STACK_REF_DATA and the stack_ast_const
--- of STACK_REF_CONST, else ptr.null.
-data stack_ref (int kind, int start, int stop, string name, ptr decl)
+-- STACK_REF_FUNC, the stack_ast_data of STACK_REF_DATA, the stack_ast_const
+-- of STACK_REF_CONST and the stack_ast_func of the body of STACK_REF_BOUND and
+-- STACK_REF_BINDING, else ptr.null. bind is the position of the binding of
+-- STACK_REF_BOUND and STACK_REF_BINDING in a func body, else -1.
+data stack_ref (int kind, int start, int stop, string name, ptr decl, int bind)
 
 -- Kinds of definitions that the type checker accepts.
 const STACK_DECL_DATA 0
@@ -37,16 +39,17 @@ data stack_decl (int kind, string name, ptr decl)
 -- helpers. parsed is false when the file has a syntax error; then the refs
 -- and the definitions are only from the features before the error. docs and
 -- shared: array<stack_doc> of the texts that hovers lexed. shared is for the
--- module cache and the caller owns it.
-data stack_analysis (array refs, array decls, stack_context ctx, stack_preprocessor pre, string filename, bool parsed, ptr docs, ptr shared)
+-- module cache and the caller owns it. types is the stack_types of the
+-- bindings.
+data stack_analysis (array refs, array decls, stack_context ctx, stack_preprocessor pre, string filename, bool parsed, ptr docs, ptr shared, ptr types)
 
 -- NAMES OF THE FILE
 
-func stack_ref.add (array, int, stack_ast_node, ptr) () in -- array<stack_ref>, kind, node, decl
-    match refs kind node decl in
+func stack_ref.add.bind (array, int, stack_ast_node, ptr, int) () in -- array<stack_ref>, kind, node, decl, bind
+    match refs kind node decl bind in
         node stack_ast_node.value match name in
             node stack_ast_node.pos 0 + match start in
-                kind start start name string.len + name decl stack_ref.init stack_ref.& match r in
+                kind start start name string.len + name decl bind stack_ref.init stack_ref.& match r in
                     refs r array.append unwrap r ptr.free
                 end
             end
@@ -54,11 +57,31 @@ func stack_ref.add (array, int, stack_ast_node, ptr) () in -- array<stack_ref>, 
     end
 end
 
-func stack_strings.has (array, string) (bool) in
-    match xs s in
-        false 0 while dup xs array.count < loop
-            match found i in found xs i array.get unwrap string.* s string.= or i 1 + end
+func stack_ref.add (array, int, stack_ast_node, ptr) () in -- array<stack_ref>, kind, node, decl
+    -1 stack_ref.add.bind
+end
+
+func stack_special.is (string) (bool) in -- name
+    match name in
+        name STACK_SPECIAL_FILE string.= name STACK_SPECIAL_LINE string.= or name STACK_SPECIAL_COL string.= or
+    end
+end
+
+-- The position of the innermost binding with the name in scope
+-- (array<stack_ast_node>).
+func stack_scope.find (array, string) (int, bool) in -- scope, name
+    match scope name in
+        -1 scope array.count while dup 0 > loop -- pos, i
+            1 - match pos i in
+                pos 0 < if
+                    scope i array.get unwrap stack_ast_node.* match node in
+                        node stack_ast_node.value name string.= if node stack_ast_node.pos 0 + else pos fi
+                    end
+                else pos fi
+                i
+            end
         pool pop
+        dup 0 >=
     end
 end
 
@@ -70,42 +93,54 @@ func stack_analysis.names.nodes (array, int, array) () in -- array<stack_ref>, k
     end
 end
 
--- scope has the names that the enclosing matches bind.
-func stack_analysis.names.exprs (array, array, array) () in -- array<stack_ref>, scope, array<stack_ast_expr>
-    match refs scope exprs in
+-- scope has the bindings of the enclosing matches (array<stack_ast_node>).
+-- owner is the stack_ast_func of the body when body is true. body is false in
+-- a const.
+func stack_analysis.names.exprs (array, array, ptr, bool, array) () in -- array<stack_ref>, scope, owner, body, array<stack_ast_expr>
+    match refs scope owner body exprs in
         0 while dup exprs array.count < loop
             match i in
                 exprs i array.get unwrap stack_ast_expr.* match expr in
                     expr stack_ast_expr.kind match kind in
                         kind STACK_AST_EXPR_NAME = if
                             expr stack_ast_expr.expr stack_ast_node.* match node in
-                                refs scope node stack_ast_node.value stack_strings.has if STACK_REF_BOUND else STACK_REF_CALL fi
-                                node ptr.null stack_ref.add
+                                scope node stack_ast_node.value stack_scope.find
+                                -- The preprocessor replaces a special name with a literal.
+                                node stack_ast_node.value stack_special.is not and
+                                match bind bound in
+                                    refs bound if STACK_REF_BOUND else STACK_REF_CALL fi node
+                                    bound if owner else ptr.null fi
+                                    bound body and if bind else -1 fi
+                                    stack_ref.add.bind
+                                end
                             end
                         else kind STACK_AST_EXPR_COND = if
                             expr stack_ast_expr.expr stack_ast_cond.* match cond in
-                                refs scope cond stack_ast_cond.if_ stack_analysis.names.exprs
-                                refs scope cond stack_ast_cond.else_ stack_analysis.names.exprs
+                                refs scope owner body cond stack_ast_cond.if_ stack_analysis.names.exprs
+                                refs scope owner body cond stack_ast_cond.else_ stack_analysis.names.exprs
                             end
                         else kind STACK_AST_EXPR_MATCH = if
                             expr stack_ast_expr.expr stack_ast_match.* match m in
                                 m stack_ast_match.binds match binds in
-                                    refs STACK_REF_BINDING binds stack_analysis.names.nodes
                                     0 while dup binds array.count < loop
                                         match j in
-                                            scope binds j array.get unwrap stack_ast_node.* stack_ast_node.value string.&
-                                            array.append unwrap
+                                            binds j array.get unwrap stack_ast_node.* match node in
+                                                refs STACK_REF_BINDING node owner
+                                                body if node stack_ast_node.pos 0 + else -1 fi
+                                                stack_ref.add.bind
+                                                scope node stack_ast_node.& array.append unwrap
+                                            end
                                             j 1 +
                                         end
                                     pool pop
-                                    refs scope m stack_ast_match.exprs stack_analysis.names.exprs
+                                    refs scope owner body m stack_ast_match.exprs stack_analysis.names.exprs
                                     0 while dup binds array.count < loop scope array.pop unwrap 1 + pool pop
                                 end
                             end
                         else kind STACK_AST_EXPR_WHILE = if
                             expr stack_ast_expr.expr stack_ast_while.* match w in
-                                refs scope w stack_ast_while.while_ stack_analysis.names.exprs
-                                refs scope w stack_ast_while.exprs stack_analysis.names.exprs
+                                refs scope owner body w stack_ast_while.while_ stack_analysis.names.exprs
+                                refs scope owner body w stack_ast_while.exprs stack_analysis.names.exprs
                             end
                         fi fi fi fi
                     end
@@ -119,7 +154,7 @@ end
 -- The names of the features of ast.
 func stack_analysis.names (stack_ast) (array) in
     stack_ast.features match features in
-        stack_ref.sizeof array.init.with_sz stack_strings.new match refs scope in
+        stack_ref.sizeof array.init.with_sz stack_ast_node.sizeof array.init.with_sz match refs scope in
             0 while dup features array.count < loop
                 match i in
                     features i array.get unwrap stack_ast_feature.* match feat in
@@ -147,13 +182,13 @@ func stack_analysis.names (stack_ast) (array) in
                                         refs STACK_REF_FUNC f stack_ast_func.name p stack_ref.add
                                         refs STACK_REF_TYPE f stack_ast_func.args stack_analysis.names.nodes
                                         refs STACK_REF_TYPE f stack_ast_func.rets stack_analysis.names.nodes
-                                        refs scope f stack_ast_func.exprs stack_analysis.names.exprs
+                                        refs scope p true f stack_ast_func.exprs stack_analysis.names.exprs
                                     end
                                 end
                             else kind STACK_AST_FEATURE_CONST = if
                                 feat stack_ast_feature.feature match p in p stack_ast_const.* match c in
                                     refs STACK_REF_CONST c stack_ast_const.name p stack_ref.add
-                                    refs scope c stack_ast_const.exprs stack_analysis.names.exprs
+                                    refs scope ptr.null false c stack_ast_const.exprs stack_analysis.names.exprs
                                 end end
                             fi fi fi
                         end
@@ -234,10 +269,11 @@ func stack_analysis.build (string, string, stack_file_id, array, array, ptr) (st
                     end
                 pool pop
                 pre ast stack_preprocessor.load pop2
-                pre stack_ast.init.empty stack_preprocessor.run.base.consts
-                stack_context.init.base match ctx in
-                    refs pre stack_preprocessor.user stack_analysis.defines ctx pre filename parsed
-                    stack_doc.sizeof array.init.with_sz array.& shared stack_analysis.init
+                stack_ast.init.empty stack_context.init.base pre stack_preprocessor.user stack_analysis.defines
+                match base ctx decls in
+                    pre base stack_preprocessor.run.base.consts
+                    refs decls ctx pre filename parsed
+                    stack_doc.sizeof array.init.with_sz array.& shared decls base stack_types.new stack_analysis.init
                 end
             end
         end
@@ -280,6 +316,7 @@ func stack_analysis.free (stack_analysis) () in
             docs array.items ptr.free
             docs array.& ptr.free
         end
+        an stack_analysis.types stack_types.free
     end
 end
 
@@ -303,7 +340,7 @@ func stack_analysis.find (stack_analysis, int) (stack_ref, bool) in -- an, offse
                 found 0 >= if
                     refs found array.get unwrap stack_ref.* true
                 else
-                    0 0 0 "" ptr.null stack_ref.init false
+                    0 0 0 "" ptr.null -1 stack_ref.init false
                 fi
             end
         end
@@ -374,21 +411,10 @@ end
 
 -- TEXT
 
-func stack_strings.join (array) (string) in
-    match xs in
-        "" 0 while dup xs array.count < loop
-            match s i in
-                s i 0 > if ", " string.concat fi xs i array.get unwrap string.* string.concat
-                i 1 +
-            end
-        pool pop
-    end
-end
-
 func stack_signature.text (string, array, array) (string) in -- name, args, rets
     match name args rets in
-        name " (" string.concat args stack_strings.join string.concat ") (" string.concat
-        rets stack_strings.join string.concat ")" string.concat
+        name " (" string.concat args array.string.show string.concat ") (" string.concat
+        rets array.string.show string.concat ")" string.concat
     end
 end
 
@@ -750,6 +776,565 @@ func stack_analysis.doc (stack_analysis, stack_ast_node) (string, string) in -- 
     end
 end
 
+-- TYPES OF BINDINGS
+
+-- The type checker gives the types of the match bindings of a func body, on
+-- the first hover of a binding in it. ids index the definitions: the builtin
+-- symbols, then the decls, then the constants. table is the hash table of the
+-- ids by name (array<int>, -1 is empty). funcs has the positions of the names
+-- of the checked funcs (array<int>) and binds their types
+-- (array<stack_context_bind>). marks has for each id the number of the last
+-- check that uses it (array<int>). base has the builtin constants.
+data stack_types
+    ( bool built
+    , stack_context builtins
+    , array decls
+    , array consts
+    , array table
+    , array funcs
+    , array binds
+    , array marks
+    , stack_ast base
+    )
+
+const STACK_NAME_BASE 4  -- a builtin symbol
+const STACK_NAME_CONST 5 -- a constant
+
+func stack_types.new (array, stack_ast) (ptr) in -- array<stack_decl>, base
+    match decls base in
+        false stack_context_symbol.sizeof array.init.with_sz true true ptr.null stack_context.init
+        decls ptr.sizeof array.init.with_sz int.sizeof array.init.with_sz int.sizeof array.init.with_sz
+        stack_context_bind.sizeof array.init.with_sz int.sizeof array.init.with_sz base stack_types.init stack_types.&
+    end
+end
+
+func stack_ints.has (array, int) (bool) in -- array<int>, n
+    match xs n in
+        false 0 while dup xs array.count < loop
+            match found i in found xs i array.get unwrap int.* n = or i 1 + end
+        pool pop
+    end
+end
+
+func stack_types.kind (stack_types, int) (int) in -- types, id
+    match types id in
+        types stack_types.builtins stack_context.symbols array.count match nb in
+            id nb < if STACK_NAME_BASE
+            else id nb - types stack_types.decls array.count < if
+                types stack_types.decls id nb - array.get unwrap stack_decl.* stack_decl.kind
+            else STACK_NAME_CONST fi fi
+        end
+    end
+end
+
+func stack_types.symbol (stack_types, int) (stack_context_symbol) in -- types, id
+    swp stack_types.builtins stack_context.symbols swp array.get unwrap stack_context_symbol.*
+end
+
+func stack_types.decl (stack_types, int) (stack_decl) in -- types, id
+    match types id in
+        types stack_types.decls id types stack_types.builtins stack_context.symbols array.count - array.get unwrap
+        stack_decl.*
+    end
+end
+
+func stack_types.const (stack_types, int) (stack_ast_const) in -- types, id
+    match types id in
+        types stack_types.consts
+        id types stack_types.builtins stack_context.symbols array.count - types stack_types.decls array.count -
+        array.get unwrap ptr.* stack_ast_const.*
+    end
+end
+
+func stack_types.name (stack_types, int) (string) in -- types, id
+    match types id in
+        types id stack_types.kind match kind in
+            kind STACK_NAME_BASE = if types id stack_types.symbol stack_context_symbol.name
+            else kind STACK_NAME_CONST = if types id stack_types.const stack_ast_const.name stack_ast_node.value
+            else types id stack_types.decl stack_decl.name fi fi
+        end
+    end
+end
+
+-- The hash of the length and of five bytes of the name.
+func stack_types.hash (string) (int) in -- name
+    match s in
+        s string.len match n in
+            n n 0 > if
+                0 while dup 5 < loop -- h, k
+                    match h k in h 31 * s n 1 - k * 4 / string.!! + k 1 + end
+                pool pop
+            fi
+        end
+    end
+end
+
+-- The first id with the name and the count of the ids with the name: of the
+-- constants when consts is true, else of the other definitions.
+func stack_types.find (stack_types, string, bool) (int, int) in -- types, name, consts
+    match types name consts in
+        types stack_types.table match table in
+            -1 0 name stack_types.hash table array.count %
+            while dup table swp array.get unwrap int.* 0 >= loop -- first, count, slot
+                match first count slot in
+                    table slot array.get unwrap int.* match id in
+                        types id stack_types.kind STACK_NAME_CONST = if consts else consts not fi
+                        types id stack_types.name name string.= and if
+                            first 0 < id first < or if id else first fi count 1 +
+                        else first count fi
+                    end
+                    slot 1 + table array.count %
+                end
+            pool pop
+        end
+    end
+end
+
+func stack_types.consts.add (array, stack_ast) () in -- array<ptr>, ast
+    match consts ast in
+        ast stack_ast.features match features in
+            0 while dup features array.count < loop
+                match i in
+                    features i array.get unwrap stack_ast_feature.* match feat in
+                        feat stack_ast_feature.kind STACK_AST_FEATURE_CONST = if
+                            consts feat stack_ast_feature.feature ptr.& array.append unwrap
+                        fi
+                    end
+                    i 1 +
+                end
+            pool pop
+        end
+    end
+end
+
+-- Make the builtin symbols, the list of the constants and the hash table.
+func stack_types.build (stack_types, stack_analysis) () in -- types, an
+    match types an in
+        stack_context.init.base match ctx in
+            types stack_types.builtins stack_context.symbols ctx stack_context.symbols array.extend unwrap
+            ctx stack_context.symbols array.items ptr.free
+            ctx stack_context.& ptr.free
+        end
+        types stack_types.consts an stack_analysis.pre stack_preprocessor.user stack_types.consts.add
+        types stack_types.consts types stack_types.base stack_types.consts.add
+        types stack_types.consts an stack_analysis.pre stack_preprocessor.generated stack_types.consts.add
+        types stack_types.builtins stack_context.symbols array.count types stack_types.decls array.count +
+        types stack_types.consts array.count + match total in
+            types stack_types.table match table in
+                0 while dup total 2 * 1 + < loop table -1 int.& array.append unwrap 1 + pool pop
+                0 while dup total < loop types stack_types.marks -1 int.& array.append unwrap 1 + pool pop
+                0 while dup total < loop
+                    match id in
+                        types id stack_types.name stack_types.hash table array.count %
+                        while dup table swp array.get unwrap int.* 0 >= loop 1 + table array.count % pool
+                        table swp id int.& array.set unwrap
+                        id 1 +
+                    end
+                pool pop
+            end
+        end
+        types true stack_types.built.set
+    end
+end
+
+-- A copy of the expressions that the preprocessor can change.
+func stack_exprs.copy (array) (array) in -- array<stack_ast_expr>
+    match exprs in
+        stack_ast_expr.sizeof array.init.with_sz match out in
+            0 while dup exprs array.count < loop
+                match i in
+                    exprs i array.get unwrap stack_ast_expr.* match e in
+                        e stack_ast_expr.kind match kind in
+                            kind
+                            kind STACK_AST_EXPR_COND = if
+                                e stack_ast_expr.expr stack_ast_cond.* match c in
+                                    c stack_ast_cond.cond c stack_ast_cond.if_ stack_exprs.copy
+                                    c stack_ast_cond.else_ stack_exprs.copy stack_ast_cond.init stack_ast_cond.&
+                                end
+                            else kind STACK_AST_EXPR_MATCH = if
+                                e stack_ast_expr.expr stack_ast_match.* match m in
+                                    m stack_ast_match.node m stack_ast_match.binds array.copy unwrap
+                                    m stack_ast_match.exprs stack_exprs.copy stack_ast_match.init stack_ast_match.&
+                                end
+                            else kind STACK_AST_EXPR_WHILE = if
+                                e stack_ast_expr.expr stack_ast_while.* match w in
+                                    w stack_ast_while.node w stack_ast_while.while_ stack_exprs.copy
+                                    w stack_ast_while.exprs stack_exprs.copy stack_ast_while.init stack_ast_while.&
+                                end
+                            else
+                                e stack_ast_expr.expr stack_ast_node.* match node in
+                                    node stack_ast_node.parser node stack_ast_node.value node stack_ast_node.pos 0 +
+                                    stack_ast_node.init stack_ast_node.&
+                                end
+                            fi fi fi
+                            stack_ast_expr.init stack_ast_expr.& match x in out x array.append unwrap x ptr.free end
+                        end
+                    end
+                    i 1 +
+                end
+            pool pop
+            out
+        end
+    end
+end
+
+-- Free a copy and the expansions of the preprocessor in it.
+func stack_exprs.free (array) () in -- array<stack_ast_expr>
+    match exprs in
+        0 while dup exprs array.count < loop
+            match i in
+                exprs i array.get unwrap stack_ast_expr.* match e in
+                    e stack_ast_expr.kind match kind in
+                        kind STACK_AST_EXPR_COND = if
+                            e stack_ast_expr.expr stack_ast_cond.* match c in
+                                c stack_ast_cond.if_ stack_exprs.free c stack_ast_cond.else_ stack_exprs.free
+                            end
+                        else kind STACK_AST_EXPR_MATCH = if
+                            e stack_ast_expr.expr stack_ast_match.* match m in
+                                m stack_ast_match.binds array.items ptr.free m stack_ast_match.exprs stack_exprs.free
+                            end
+                        else kind STACK_AST_EXPR_WHILE = if
+                            e stack_ast_expr.expr stack_ast_while.* match w in
+                                w stack_ast_while.while_ stack_exprs.free w stack_ast_while.exprs stack_exprs.free
+                            end
+                        fi fi fi
+                        e stack_ast_expr.expr ptr.free
+                    end
+                end
+                i 1 +
+            end
+        pool pop
+        exprs array.items ptr.free
+    end
+end
+
+-- Append the names in exprs to names and the bindings to binds (array<string>).
+func stack_exprs.names (array, array, array) () in -- array<stack_ast_expr>, names, binds
+    match exprs names binds in
+        0 while dup exprs array.count < loop
+            match i in
+                exprs i array.get unwrap stack_ast_expr.* match e in
+                    e stack_ast_expr.kind match kind in
+                        kind STACK_AST_EXPR_NAME = if
+                            names e stack_ast_expr.expr stack_ast_node.* stack_ast_node.value string.& array.append unwrap
+                        else kind STACK_AST_EXPR_COND = if
+                            e stack_ast_expr.expr stack_ast_cond.* match c in
+                                c stack_ast_cond.if_ names binds stack_exprs.names
+                                c stack_ast_cond.else_ names binds stack_exprs.names
+                            end
+                        else kind STACK_AST_EXPR_MATCH = if
+                            e stack_ast_expr.expr stack_ast_match.* match m in
+                                m stack_ast_match.binds match nodes in
+                                    0 while dup nodes array.count < loop
+                                        match j in
+                                            binds nodes j array.get unwrap stack_ast_node.* stack_ast_node.value string.&
+                                            array.append unwrap
+                                            j 1 +
+                                        end
+                                    pool pop
+                                end
+                                m stack_ast_match.exprs names binds stack_exprs.names
+                            end
+                        else kind STACK_AST_EXPR_WHILE = if
+                            e stack_ast_expr.expr stack_ast_while.* match w in
+                                w stack_ast_while.while_ names binds stack_exprs.names
+                                w stack_ast_while.exprs names binds stack_exprs.names
+                            end
+                        fi fi fi fi
+                    end
+                end
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+-- Visit the constants that names use, as the cycle check of the preprocessor.
+-- done gets them after the constants that they use (array<int>). False on a
+-- cycle or on a constant with more than one definition.
+func stack_types.visit (stack_types, array, array, array) (bool) in -- types, names, active, done
+    match types names active done in
+        true 0 while dup names array.count < loop -- ok, i
+            match ok i in
+                ok if
+                    types names i array.get unwrap string.* true stack_types.find match id count in
+                        count 0 = if true
+                        else count 1 > if false
+                        else active id stack_ints.has if false
+                        else done id stack_ints.has if true
+                        else
+                            stack_strings.new stack_strings.new match names' binds' in
+                                types id stack_types.const stack_ast_const.exprs names' binds' stack_exprs.names
+                                active id int.& array.append unwrap
+                                types names' active done stack_types.visit
+                                active array.pop unwrap
+                                dup if done id int.& array.append unwrap fi
+                                names' array.items ptr.free binds' array.items ptr.free
+                            end
+                        fi fi fi fi
+                    end
+                else false fi
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+-- Expand the constants in body as the preprocessor does: a constant before
+-- the constants that it uses. False when visit is false.
+func stack_types.expand (stack_types, array) (bool) in -- types, body
+    match types body in
+        stack_strings.new stack_strings.new int.sizeof array.init.with_sz int.sizeof array.init.with_sz
+        match names binds active done in
+            body names binds stack_exprs.names
+            types names active done stack_types.visit match ok in
+                ok if
+                    done array.count while dup 0 > loop
+                        1 - match k in
+                            body types done k array.get unwrap int.* stack_types.const
+                            stack_preprocessor.run.expand.exprs
+                            k
+                        end
+                    pool pop
+                fi
+                names array.items ptr.free binds array.items ptr.free
+                active array.items ptr.free done array.items ptr.free
+                ok
+            end
+        end
+    end
+end
+
+-- Mark the ids of the definitions of names with check, and append the types
+-- of their signatures to sigs once for each id. False when a name has more
+-- than one definition.
+func stack_types.need (stack_types, array, int, array) (bool) in -- types, names, check, sigs
+    match types names check sigs in
+        true 0 while dup names array.count < loop -- ok, i
+            match ok i in
+                ok if
+                    types names i array.get unwrap string.* false stack_types.find match id count in
+                        count 1 > if false
+                        else count 1 = if
+                            types stack_types.marks id array.get unwrap int.* check = not if
+                                types stack_types.marks id check int.& array.set unwrap
+                                types id stack_types.kind match kind in
+                                    kind STACK_NAME_BASE = if
+                                        types id stack_types.symbol match sym in
+                                            sym stack_context_symbol.kind STACK_CONTEXT_SYMBOL_FUNC = if
+                                                sym stack_context_symbol.symbol stack_context_func.* match fn in
+                                                    sigs fn stack_context_func.args array.extend unwrap
+                                                    sigs fn stack_context_func.rets array.extend unwrap
+                                                end
+                                            fi
+                                        end
+                                    else kind STACK_DECL_FUNC = if
+                                        types id stack_types.decl stack_decl.decl stack_ast_func.* match fn in
+                                            fn stack_ast_func.args stack_params.node_to_string match xs in
+                                                sigs xs array.extend unwrap xs array.items ptr.free
+                                            end
+                                            fn stack_ast_func.rets stack_params.node_to_string match xs in
+                                                sigs xs array.extend unwrap xs array.items ptr.free
+                                            end
+                                        end
+                                    else kind STACK_DECL_DATA = not if
+                                        sigs types id stack_types.decl stack_decl.decl stack_ast_data.* stack_ast_data.name
+                                        stack_ast_node.value string.& array.append unwrap
+                                        sigs STACK_DATA_PTR string.& array.append unwrap
+                                    fi fi fi
+                                end
+                            fi
+                            true
+                        else true fi fi
+                    end
+                else false fi
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+-- The symbol of the decl id for the type checker.
+func stack_types.decl.symbol (stack_types, int) (int, ptr) in -- types, id
+    match types id in
+        types id stack_types.decl match d in
+            d stack_decl.kind match kind in
+                kind STACK_DECL_FUNC = if
+                    d stack_decl.decl stack_ast_func.* match fn in
+                        STACK_CONTEXT_SYMBOL_FUNC
+                        d stack_decl.name fn stack_ast_func.args stack_params.node_to_string
+                        fn stack_ast_func.rets stack_params.node_to_string stack_context_func.init stack_context_func.&
+                    end
+                else kind STACK_DECL_DATA = if
+                    STACK_CONTEXT_SYMBOL_DATA d stack_decl.name stack_context_data.init stack_context_data.&
+                else
+                    STACK_CONTEXT_SYMBOL_FUNC d stack_decl.decl stack_ast_data.* stack_ast_data.name stack_ast_node.value
+                    kind STACK_DECL_REF = if stack_context_func.init.data_ref else stack_context_func.init.data_deref fi
+                    stack_context_func.&
+                fi fi
+            end
+        end
+    end
+end
+
+-- The symbols for the type checker of f with body: the builtins, then the
+-- definitions of the names in body and in the signatures, in the order of
+-- the type checker. ids gets the decl ids of the symbols after the builtins.
+-- The type checker only looks up these names, so it finds the same symbols
+-- as with all definitions. False when a name has more than one definition.
+func stack_types.symbols (stack_types, stack_ast_func, array, array) (array, bool) in -- types, f, body, ids
+    match types f body ids in
+        stack_strings.new stack_strings.new stack_strings.new types stack_types.funcs array.count 0 +
+        match names sigs sigs' check in
+            body names names stack_exprs.names
+            names f stack_ast_func.name stack_ast_node.value string.& array.append unwrap
+            f stack_ast_func.args stack_params.node_to_string match xs in names xs array.extend unwrap xs array.items ptr.free end
+            f stack_ast_func.rets stack_params.node_to_string match xs in names xs array.extend unwrap xs array.items ptr.free end
+            names STACK_DATA_INT string.& array.append unwrap
+            names STACK_DATA_BOOL string.& array.append unwrap
+            names STACK_DATA_PTR string.& array.append unwrap
+            names STACK_DATA_STRING string.& array.append unwrap
+            types names check sigs stack_types.need
+            types sigs check sigs' stack_types.need and
+            match ok in
+                types stack_types.builtins stack_context.symbols match builtins in
+                    builtins array.copy unwrap match symbols in
+                        ok if
+                            builtins array.count match nb in
+                                nb while dup nb types stack_types.decls array.count + < loop
+                                    match id in
+                                        types stack_types.marks id array.get unwrap int.* check = if
+                                            ids id int.& array.append unwrap
+                                            types id stack_types.decl.symbol stack_context_symbol.init stack_context_symbol.&
+                                            match s in symbols s array.append unwrap s ptr.free end
+                                        fi
+                                        id 1 +
+                                    end
+                                pool pop
+                            end
+                        fi
+                        names array.items ptr.free sigs array.items ptr.free sigs' array.items ptr.free
+                        symbols ok
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Free the symbols after the builtins (decl ids in ids) and the list.
+func stack_types.symbols.free (stack_types, array, array) () in -- types, symbols, ids
+    match types symbols ids in
+        types stack_types.builtins stack_context.symbols array.count match nb in
+            0 while dup ids array.count < loop
+                match i in
+                    symbols nb i + array.get unwrap stack_context_symbol.* stack_context_symbol.symbol match p in
+                        types ids i array.get unwrap int.* stack_types.decl stack_decl.kind match kind in
+                            kind STACK_DECL_DATA = not if
+                                p stack_context_func.* match fn in
+                                    fn stack_context_func.args array.items ptr.free
+                                    fn stack_context_func.rets array.items ptr.free
+                                    kind STACK_DECL_FUNC = not if fn stack_context_func.name string.str ptr.free fi
+                                end
+                            fi
+                        end
+                        p ptr.free
+                    end
+                    i 1 +
+                end
+            pool pop
+        end
+        symbols array.items ptr.free
+    end
+end
+
+-- Check the body of f with the type checker and keep the types of its
+-- bindings. Errors in other funcs do not change them.
+func stack_types.check (stack_types, stack_ast_func) () in -- types, f
+    match types f in
+        types stack_types.funcs f stack_ast_func.name stack_ast_node.pos 0 + int.& array.append unwrap
+        f stack_ast_func.exprs stack_exprs.copy int.sizeof array.init.with_sz match body ids in
+            types body stack_types.expand if
+                body stack_preprocessor.run.expand.special.exprs
+                types f body ids stack_types.symbols match symbols ok in
+                    -- ctx has the list of symbols now. The type checker changes it.
+                    symbols true true types stack_types.binds array.& stack_context.init symbols array.& ptr.free
+                    match ctx in
+                        ok if
+                            f stack_ast_func.args stack_params.node_to_string match stack in
+                                ctx stack body stack_context.typecheck.exprs
+                                stack array.items ptr.free
+                            end
+                        fi
+                        types ctx stack_context.symbols ids stack_types.symbols.free
+                        ctx stack_context.& ptr.free
+                    end
+                end
+            fi
+            body stack_exprs.free
+            ids array.items ptr.free
+        end
+    end
+end
+
+-- The type of the binding at pos in the body of f.
+func stack_analysis.bind.type (stack_analysis, stack_ast_func, int) (string, bool) in -- an, f, pos
+    match an f pos in
+        an stack_analysis.types stack_types.* match types in
+            types stack_types.built not if types an stack_types.build fi
+            types stack_types.funcs f stack_ast_func.name stack_ast_node.pos 0 + stack_ints.has not if
+                types f stack_types.check
+            fi
+            types stack_types.binds match binds in
+                -1 0 while dup binds array.count < loop -- found, i
+                    match found i in
+                        found 0 < binds i array.get unwrap stack_context_bind.* stack_context_bind.pos pos = and
+                        if i else found fi
+                        i 1 +
+                    end
+                pool pop
+                match found in
+                    found 0 >= if
+                        binds found array.get unwrap stack_context_bind.* stack_context_bind.type true
+                    else "" false fi
+                end
+            end
+        end
+    end
+end
+
+-- Free the types of the analysis.
+func stack_types.free (ptr) () in
+    match p in
+        p stack_types.* match types in
+            types stack_types.builtins stack_context.symbols match symbols in
+                0 while dup symbols array.count < loop
+                    match i in
+                        symbols i array.get unwrap stack_context_symbol.* match sym in
+                            sym stack_context_symbol.kind STACK_CONTEXT_SYMBOL_FUNC = if
+                                sym stack_context_symbol.symbol stack_context_func.* match fn in
+                                    fn stack_context_func.args array.items ptr.free
+                                    fn stack_context_func.rets array.items ptr.free
+                                end
+                            fi
+                            sym stack_context_symbol.symbol ptr.free
+                        end
+                        i 1 +
+                    end
+                pool pop
+                symbols array.items ptr.free
+            end
+            types stack_types.consts array.items ptr.free
+            types stack_types.table array.items ptr.free
+            types stack_types.funcs array.items ptr.free
+            types stack_types.binds array.items ptr.free
+            types stack_types.marks array.items ptr.free
+            types stack_types.base stack_ast.features array.items ptr.free
+        end
+        p ptr.free
+    end
+end
+
 -- HOVER
 
 -- The description of a builtin function, or empty.
@@ -852,7 +1437,7 @@ func stack_analysis.hover.call (stack_analysis, string) (bool, string, string, s
                 h stack_helper.note ""
             else an name stack_analysis.const match c is_const in is_const if
                 an c stack_analysis.hover.const
-            else name STACK_SPECIAL_FILE string.= name STACK_SPECIAL_LINE string.= or name STACK_SPECIAL_COL string.= or if
+            else name stack_special.is if
                 false "" "" ""
             else an stack_analysis.ctx name stack_context.get_symbol match builtin symbol in
                 builtin if
@@ -872,10 +1457,25 @@ func stack_analysis.hover.call (stack_analysis, string) (bool, string, string, s
     end
 end
 
+-- A binding and a bound name show "name: type" when the type checker gives
+-- the type of the binding.
+func stack_analysis.hover.bind (stack_analysis, stack_ref) (bool, string, string, string) in -- an, r
+    match an r in
+        r stack_ref.bind 0 < if
+            false "" "" ""
+        else
+            an r stack_ref.decl stack_ast_func.* r stack_ref.bind stack_analysis.bind.type match type ok in
+                ok if true r stack_ref.name ": " string.concat type string.concat "" "" else false "" "" "" fi
+            end
+        fi
+    end
+end
+
 -- The hover text at offset: found, the bytes [start, stop) of the name, the
 -- code, a note and the doc comment of the definition. Not found for literals,
--- keywords, bindings, type variables and names that do not resolve. A bound
--- name that is a constant is the constant, as the preprocessor expands it.
+-- keywords, type variables, names that do not resolve and bindings without a
+-- type. A bound name that is a constant is the constant, as the preprocessor
+-- expands it.
 func stack_analysis.hover (stack_analysis, int) (bool, int, int, string, string, string) in -- an, offset
     match an offset in
         an offset stack_analysis.find match r found in
@@ -896,10 +1496,12 @@ func stack_analysis.hover (stack_analysis, int) (bool, int, int, string, string,
                     an r stack_ref.name stack_analysis.hover.call
                 else kind STACK_REF_BOUND = if
                     an r stack_ref.name stack_analysis.helper swp pop an r stack_ref.name stack_analysis.const swp pop or
-                    if an r stack_ref.name stack_analysis.hover.call else false "" "" "" fi
+                    if an r stack_ref.name stack_analysis.hover.call else an r stack_analysis.hover.bind fi
+                else kind STACK_REF_BINDING = if
+                    an r stack_analysis.hover.bind
                 else
                     false "" "" ""
-                fi fi fi fi fi fi
+                fi fi fi fi fi fi fi
             end fi
             match ok code note doc in ok r stack_ref.start 0 + r stack_ref.stop 0 + code note doc end
         end

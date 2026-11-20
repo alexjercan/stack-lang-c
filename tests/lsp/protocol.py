@@ -524,6 +524,191 @@ def hover_bindings():
     ])
 
 
+BINDS = ('data pair (int a, bool f)\n'
+         'const K 7\n'
+         'func two () (int, bool) in 1 true end\n'
+         'func id (a) (a) in match v in v end end\n'
+         'func f (pair, ptr) (int) in\n'
+         '    match p q in\n'
+         '        p pair.a "s" two match n s c b in\n'
+         '            c dup swp match x y in x y + pop end\n'
+         '            b if s else "t" fi match t in t pop end\n'
+         '            K match k in k end\n'
+         '            0 while dup 10 < loop match i in i 1 + end pool pop\n'
+         '            q id match r in r pop end\n'
+         '            n +\n'
+         '        end\n'
+         '    end\n'
+         'end\n')
+
+
+def bind(name, type):
+    return ("%s: %s" % (name, type), "")
+
+
+@test
+def hover_binding_types():
+    for caps in [PLAINTEXT, MARKDOWN]:
+        hovers(BINDS, [
+            ("p q", 0, 0, bind("p", "pair")),
+            ("q in", 0, 0, bind("q", "ptr")),
+            ("p pair.a", 0, 0, bind("p", "pair")),
+            ("n s c b", 0, 0, bind("n", "int")),
+            ("s c b", 0, 0, bind("s", "string")),
+            ("c b", 0, 0, bind("c", "int")),
+            ("b in", 0, 0, bind("b", "bool")),
+            ("c dup", 0, 0, bind("c", "int")),
+            ("x y in", 0, 0, bind("x", "int")),
+            ("y in", 0, 0, bind("y", "int")),
+            ("x y +", 0, 0, bind("x", "int")),
+            ("y +", 0, 0, bind("y", "int")),
+            ("b if", 0, 0, bind("b", "bool")),
+            ("s else", 0, 0, bind("s", "string")),
+            ("t in", 0, 0, bind("t", "string")),
+            ("t pop", 0, 0, bind("t", "string")),
+            ("K match", 0, 0, ("const K 7", "")),
+            ("k in", 0, 0, bind("k", "int")),
+            ("k end", 0, 0, bind("k", "int")),
+            ("i in", 0, 0, bind("i", "int")),
+            ("i 1", 0, 0, bind("i", "int")),
+            ("r in", 0, 0, bind("r", "ptr")),
+            ("q id", 0, 0, bind("q", "ptr")),
+            ("n +", 0, 0, bind("n", "int")),
+            ("v in", 0, 0, bind("v", "a")),
+            ("v end", 0, 0, bind("v", "a")),
+            ("pair.a", 0, 0, ("pair.a (pair) (int)", "pair.a getter")),
+            ("id match", 0, 0, ("func id (a) (a)", "")),
+            ("dup swp", 0, 0, builtin("dup")),
+        ], caps=caps)
+
+
+ERRS = ('const X 5\n'
+        'const D match x2 in x2 end\n'
+        'func g () () in 1 match a1 b1 in a1 b1 end end\n'
+        'func h () () in 1 2 match a2 a2 in a2 end end\n'
+        'func u () () in undefined match z in z pop end end\n'
+        'func w () () in 1 match dup in end end\n'
+        'func te () () in 1 "s" + match z2 in z2 pop end end\n'
+        'func late () () in 1 match g1 in g1 "s" + pop end end\n'
+        'func sh () (int) in 1 match q in 2 match q in q end pop end end\n'
+        'func cx () (int) in 7 match X in X end end\n'
+        'func re () () in 1 match o in o pop end "x" match o in o pop end end\n'
+        'func dupf () (int) in 1 end\nfunc dupf () (bool) in true end\n'
+        'func ud () () in dupf match dv in end end\n'
+        'const Z1 1\nconst Z1 "s"\nfunc uz () () in Z1 match zv in end end\n'
+        'const Y1 Y2\nconst Y2 Y1\nfunc cy () () in Y1 match yv in end end\n'
+        'func good () (int) in 1 match e in e end end\n')
+
+
+@test
+def hover_binding_errors():
+    """Bindings without a type checked type get null."""
+    hovers(ERRS, [
+        ("x2 in", 0, 0, None),
+        ("x2 end", 0, 0, None),
+        ("a1", 0, 0, None),
+        ("b1", 0, 0, None),
+        ("a1", 1, 0, None),
+        ("a2", 0, 0, None),
+        ("a2", 1, 0, None),
+        ("a2", 2, 0, None),
+        ("z in", 0, 0, None),
+        ("undefined", 0, 0, None),
+        ("dup in", 0, 0, None),
+        ("z2", 0, 0, None),
+        # An error after the binding keeps its type.
+        ("g1", 0, 0, bind("g1", "int")),
+        ("g1", 1, 0, bind("g1", "int")),
+        # The inner q is defined again; the outer q keeps its type.
+        ("q in 2", 0, 0, bind("q", "int")),
+        ("q in q", 0, 0, None),
+        ("q end", 0, 0, None),
+        ("X in", 0, 0, bind("X", "int")),
+        ("X end", 0, 0, ("const X 5", "")),
+        ("o in", 0, 0, bind("o", "int")),
+        ("o pop", 0, 0, bind("o", "int")),
+        ("o in", 1, 0, bind("o", "string")),
+        ("o pop", 1, 0, bind("o", "string")),
+        ("dv", 0, 0, None),
+        ("zv", 0, 0, None),
+        ("yv", 0, 0, None),
+        ("e in", 0, 0, bind("e", "int")),
+        ("e end end", 0, 0, bind("e", "int")),
+    ], caps=PLAINTEXT)
+    # Incomplete code keeps the types of the funcs before it.
+    text = 'func f () (int) in 1 match a in a end end\nfunc g () () in 2 match b in b\n'
+    hovers(text, [("a in", 0, 0, bind("a", "int")), ("b in", 0, 0, None)], caps=PLAINTEXT)
+
+
+@test
+def hover_binding_consts():
+    """Constants expand before the type checker, in any order and depth."""
+    up = "const C0 \"s\"\n" + "".join("const C%d C%d\n" % (k, k - 1) for k in range(1, 21))
+    down = "".join("const C%d C%d\n" % (k, k - 1) for k in range(20, 0, -1)) + "const C0 \"s\"\n"
+    for consts in [up, down]:
+        text = consts + "func f () () in C20 match v in v pop end end\n"
+        hovers(text, [("v in", 0, 0, bind("v", "string")), ("v pop", 0, 0, bind("v", "string"))], caps=PLAINTEXT)
+    # Builtin constants, data helpers and specials.
+    text = ('data box (int n, bool f)\n'
+            'func f () () in int.sizeof box.sizeof 1 true box.init __line__ __file__\n'
+            '    match a b c d e in e pop d pop c box.f pop b a + pop end end\n')
+    hovers(text, [("a b c", 0, 0, bind("a", "int")), ("b c", 0, 0, bind("b", "int")),
+                  ("c d", 0, 0, bind("c", "box")), ("d e", 0, 0, bind("d", "int")),
+                  ("e in", 0, 0, bind("e", "string"))], caps=PLAINTEXT)
+
+
+@test
+def hover_binding_specials():
+    """The preprocessor replaces a special name in a body with a literal."""
+    text = ('func f () () in true 1 "s" match __line__ __file__ __col__ in\n'
+            '    __line__ __file__ __col__ pop pop pop end end\n')
+    hovers(text, [("__line__", 0, 0, bind("__line__", "bool")), ("__file__", 0, 0, bind("__file__", "int")),
+                  ("__col__", 0, 0, bind("__col__", "string")), ("__line__", 1, 0, None),
+                  ("__file__", 1, 0, None), ("__col__", 1, 0, None)], caps=PLAINTEXT)
+
+
+@test
+def hover_binding_large():
+    """A body with many calls of one func is checked in linear time."""
+    text = "func noop () () in end\nfunc f () () in 1 match x in " + "noop " * 20000 + "x pop end end\n"
+    hovers(text, [("x in", 0, 0, bind("x", "int")), ("x pop", 0, 0, bind("x", "int"))], caps=PLAINTEXT)
+
+
+@test
+def hover_binding_imports():
+    with tempfile.TemporaryDirectory() as tmp:
+        with open(os.path.join(tmp, "dep.stack"), "w") as f:
+            f.write('data dep.d (int x)\nconst dep.K "k"\nfunc dep.two () (int, string) in 1 "a" end\n')
+        uri = "file://" + os.path.join(tmp, "main.stack")
+        text = ('@import "dep"\n'
+                'func main () (int) in dep.two match a b in b pop a 0 dep.d.init dep.K match d k in k pop d dep.d.x end + end end\n')
+        hovers(text, [("a b", 0, 0, bind("a", "int")), ("b in", 0, 0, bind("b", "string")),
+                      ("d k", 0, 0, bind("d", "dep.d")), ("k in", 0, 0, bind("k", "string")),
+                      ("dep.d.x", 0, 0, ("dep.d.x (dep.d) (int)", "dep.d.x getter"))], uri=uri, caps=PLAINTEXT, cwd=tmp)
+        env = dict(os.environ, STACK_HOME=ROOT)
+        text = '@import "stdlib"\nfunc f (string) (int) in "abc" string.len match s n in s pop n end end\n'
+        hovers(text, [("s n", 0, 0, bind("s", "string")), ("n in", 0, 0, bind("n", "int"))],
+               uri=uri, caps=PLAINTEXT, cwd=tmp, env=env)
+
+
+@test
+def hover_binding_changes():
+    """Edits get new types. Positions are UTF-16."""
+    uri = URI
+    srv = Session()
+    srv.send(req(1, "initialize", {"capabilities": {}}))
+    assert srv.read() == ok(1, INIT_RESULT)
+    for k, (value, type) in enumerate([("1", "int"), ("1", "int"), ("true", "bool"), ('"x"', "string")]):
+        text = 'func f () () in "\u00e9\U0001f600" pop %s match a in a pop end end\n' % value
+        srv.send(did_open(text, uri) if k == 0 else did_change(text, uri, version=k + 1))
+        for n in range(2):
+            i = find(text, "a", n + 1)
+            srv.send(hover(10 + k, position(text, i), uri))
+            assert srv.read() == ok(10 + k, hover_result("a: " + type, "", position(text, i), position(text, i + 1),
+                                                         False))
+    srv.close()
+
+
 @test
 def hover_imports():
     with tempfile.TemporaryDirectory() as tmp:
