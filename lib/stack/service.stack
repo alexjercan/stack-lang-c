@@ -370,6 +370,52 @@ func stack_service.definition (stack_service, lsp.server, json_object) () in -- 
     end
 end
 
+-- A CompletionItem that replaces the bytes of range with the label.
+func stack_item.json (stack_item, json_object) (json_object) in -- item, range
+    match item range in
+        json.map match m in
+            m "label" item stack_item.label json.string json_object.put
+            m "kind" item stack_item.kind 0 + json.int json_object.put
+            item stack_item.detail string.len 0 > if m "detail" item stack_item.detail json.string json_object.put fi
+            json.map match edit in
+                edit "range" range json.copy json_object.put
+                edit "newText" item stack_item.label json.string json_object.put
+                m "textEdit" edit json_object.put
+            end
+            m
+        end
+    end
+end
+
+-- A CompletionList of the names that can replace the name at the position.
+func stack_service.completion (stack_service, lsp.server, json_object) () in -- svc, srv, msg
+    match svc srv msg in
+        srv msg stack_service.at match doc offset ok in
+            ok if
+                svc srv doc stack_service.analysis doc lsp.document.text offset stack_analysis.complete
+                match start stop items in
+                    doc start stop lsp.document.range json.array match range list in
+                        0 while dup items array.count < loop
+                            match i in
+                                list items i array.get unwrap stack_item.* range stack_item.json json_object.push
+                                i 1 +
+                            end
+                        pool pop
+                        json.map match result in
+                            result "isIncomplete" false json.bool json_object.put
+                            result "items" list json_object.put
+                            msg result lsp.reply
+                        end
+                        range json.free
+                    end
+                    items array.items ptr.free
+                    items array.& ptr.free
+                end
+            fi
+        end
+    end
+end
+
 -- Answer a request that lsp.server.receive returns.
 func stack_service.request (stack_service, lsp.server, json_object) () in -- svc, srv, msg
     match svc srv msg in
@@ -378,9 +424,11 @@ func stack_service.request (stack_service, lsp.server, json_object) () in -- svc
                 svc srv msg stack_service.hover
             else name "textDocument/definition" string.= if
                 svc srv msg stack_service.definition
+            else name "textDocument/completion" string.= if
+                svc srv msg stack_service.completion
             else
                 msg LSP_METHOD_NOT_FOUND "Method not found" lsp.reply.error
-            fi fi
+            fi fi fi
         end
     end
 end

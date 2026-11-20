@@ -14,6 +14,7 @@ SERVER = sys.argv[1]
 TIMEOUT = 20
 INIT_RESULT = {
     "capabilities": {"hoverProvider": True, "definitionProvider": True,
+                     "completionProvider": {"triggerCharacters": ["."]},
                      "textDocumentSync": {"openClose": True, "change": 1}},
     "serverInfo": {"name": "stackls", "version": "0.1.0"},
 }
@@ -190,7 +191,7 @@ def not_initialized():
 
 @test
 def unknown_methods():
-    got, _ = expect([frame(INIT), frame(req(2, "textDocument/completion", {})), frame(req(3, "textDocument/references", {})),
+    got, _ = expect([frame(INIT), frame(req(2, "textDocument/formatting", {})), frame(req(3, "textDocument/references", {})),
                      frame(req(4, "$/unknown")), frame(req(5, "a\"b\\")), frame(note("$/cancelRequest", {"id": 2})),
                      frame(note("workspace/didChangeConfiguration", {})), frame(note("unknown")),
                      frame(req(6, "initialize", {})), frame(req(7, "shutdown"))],
@@ -1571,6 +1572,358 @@ def definition_errors():
         status, got, errs = run(*chunks, cwd=ROOT, env=env)
         assert status == 0, (text[:40], status, errs[-200:])
         assert len(got) == len(chunks) - 2 and got[-1] == ok(2, None), (text[:40], got[-3:])
+
+
+
+# COMPLETION
+
+
+def completion(id, pos, uri=URI):
+    return req(id, "textDocument/completion", {"textDocument": {"uri": uri}, "position": pos})
+
+
+def name_char(c):
+    return not c.isspace() and c not in '(),"'
+
+
+def token_at(text, i):
+    """The name token that a completion at text[i] replaces, as in the server."""
+    start, stop = i, i
+    while start > 0 and name_char(text[start - 1]):
+        start -= 1
+    if start == i and text.startswith("--", i):
+        return i, i
+    while stop < len(text) and name_char(text[stop]):
+        stop += 1
+    return start, stop
+
+
+def check_items(result, text, i, want):
+    """want is [] for no items, else a dict: has {label: (kind, detail)} with
+    detail None when there is none, absent [labels], only {labels}."""
+    assert result is not None and result["isIncomplete"] is False, result
+    items = result["items"]
+    if want == []:
+        assert items == [], [it["label"] for it in items][:20]
+        return
+    start, stop = token_at(text, i)
+    prefix = text[start:i]
+    rng = {"start": position(text, start), "end": position(text, stop)}
+    labels = [it["label"] for it in items]
+    assert len(labels) == len(set(labels)), "duplicate labels"
+    for it in items:
+        assert it["label"].startswith(prefix), (prefix, it)
+        assert it["textEdit"] == {"range": rng, "newText": it["label"]}, it
+        assert set(it) <= {"label", "kind", "detail", "textEdit"}, it
+    byname = {it["label"]: it for it in items}
+    for label, (kind, detail) in want.get("has", {}).items():
+        assert label in byname, (label, prefix, labels[:40])
+        assert byname[label]["kind"] == kind, byname[label]
+        assert byname[label].get("detail") == detail, byname[label]
+    for label in want.get("absent", []):
+        assert label not in byname, (label, byname.get(label))
+    if "only" in want:
+        assert set(labels) == set(want["only"]), (prefix, sorted(labels))
+
+
+def completions(text, cases, uri=URI, before=(), after=(), **kw):
+    """Open text and complete at each case (needle, n, offset, want), at
+    offset characters into the n-th needle. want is None for a null result."""
+    chunks = [init()] + [frame(m) for m in before] + [frame(did_open(text, uri))] + [frame(m) for m in after]
+    at = []
+    for k, (needle, n, off, w) in enumerate(cases):
+        i = find(text, needle, n) + off
+        at.append(i)
+        chunks.append(frame(completion(10 + k, position(text, i), uri)))
+    chunks += [frame(req(2, "shutdown")), frame(note("exit"))]
+    status, got, errs = run(*chunks, **kw)
+    assert status == 0, (status, errs[-300:])
+    assert len(got) == len(cases) + 2 and got[0] == ok(1, INIT_RESULT) and got[-1] == ok(2, None), got[-2:]
+    for k, ((needle, n, off, w), i) in enumerate(zip(cases, at)):
+        g = got[k + 1]
+        assert g.get("id") == 10 + k and "result" in g, g
+        try:
+            if w is None:
+                assert g["result"] is None, g
+            else:
+                check_items(g["result"], text, i, w)
+        except AssertionError as e:
+            raise AssertionError("case %r: %s" % ((needle, n, off), e))
+    return got
+
+
+FUNC, CTOR, FIELD, VAR, CONST, STRUCT = 3, 4, 5, 6, 21, 22
+
+
+def builtins_with(prefix):
+    return {n for n, _, _ in SIGNATURES if n.startswith(prefix)}
+
+
+COMP = ('data pair (int a, bool f)\n'
+        'const K 7\n'
+        'const K.two 2\n'
+        'func two () (int, bool) in 1 true end\n'
+        'func id (a) (a) in match v in v end end\n'
+        'func f (pair, ptr) (int) in\n'
+        '    match p q in\n'
+        '        p pair.a two match n b in\n'
+        '            b if n else K fi match t in t pop end\n'
+        '            n match t in t match u in u t + pop end end\n'
+        '            q id match r in r pop end\n'
+        '            0 while dup 10 < loop match i in i 1 + end pool pop\n'
+        '            "str two" pop 12 pop -- comment two\n'
+        '            n\n'
+        '        end\n'
+        '    end\n'
+        'end\n')
+PAIR = {"pair.a", "pair.f", "pair.a.set", "pair.f.set", "pair.a.offset", "pair.f.offset", "pair.init",
+        "pair.sizeof", "pair.&", "pair.*"}
+
+
+@test
+def completion_names():
+    completions(COMP, [
+        ("pair.a two", 0, 0, {"has": {
+            "pair.a": (FIELD, "pair.a (pair) (int)"), "pair.f.set": (FIELD, "pair.f.set (pair, bool) ()"),
+            "pair.a.offset": (CONST, "pair.a.offset () (int)"), "pair.init": (CTOR, "pair.init (int, bool) (pair)"),
+            "pair.sizeof": (CONST, "pair.sizeof () (int)"), "pair.&": (FUNC, "func pair.& (pair) (ptr)"),
+            "K": (CONST, None), "K.two": (CONST, None), "dup": (FUNC, "func dup (a) (a, a)"),
+            "int.sizeof": (CONST, "int.sizeof () (int)"), "p": (VAR, "pair"), "q": (VAR, "ptr"),
+            "two": (FUNC, "func two () (int, bool)"), "f": (FUNC, "func f (pair, ptr) (int)"), "id": (FUNC, "func id (a) (a)")},
+            "absent": ["n", "b", "v", "pair", "int", "a", "func", "match", "__line__"]}),
+        ("pair.a two", 0, 5, {"only": PAIR}),
+        ("pair.a two", 0, 3, {"only": PAIR}),
+        ("pair.a two", 0, 6, {"only": {"pair.a", "pair.a.set", "pair.a.offset"}}),
+        ("two match", 0, 2, {"only": {"two"}}),
+        ("K fi", 0, 1, {"only": {"K", "K.two"}}),
+        ("b if", 0, 1, {"has": {"b": (VAR, "bool"), "bool.&": (FUNC, "func bool.& (bool) (ptr)")}, "absent": ["bool"]}),
+        ("t pop", 0, 0, {"has": {"t": (VAR, "int"), "n": (VAR, "int"), "p": (VAR, "pair")}, "absent": ["u", "r"]}),
+        ("u t +", 0, 0, {"has": {"u": (VAR, "int"), "t": (VAR, "int"), "n": (VAR, "int")}}),
+        ("+ pop", 0, 1, {"only": {"+"}}),
+        ("q id", 0, 1, {"only": {"q"}}),
+        ("q id", 0, 0, {"has": {"q": (VAR, "ptr")}, "absent": ["t", "u", "r", "i", "v"]}),
+        ("r pop", 0, 1, {"has": {"r": (VAR, "ptr"), "rot": (FUNC, "func rot (a, b, c) (b, c, a)")}}),
+        ("i 1 +", 0, 1, {"has": {"i": (VAR, "int"), "id": (FUNC, "func id (a) (a)")}}),
+        ("while dup", 0, 2, {"only": set()}),
+        ("\n            n\n", 0, 13, {"has": {"n": (VAR, "int"), "b": (VAR, "bool")}, "absent": ["i", "t", "r"]}),
+        ('"str two"', 0, 0, {"has": {"two": (FUNC, "func two () (int, bool)")}}),
+        ('"str two"', 0, 3, []),
+        ('"str two"', 0, 9, []),
+        ("12 pop", 0, 1, []),
+        ("12 pop", 0, 2, []),
+        ("-- comment two", 0, 0, {"has": {"n": (VAR, "int")}}),
+        ("-- comment two", 0, 1, []),
+        ("-- comment two", 0, 13, []),
+        ("two ()", 0, 2, []),
+        ("K 7", 0, 1, []),
+        ("K 7", 0, 3, []),
+        ("pair (", 0, 2, []),
+        ("a, bool", 0, 1, []),
+        ("p q", 0, 1, []),
+        ("n b in", 0, 1, []),
+        ("(int) in\n", 0, 7, []),
+        ("pair, ptr", 0, 2, {"only": {"pair"}, "has": {"pair": (STRUCT, "data pair (int a, bool f)")}}),
+        ("ptr) (int", 0, 1, {"only": {"ptr", "pair"}, "has": {"ptr": (STRUCT, "data ptr")}}),
+        ("(pair, ptr", 0, 1, {"only": {"int", "ptr", "bool", "pair"}}),
+        ("(a)", 0, 1, {"only": {"int", "ptr", "bool", "pair"}}),
+        ("(a) (a)", 0, 3, []),
+        ("int a", 0, 1, {"only": {"int"}}),
+        ("bool f", 0, 2, {"only": {"bool"}}),
+        ("data", 0, 2, []),
+        ("\nend\n", 0, 4, []),
+    ])
+
+
+@test
+def completion_partial():
+    """Code that the parser does not accept yet: the scan of the tokens still
+    finds the bindings in scope and the definitions after the error."""
+    text = ('func early () () in end\n'
+            'func g (int) () in\n'
+            '    1 match x in x ptr. 1 2 < \n'
+            '    2 match y z\n'
+            'func later () () in end\n'
+            'const LATE 1\n'
+            'data late (int v)\n'
+            'func h (la) () in 1 match w in w end ')
+    completions(text, [
+        ("x ptr", 0, 1, {"has": {"x": (VAR, None)}}),
+        ("x ptr", 0, 2, {"has": {"x": (VAR, None), "early": (FUNC, "func early () ()"), "later": (FUNC, None),
+                                 "LATE": (CONST, None), "g": (FUNC, None), "h": (FUNC, None)},
+                         "absent": ["late", "y", "z", "w", "int", "v"]}),
+        ("ptr. ", 0, 4, {"only": builtins_with("ptr.") | {"ptr.sizeof"}}),
+        ("< \n", 0, 1, {"only": {"<", "<<"}}),
+        ("y z", 0, 1, []),
+        ("y z", 0, 3, []),
+        ("(la)", 0, 3, {"only": {"late"}, "has": {"late": (STRUCT, None)}}),
+        ("w end", 0, 1, {"only": {"w"}}),
+        ("w end ", 0, 6, {"absent": ["w", "x"], "has": {"later": (FUNC, None)}}),
+    ])
+
+
+@test
+def completion_scopes():
+    text = ('func g () () in\n'
+            '    1 match x in x end x\n'
+            '    2 match x in x 3 match x y in x y end y end\n'
+            '    if 1 match a in a end fi a\n'
+            '    while true loop 1 match c in c end pool c\n'
+            'end\n'
+            'const swap2 match sa sb in sb sa end\n'
+            'func k () () in 1 match g in g end end\n')
+    completions(text, [
+        ("x end x", 0, 1, {"only": {"x"}, "has": {"x": (VAR, "int")}}),
+        ("x end x", 0, 7, {"only": set()}),
+        ("x 3", 0, 1, {"only": {"x"}}),
+        # The inner x is a type error, so it has no type.
+        ("x y end", 0, 1, {"only": {"x"}, "has": {"x": (VAR, None)}}),
+        ("y end y", 0, 1, {"only": {"y"}}),
+        ("y end y", 0, 7, {"only": set()}),
+        ("a end fi", 0, 1, {"only": {"a"}}),
+        ("a\n", 0, 1, {"only": set()}),
+        ("c end pool", 0, 1, {"only": {"c"}}),
+        ("c\n", 0, 1, {"only": set()}),
+        ("sb sa end", 0, 1, {"has": {"sb": (VAR, None)}}),
+        ("sa end", 0, 2, {"has": {"sa": (VAR, None)}}),
+        # A binding with the name of a func is a type error but it is in scope.
+        ("g end", 0, 1, {"only": {"g"}, "has": {"g": (VAR, None)}}),
+    ])
+
+
+@test
+def completion_precedence():
+    text = ('data box (int v)\n'
+            'const dup 1\n'
+            'func swp () () in end\n'
+            'func gg () () in end\n'
+            'func gg (int) () in end\n'
+            'const box.v 2\n'
+            'const C 3\n'
+            'func f (int) () in\n'
+            '    1 match d in 1 "s" + match e in 1 match gg in 1 match C in\n'
+            '        du sw gg box.v C d e\n'
+            '    end end end end\n'
+            'end\n')
+    completions(text, [
+        ("du sw", 0, 2, {"has": {"dup": (CONST, None)}}),
+        ("sw gg", 0, 2, {"only": {"swp"}, "has": {"swp": (FUNC, "func swp (a, b) (b, a)")}}),
+        ("gg box", 0, 2, {"only": {"gg"}, "has": {"gg": (VAR, None)}}),
+        ("box.v C", 0, 5, {"only": {"box.v", "box.v.set", "box.v.offset"}, "has": {"box.v": (FIELD, "box.v (box) (int)")}}),
+        ("C d", 0, 1, {"only": {"C"}, "has": {"C": (CONST, None)}}),
+        # f uses names with two definitions, so the checker gives no types.
+        ("d e", 0, 1, {"has": {"d": (VAR, None), "dup": (CONST, None)}}),
+        ("e\n", 0, 1, {"only": {"e"}, "has": {"e": (VAR, None)}}),
+    ])
+    # A special name is a literal unless a constant has its name. "--" in a
+    # name is not a comment.
+    text = ('const __col__ 4\n'
+            'func __file__ () () in end\n'
+            'func f () () in 1 match __line__ in 1 match a--b in __ a-- end end -- a--\n'
+            'end\n')
+    completions(text, [("__ a", 0, 2, {"only": {"__col__"}, "has": {"__col__": (CONST, None)}}),
+                       ("a-- end", 0, 3, {"only": {"a--b"}, "has": {"a--b": (VAR, "int")}}),
+                       ("-- a--", 0, 5, [])])
+    # A constant that the parser did not get to is in the constant tier: it
+    # hides a builtin and a special name. A func that the parser did not get
+    # to is in the definition tier, after the builtins.
+    text = ('func f () () in du __ sw\n'
+            'const dup 1\n'
+            'const __line__ 2\n'
+            'func swp () () in end\n')
+    completions(text, [("du __", 0, 2, {"only": {"dup"}, "has": {"dup": (CONST, None)}}),
+                       ("__ sw", 0, 2, {"only": {"__line__"}, "has": {"__line__": (CONST, None)}}),
+                       ("sw\n", 0, 2, {"only": {"swp"}, "has": {"swp": (FUNC, "func swp (a, b) (b, a)")}})])
+
+
+@test
+def completion_imports():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = os.path.realpath(tmp)
+        path = os.path.join(tmp, "dep.stack")
+        with open(path, "w") as f:
+            f.write('func dep.old () () in end\n')
+        dep = file_uri(path)
+        uri = file_uri(os.path.join(tmp, "main.stack"))
+        text = '@import "dep"\nfunc main (dc) () in dep. end\n'
+        unsaved = 'data dcell (int v)\nfunc dep.new (int) (int) in end\n'
+        cases = [("dep. end", 0, 4, {"only": {"dep.new"}, "has": {"dep.new": (FUNC, "func dep.new (int) (int)")}}),
+                 ("dc)", 0, 2, {"only": {"dcell"}}), ('"dep"', 0, 2, [])]
+        completions(text, cases, uri=uri, before=[did_open(unsaved, dep)], cwd=tmp)
+        completions(text, [("dep. end", 0, 4, {"only": {"dep.old"}}), ("dc)", 0, 2, {"only": set()})],
+                    uri=uri, before=[did_open(unsaved, dep), did_close(dep)], cwd=tmp)
+        completions(text, [("dep. end", 0, 4, {"only": {"dep.old", "dep.newer"}})], uri=uri,
+                    before=[did_open(unsaved, dep), did_change('func dep.old () () in end\nfunc dep.newer () () in end\n', dep)],
+                    cwd=tmp)
+        text = '@import "stdlib"\nfunc f (str) () in string.l end\n'
+        completions(text, [("string.l", 0, 8, {"has": {"string.len": (FIELD, "string.len (string) (int)")},
+                                                "absent": ["string.str"]}),
+                           ("str)", 0, 3, {"has": {"string": (STRUCT, "data string (int len, ptr str)")}})],
+                    cwd=ROOT, env=dict(os.environ, STACK_HOME=ROOT))
+
+
+@test
+def completion_changes():
+    """didChange of the open file changes the names and the bindings."""
+    srv = Session()
+    srv.send(req(1, "initialize", {"capabilities": {}}))
+    assert srv.read() == ok(1, INIT_RESULT)
+    text = 'func f () () in 1 match aa in a'
+    srv.send(did_open(text))
+    for k, extra in enumerate(["", " end aa", " 2 match ab in a"]):
+        t = text + extra
+        if k:
+            srv.send(did_change(t, version=k + 2))
+        srv.send(completion(10 + k, position(t, len(t))))
+        got = srv.read()
+        assert got["id"] == 10 + k
+        labels = {it["label"] for it in got["result"]["items"]}
+        want = [{"aa"}, set(), {"aa", "ab"}][k]
+        assert labels == want, (k, labels)
+    srv.close()
+
+
+@test
+def completion_positions():
+    """UTF-16 positions in the request and in the text edit."""
+    text = ('-- \U0001F600\u00e9\r\nfunc gg () () in "\U0001F600\u00e9" pop g -- c\r\n'
+            '"\u4e2d" pop g end -- \U0001F600 g\n')
+    completions(text, [("g -- c", 0, 1, {"only": {"gg"}}), ("g -- c", 0, 0, {"has": {"gg": (FUNC, "func gg () ()")}}),
+                       ("g end", 0, 1, {"only": {"gg"}}), ('"\U0001F600', 0, 1, []), ("\U0001F600 g", 0, 2, [])])
+
+
+@test
+def completion_errors():
+    bad = [None, {}, {"textDocument": {"uri": URI}}, {"position": pos(0, 0)},
+           {"textDocument": {"uri": 5}, "position": pos(0, 0)},
+           {"textDocument": {"uri": URI}, "position": pos(-1, 0)},
+           {"textDocument": {"uri": URI}, "position": pos(2147483648, 0)}]
+    text = "func f () () in f"
+    chunks = [init(), frame(did_open(text))]
+    chunks += [frame(req(10 + i, "textDocument/completion", p)) for i, p in enumerate(bad)]
+    chunks += [frame(completion(2, pos(5, 0))), frame(completion(3, pos(0, 0), "file:///other.stack")),
+               frame(completion(4, pos(0, 99))), frame(completion(5, pos(0, 16)))]
+    chunks += [frame(did_close()), frame(completion(6, pos(0, 16)))]
+    status, got, errs = run(*chunks)
+    assert status == 0, errs
+    match(got[:-3], [ok(1, INIT_RESULT)] + [err(10 + i, -32602) for i in range(len(bad))] +
+          [ok(2, None), ok(3, None)])
+    assert got[-1] == ok(6, None) and [g["id"] for g in got[-3:-1]] == [4, 5], got[-3:]
+    check_items(got[-3]["result"], text, len(text), {"only": {"f"}})
+    # The func is not complete, so its name comes from the scan, without detail.
+    check_items(got[-2]["result"], text, 16, {"has": {"f": (FUNC, None)}})
+    expect([frame(completion(1, pos(0, 0)))], [err(1, -32002)])
+    env = dict(os.environ, STACK_HOME=ROOT)
+    for text in BROKEN + ["func f () () in " + "match x in " * 2000 + "x"]:
+        first = text.split("\n")[0]
+        chunks = [init(), frame(did_open(text))]
+        chunks += [frame(completion(10 + k, pos(0, k))) for k in list(range(min(len(first), 60) + 1)) + [len(first)]]
+        chunks += [frame(req(2, "shutdown")), frame(note("exit"))]
+        status, got, errs = run(*chunks, cwd=ROOT, env=env)
+        assert status == 0, (text[:40], status, errs[-200:])
+        assert len(got) == len(chunks) - 2 and got[-1] == ok(2, None), (text[:40], got[-3:])
+        for g in got[1:-1]:
+            r = g["result"]
+            assert r is not None and len({it["label"] for it in r["items"]}) == len(r["items"]), (text[:40], g)
 
 
 def main():

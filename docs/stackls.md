@@ -7,10 +7,11 @@ writes them on stdout, and writes logs to stderr.
 stackls [-h | --help] [-v | --version] [--stdio]
 ```
 
-The server supports hover and go to definition. It advertises
-`"hoverProvider": true`, `"definitionProvider": true` and full text
+The server supports hover, go to definition and completion. It advertises
+`"hoverProvider": true`, `"definitionProvider": true`,
+`"completionProvider": {"triggerCharacters": ["."]}` and full text
 synchronization (`"textDocumentSync": {"openClose": true, "change": 1}`).
-References, completion and diagnostics are not supported.
+References and diagnostics are not supported.
 
 The source is `stackls.stack`. It uses these libraries:
 
@@ -130,6 +131,23 @@ name of the definition, or `null`:
 - The URI of an open document stays as the client sent it. Other files get a
   `file://` URI of the absolute path, with percent escapes. `..` parts stay
   as they are, because a directory before them can be a symbolic link.
+
+Completion (`textDocument/completion`) has the same positions, params and
+imports as hover. The result is a `CompletionList` that is complete:
+
+- The items are the names that start with the text from the start of the name
+  at the cursor to the cursor. The `textEdit` of an item replaces all of that
+  name, also the part after the cursor. A name can have dots and operator
+  characters, as in `ptr.+`.
+- In a body: data helpers, constants, builtin functions, the match bindings
+  in scope, and `func` definitions with `T.&` and `T.*`. In a signature or a
+  data field: data types. A label is there one time, from the definition that
+  `slc` uses. `detail` is the signature or the type, when it is known.
+- The scan of the tokens finds the bindings in scope, so code that is not
+  complete works. The names of `func`, `data` and `const` definitions after a
+  syntax error are also there, without `detail`.
+- No items in comments, strings, numbers, or the name of a new definition,
+  field or binding. There are no keywords and no snippets.
 
 ## Known limitations
 

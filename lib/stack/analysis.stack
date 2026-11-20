@@ -1615,3 +1615,590 @@ func stack_analysis.definition (stack_analysis, int) (bool, ptr, int, int) in --
         end
     end
 end
+
+-- COMPLETION
+
+-- What can replace the name at the cursor.
+const STACK_COMPLETE_NONE 0
+const STACK_COMPLETE_VALUE 1 -- a name in a body
+const STACK_COMPLETE_TYPE 2  -- a type in a signature or a data field
+
+-- Kinds of completion items, with the values of the LSP CompletionItemKind.
+const STACK_ITEM_FUNCTION 3
+const STACK_ITEM_CONSTRUCTOR 4
+const STACK_ITEM_FIELD 5
+const STACK_ITEM_VARIABLE 6
+const STACK_ITEM_CONSTANT 21
+const STACK_ITEM_STRUCT 22
+
+-- detail is empty when it is not known.
+data stack_item (string label, int kind, string detail)
+
+-- A name that the scan finds: a match binding (STACK_TOKEN_MATCH) or the
+-- name of a definition (STACK_TOKEN_FUNC, STACK_TOKEN_CONST or
+-- STACK_TOKEN_DATA), and its position.
+data stack_scan_name (int kind, string name, int pos)
+
+-- States of the scan.
+const STACK_SCAN_TOP 0
+const STACK_SCAN_NAME 1   -- after func, data or const
+const STACK_SCAN_SIG 2    -- the signature of a func
+const STACK_SCAN_DATA 3   -- the fields of a data type
+const STACK_SCAN_BODY 4   -- the body of a func or a const
+const STACK_SCAN_BINDS 5  -- the bindings of a match, before in
+const STACK_SCAN_IMPORT 6 -- after @import
+
+-- The scan reads the tokens of the lexer of the compiler and does not need a
+-- syntax tree, so it also works in code that is not complete. decl is the
+-- keyword of STACK_SCAN_NAME. paren is true in parentheses and field is
+-- true before the name of a field. blocks has the open blocks (array<int>:
+-- STACK_TOKEN_FUNC, STACK_TOKEN_MATCH, STACK_TOKEN_IF or STACK_TOKEN_WHILE)
+-- and marks the count of binds when each opened. binds has the bindings of
+-- the open matches and mark their count before the open match. names has
+-- the definitions of the text.
+data stack_scan (int state, int decl, bool paren, bool field, int mark, array blocks, array marks, array binds, array names)
+
+func stack_scan.new () (stack_scan) in
+    int.sizeof array.init.with_sz int.sizeof array.init.with_sz
+    stack_scan_name.sizeof array.init.with_sz stack_scan_name.sizeof array.init.with_sz
+    match blocks marks binds names in
+        STACK_SCAN_TOP 0 false false 0 blocks marks binds names stack_scan.init
+        blocks array.& ptr.free
+        marks array.& ptr.free
+        binds array.& ptr.free
+        names array.& ptr.free
+    end
+end
+
+func stack_scan_names.add (array, int, string, int) () in -- array<stack_scan_name>, kind, name, pos
+    stack_scan_name.init stack_scan_name.& match names p in names p array.append unwrap p ptr.free end
+end
+
+-- Keep the first n bindings.
+func stack_scan.cut (stack_scan, int) () in -- s, n
+    match s n in s stack_scan.binds match binds in binds array.count n > if binds n array.count.set fi end end
+end
+
+func stack_scan.reset (stack_scan) () in
+    match s in
+        s 0 stack_scan.cut
+        s stack_scan.blocks 0 array.count.set
+        s stack_scan.marks 0 array.count.set
+    end
+end
+
+func stack_scan.push (stack_scan, int, int) () in -- s, kind, mark
+    match s kind mark in
+        s stack_scan.blocks kind int.& array.append unwrap
+        s stack_scan.marks mark int.& array.append unwrap
+    end
+end
+
+func stack_scan.pop (stack_scan) () in
+    match s in
+        s stack_scan.marks match marks in
+            s marks array.last unwrap int.* 0 + stack_scan.cut
+            marks array.pop unwrap
+        end
+        s stack_scan.blocks array.pop unwrap
+    end
+end
+
+-- Close the innermost block of kind and the blocks in it. STACK_TOKEN_END
+-- closes a match or a func. A fi or a pool does not close a match or a
+-- func. The kind of the closed block, or -1.
+func stack_scan.close (stack_scan, int) (int) in -- s, kind
+    match s kind in
+        -1 true while dup loop -- closed, more
+            pop pop
+            s stack_scan.blocks match blocks in
+                blocks array.count 0 = if
+                    -1 false
+                else blocks array.last unwrap int.* 0 + match top in
+                    top STACK_TOKEN_MATCH = top STACK_TOKEN_FUNC = or match outer in
+                        top kind = kind STACK_TOKEN_END = outer and or if
+                            s stack_scan.pop top false
+                        else outer if
+                            -1 false
+                        else
+                            s stack_scan.pop -1 true
+                        fi fi
+                    end
+                end fi
+            end
+        pool pop
+    end
+end
+
+-- Read the token of kind with value at pos.
+func stack_scan.step (stack_scan, int, string, int) () in -- s, kind, value, pos
+    match s kind value pos in
+        s stack_scan.state 0 + match state in
+            kind STACK_TOKEN_FUNC = kind STACK_TOKEN_DATA = or kind STACK_TOKEN_CONST = or if
+                s stack_scan.reset
+                s STACK_SCAN_NAME stack_scan.state.set
+                s kind stack_scan.decl.set
+            else kind STACK_TOKEN_IMPORT = if
+                s stack_scan.reset
+                s STACK_SCAN_IMPORT stack_scan.state.set
+            else state STACK_SCAN_NAME = if
+                kind STACK_TOKEN_NAME = if
+                    s stack_scan.decl 0 + match decl in
+                        s stack_scan.names decl value pos stack_scan_names.add
+                        s decl STACK_TOKEN_FUNC = if STACK_SCAN_SIG
+                        else decl STACK_TOKEN_DATA = if STACK_SCAN_DATA else STACK_SCAN_BODY fi fi
+                        stack_scan.state.set
+                    end
+                    s false stack_scan.paren.set
+                else
+                    s STACK_SCAN_TOP stack_scan.state.set
+                fi
+            else state STACK_SCAN_SIG = if
+                kind STACK_TOKEN_LPAREN = if
+                    s true stack_scan.paren.set
+                else kind STACK_TOKEN_RPAREN = if
+                    s false stack_scan.paren.set
+                else kind STACK_TOKEN_IN = if
+                    s STACK_SCAN_BODY stack_scan.state.set
+                    s STACK_TOKEN_FUNC 0 stack_scan.push
+                fi fi fi
+            else state STACK_SCAN_DATA = if
+                kind STACK_TOKEN_LPAREN = if
+                    s true stack_scan.paren.set
+                    s false stack_scan.field.set
+                else kind STACK_TOKEN_NAME = if
+                    s s stack_scan.field not stack_scan.field.set
+                else kind STACK_TOKEN_COMMA = if
+                    s false stack_scan.field.set
+                else kind STACK_TOKEN_RPAREN = if
+                    s STACK_SCAN_TOP stack_scan.state.set
+                fi fi fi fi
+            else state STACK_SCAN_BINDS = if
+                kind STACK_TOKEN_NAME = if
+                    s stack_scan.binds STACK_TOKEN_MATCH value pos stack_scan_names.add
+                else
+                    kind STACK_TOKEN_IN = if
+                        s STACK_TOKEN_MATCH s stack_scan.mark 0 + stack_scan.push
+                    else
+                        s s stack_scan.mark 0 + stack_scan.cut
+                    fi
+                    s STACK_SCAN_BODY stack_scan.state.set
+                fi
+            else state STACK_SCAN_BODY = if
+                kind STACK_TOKEN_MATCH = if
+                    s s stack_scan.binds array.count stack_scan.mark.set
+                    s STACK_SCAN_BINDS stack_scan.state.set
+                else kind STACK_TOKEN_IF = kind STACK_TOKEN_WHILE = or if
+                    s kind s stack_scan.binds array.count stack_scan.push
+                else kind STACK_TOKEN_FI = if
+                    s STACK_TOKEN_IF stack_scan.close pop
+                else kind STACK_TOKEN_POOL = if
+                    s STACK_TOKEN_WHILE stack_scan.close pop
+                else kind STACK_TOKEN_END = if
+                    s STACK_TOKEN_END stack_scan.close STACK_TOKEN_FUNC = if s STACK_SCAN_TOP stack_scan.state.set fi
+                fi fi fi fi fi
+            else state STACK_SCAN_IMPORT = if
+                s STACK_SCAN_TOP stack_scan.state.set
+            fi fi fi fi fi fi fi fi
+        end
+    end
+end
+
+func stack_scan.context (stack_scan) (int) in
+    match s in
+        s stack_scan.state 0 + match state in
+            state STACK_SCAN_BODY = if
+                STACK_COMPLETE_VALUE
+            else state STACK_SCAN_SIG = s stack_scan.paren and if
+                STACK_COMPLETE_TYPE
+            else state STACK_SCAN_DATA = s stack_scan.paren and s stack_scan.field not and if
+                STACK_COMPLETE_TYPE
+            else
+                STACK_COMPLETE_NONE
+            fi fi fi
+        end
+    end
+end
+
+-- A token that a name can replace: a name, a keyword or a boolean.
+func stack_token.word (int) (bool) in -- kind
+    match k in
+        k STACK_TOKEN_BOOLEAN = k STACK_TOKEN_NAME >= k STACK_TOKEN_POOL <= and
+        k STACK_TOKEN_LPAREN = not and k STACK_TOKEN_RPAREN = not and k STACK_TOKEN_COMMA = not and or
+    end
+end
+
+-- The cursor: found, the context, the bytes [start, stop) that a completion
+-- replaces and the bindings in scope (array<stack_scan_name>, the innermost
+-- last).
+data stack_place (bool found, int ctx, int start, int stop, array scope)
+
+-- The cursor is at the bytes [start, stop) in the state of s.
+func stack_place.set (stack_place, stack_scan, int, int) () in -- place, s, start, stop
+    match place s start stop in
+        place true stack_place.found.set
+        place s stack_scan.context stack_place.ctx.set
+        place start stack_place.start.set
+        place stop stack_place.stop.set
+        place stack_place.ctx STACK_COMPLETE_VALUE = if
+            place stack_place.scope s stack_scan.binds array.extend unwrap
+        fi
+    end
+end
+
+-- Skip the spaces and the comments before the next token, as
+-- stack_lexer.next does. A cursor in a comment has no completion.
+func stack_place.comments (stack_place, stack_lexer, int) () in -- place, lexer, cursor
+    match place lexer cursor in
+        lexer stack_lexer.skip.whitespace
+        while lexer stack_lexer.ch BYTE_- = lexer stack_lexer.peek BYTE_- = and loop
+            lexer stack_lexer.pos 0 + match start in
+                lexer stack_lexer.skip.until_newline
+                place stack_place.found not start cursor < and cursor lexer stack_lexer.pos <= and if
+                    place true stack_place.found.set
+                    place STACK_COMPLETE_NONE stack_place.ctx.set
+                    place cursor stack_place.start.set
+                    place cursor stack_place.stop.set
+                fi
+            end
+            lexer stack_lexer.skip.whitespace
+        pool
+    end
+end
+
+-- Find the cursor in the token of kind at the bytes [pos, e). False when the
+-- scan must not read the token: it is the name at the cursor.
+func stack_place.at (stack_place, stack_scan, int, int, int, int) (bool) in -- place, s, cursor, kind, pos, e
+    match place s cursor kind pos e in
+        pos cursor >= if
+            kind stack_token.word pos cursor = and if
+                place s pos e stack_place.set false
+            else
+                place s cursor cursor stack_place.set
+                true
+            fi
+        else e cursor >= if
+            kind stack_token.word if
+                place s pos e stack_place.set false
+            else kind STACK_TOKEN_LPAREN = kind STACK_TOKEN_RPAREN = or kind STACK_TOKEN_COMMA = or if
+                true
+            else
+                -- A string, a number or a byte that is not valid.
+                place s cursor cursor stack_place.set
+                place STACK_COMPLETE_NONE stack_place.ctx.set
+                true
+            fi fi
+        else true fi fi
+    end
+end
+
+-- Scan text for the cursor and the names of the definitions
+-- (array<stack_scan_name>).
+func stack_analysis.complete.scan (string, int) (stack_place, array) in -- text, cursor
+    match text cursor in
+        stack_scan.new stack_scan_name.sizeof array.init.with_sz match s scope in
+            false STACK_COMPLETE_NONE cursor cursor scope stack_place.init match place in
+                scope array.& ptr.free
+                text "" stack_lexer.init.with_buffer match lexer in
+                    false while dup not loop -- eof
+                        pop
+                        place lexer cursor stack_place.comments
+                        lexer stack_lexer.next match tok in
+                            tok stack_token.kind 0 + tok stack_token.pos 0 + lexer stack_lexer.pos 0 +
+                            match kind pos e in
+                                place stack_place.found if true else place s cursor kind pos e stack_place.at fi
+                                if s kind tok stack_token.value pos stack_scan.step fi
+                                kind STACK_TOKEN_EOF =
+                            end
+                        end
+                    pool pop
+                end
+                place s stack_scan.names
+                s stack_scan.blocks array.items ptr.free
+                s stack_scan.marks array.items ptr.free
+                s stack_scan.binds array.items ptr.free
+            end
+        end
+    end
+end
+
+-- A set of names. table has the indexes in names (array<string>), or -1.
+data stack_names (array table, array names)
+
+-- A set for n names.
+func stack_names.new (int) (stack_names) in -- n
+    match n in
+        int.sizeof array.init.with_sz string.sizeof array.init.with_sz match table names in
+            0 while dup n 2 * 1 + < loop table -1 int.& array.append unwrap 1 + pool pop
+            table names stack_names.init
+            table array.& ptr.free
+            names array.& ptr.free
+        end
+    end
+end
+
+func stack_names.free (stack_names) () in
+    match set in
+        set stack_names.table array.items ptr.free
+        set stack_names.names array.items ptr.free
+        set stack_names.& ptr.free
+    end
+end
+
+-- Add label when it starts with prefix and the set does not have it.
+func stack_names.take (stack_names, string, string) (bool) in -- set, prefix, label
+    match set prefix label in
+        label prefix string.starts_with if
+            set stack_names.table set stack_names.names match table names in
+                label stack_types.hash table array.count %
+                while
+                    table over array.get unwrap int.* 0 + match id in
+                        id 0 >= if names id array.get unwrap string.* label string.= not else false fi
+                    end
+                loop 1 + table array.count % pool
+                match slot in
+                    table slot array.get unwrap int.* 0 < if
+                        table slot names array.count int.& array.set unwrap
+                        names label string.& array.append unwrap
+                        true
+                    else false fi
+                end
+            end
+        else false fi
+    end
+end
+
+func stack_items.add (array, string, int, string) () in -- array<stack_item>, label, kind, detail
+    stack_item.init stack_item.& match items p in items p array.append unwrap p ptr.free end
+end
+
+-- The type of the binding at pos, or empty.
+func stack_analysis.complete.bind (stack_analysis, int) (string) in -- an, pos
+    match an pos in
+        an stack_analysis.refs match refs in
+            -1 0 while dup refs array.count < loop -- found, i
+                match found i in
+                    found 0 < if
+                        refs i array.get unwrap stack_ref.* match r in
+                            r stack_ref.kind STACK_REF_BINDING = r stack_ref.start pos = and
+                            r stack_ref.decl ptr.null ptr.= not and if i else found fi
+                        end
+                    else found fi
+                    i 1 +
+                end
+            pool pop
+            match found in
+                found 0 < if
+                    ""
+                else refs found array.get unwrap stack_ref.* match r in
+                    an r stack_ref.decl stack_ast_func.* pos stack_analysis.bind.type match type ok in
+                        ok if type else "" fi
+                    end
+                end fi
+            end
+        end
+    end
+end
+
+func stack_helper.item (stack_helper) (int) in -- h
+    stack_helper.kind match kind in
+        kind STACK_HELPER_INIT = if STACK_ITEM_CONSTRUCTOR
+        else kind STACK_HELPER_GETTER = kind STACK_HELPER_SETTER = or if STACK_ITEM_FIELD
+        else STACK_ITEM_CONSTANT fi fi
+    end
+end
+
+-- The names of one kind that the scan found, without detail.
+func stack_analysis.complete.names (array, int, string, array, stack_names) () in -- names, kind, prefix, items, set
+    match names kind prefix items set in
+        0 while dup names array.count < loop
+            match i in
+                names i array.get unwrap stack_scan_name.* match n in
+                    n stack_scan_name.kind kind = if set prefix n stack_scan_name.name stack_names.take else false fi if
+                        items n stack_scan_name.name
+                        kind STACK_TOKEN_FUNC = if STACK_ITEM_FUNCTION else STACK_ITEM_CONSTANT fi ""
+                        stack_items.add
+                    fi
+                end
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+-- The names in a body, in the order of the compiler: the data helpers, the
+-- constants (parsed, then found by the scan), the special names (no items),
+-- the builtins, the bindings from the innermost and the definitions. A later
+-- name with the same label is left out.
+func stack_analysis.complete.values (stack_analysis, array, array, string, array, stack_names) () in -- an, scope, names, prefix, items, set
+    match an scope names prefix items set in
+        an stack_analysis.pre stack_preprocessor.helpers match helpers in
+            0 while dup helpers array.count < loop
+                match i in
+                    helpers i array.get unwrap stack_helper.* match h in
+                        h stack_helper.node stack_ast_node.value match label in
+                            set prefix label stack_names.take if
+                                items label h stack_helper.item label h stack_helper.args h stack_helper.rets
+                                stack_signature.text stack_items.add
+                            fi
+                        end
+                    end
+                    i 1 +
+                end
+            pool pop
+        end
+        an stack_analysis.pre stack_preprocessor.user stack_ast.features match features in
+            0 while dup features array.count < loop
+                match i in
+                    features i array.get unwrap stack_ast_feature.* match feat in
+                        feat stack_ast_feature.kind STACK_AST_FEATURE_CONST = if
+                            feat stack_ast_feature.feature stack_ast_const.* stack_ast_const.name stack_ast_node.value
+                            match label in
+                                set prefix label stack_names.take if items label STACK_ITEM_CONSTANT "" stack_items.add fi
+                            end
+                        fi
+                    end
+                    i 1 +
+                end
+            pool pop
+        end
+        -- The scan finds constants that the parser did not get to.
+        names STACK_TOKEN_CONST prefix items set stack_analysis.complete.names
+        -- The preprocessor replaces a special name that is not a constant.
+        set "" STACK_SPECIAL_FILE stack_names.take pop
+        set "" STACK_SPECIAL_LINE stack_names.take pop
+        set "" STACK_SPECIAL_COL stack_names.take pop
+        an stack_analysis.ctx stack_context.symbols match symbols in
+            0 while dup symbols array.count < loop
+                match i in
+                    symbols i array.get unwrap stack_context_symbol.* match sym in
+                        sym stack_context_symbol.kind STACK_CONTEXT_SYMBOL_FUNC = if
+                            sym stack_context_symbol.name match label in
+                                set prefix label stack_names.take if
+                                    items label STACK_ITEM_FUNCTION
+                                    sym stack_context_symbol.symbol stack_context_func.* stack_analysis.func.text
+                                    stack_items.add
+                                fi
+                            end
+                        fi
+                    end
+                    i 1 +
+                end
+            pool pop
+        end
+        scope array.count while dup 0 > loop
+            1 - match i in
+                scope i array.get unwrap stack_scan_name.* match b in
+                    set prefix b stack_scan_name.name stack_names.take if
+                        items b stack_scan_name.name STACK_ITEM_VARIABLE an b stack_scan_name.pos 0 + stack_analysis.complete.bind
+                        stack_items.add
+                    fi
+                end
+                i
+            end
+        pool pop
+        an stack_analysis.decls match decls in
+            0 while dup decls array.count < loop
+                match i in
+                    decls i array.get unwrap stack_decl.* match d in
+                        d stack_decl.kind 0 + d stack_decl.name match kind label in
+                            kind STACK_DECL_DATA = not if set prefix label stack_names.take else false fi if
+                                items label STACK_ITEM_FUNCTION
+                                kind STACK_DECL_FUNC = if
+                                    d stack_decl.decl stack_ast_func.* stack_ast_func.text
+                                else
+                                    d stack_decl.decl stack_ast_data.* stack_ast_data.name stack_ast_node.value
+                                    kind STACK_DECL_REF = if stack_context_func.init.data_ref else stack_context_func.init.data_deref fi
+                                    stack_analysis.func.text
+                                fi
+                                stack_items.add
+                            fi
+                        end
+                    end
+                    i 1 +
+                end
+            pool pop
+        end
+        names STACK_TOKEN_FUNC prefix items set stack_analysis.complete.names
+    end
+end
+
+-- The types: the builtin data types, then the data types of the files.
+func stack_analysis.complete.types (stack_analysis, array, string, array, stack_names) () in -- an, names, prefix, items, set
+    match an names prefix items set in
+        an stack_analysis.ctx stack_context.symbols match symbols in
+            0 while dup symbols array.count < loop
+                match i in
+                    symbols i array.get unwrap stack_context_symbol.* match sym in
+                        sym stack_context_symbol.kind STACK_CONTEXT_SYMBOL_DATA = if
+                            sym stack_context_symbol.name match label in
+                                set prefix label stack_names.take if
+                                    items label STACK_ITEM_STRUCT "data " label string.concat stack_items.add
+                                fi
+                            end
+                        fi
+                    end
+                    i 1 +
+                end
+            pool pop
+        end
+        an stack_analysis.decls match decls in
+            0 while dup decls array.count < loop
+                match i in
+                    decls i array.get unwrap stack_decl.* match d in
+                        d stack_decl.kind STACK_DECL_DATA = if set prefix d stack_decl.name stack_names.take else false fi if
+                            items d stack_decl.name STACK_ITEM_STRUCT d stack_decl.decl stack_ast_data.* stack_ast_data.text
+                            stack_items.add
+                        fi
+                    end
+                    i 1 +
+                end
+            pool pop
+        end
+        0 while dup names array.count < loop
+            match i in
+                names i array.get unwrap stack_scan_name.* match n in
+                    n stack_scan_name.kind STACK_TOKEN_DATA = if set prefix n stack_scan_name.name stack_names.take else false fi
+                    if items n stack_scan_name.name STACK_ITEM_STRUCT "" stack_items.add fi
+                end
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+-- The completion at the byte cursor of text, the text of the analysis: the
+-- bytes [start, stop) that an item replaces and the items
+-- (array<stack_item>). An item starts with the bytes [start, cursor) and has
+-- a label that no item before it has. No items in a comment, a string, a
+-- number or the name of a new definition or binding.
+func stack_analysis.complete (stack_analysis, string, int) (int, int, array) in -- an, text, cursor
+    match an text cursor in
+        text cursor stack_analysis.complete.scan match place names in
+            place stack_place.start 0 + place stack_place.stop 0 + place stack_place.ctx 0 + place stack_place.scope
+            stack_item.sizeof array.init.with_sz
+            match start stop ctx scope items in
+                ctx STACK_COMPLETE_NONE = not if
+                    text start cursor start - string.substr match prefix in
+                        an stack_analysis.pre stack_preprocessor.helpers array.count
+                        an stack_analysis.pre stack_preprocessor.user stack_ast.features array.count +
+                        an stack_analysis.ctx stack_context.symbols array.count +
+                        an stack_analysis.decls array.count + scope array.count + names array.count + 3 +
+                        stack_names.new match set in
+                            ctx STACK_COMPLETE_VALUE = if
+                                an scope names prefix items set stack_analysis.complete.values
+                            else
+                                an names prefix items set stack_analysis.complete.types
+                            fi
+                            set stack_names.free
+                        end
+                        prefix string.str ptr.free
+                    end
+                fi
+                scope array.items ptr.free
+                names array.items ptr.free
+                start stop items
+            end
+        end
+    end
+end

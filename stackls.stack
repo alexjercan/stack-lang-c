@@ -43,7 +43,13 @@ func stackls.serve () (int) in
     json.map match caps in
         caps "hoverProvider" true json.bool json_object.put
         caps "definitionProvider" true json.bool json_object.put
+        json.map json.array match completion triggers in
+            triggers "." json.string json_object.push
+            completion "triggerCharacters" triggers json_object.put
+            caps "completionProvider" completion json_object.put
+        end
         stack_strings.new "textDocument/hover" stack_strings.push "textDocument/definition" stack_strings.push
+        "textDocument/completion" stack_strings.push
         match methods in
             STACKLS_NAME STACKLS_VERSION caps methods lsp.server.new
         end
