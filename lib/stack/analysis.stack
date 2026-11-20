@@ -21,8 +21,8 @@ const STACK_REF_CONST 7   -- the name of a const
 -- The bytes [start, stop) of a name. decl is the stack_ast_func of
 -- STACK_REF_FUNC, the stack_ast_data of STACK_REF_DATA, the stack_ast_const
 -- of STACK_REF_CONST and the stack_ast_func of the body of STACK_REF_BOUND and
--- STACK_REF_BINDING, else ptr.null. bind is the position of the binding of
--- STACK_REF_BOUND and STACK_REF_BINDING in a func body, else -1.
+-- STACK_REF_BINDING in a func, else ptr.null. bind is the position of the
+-- binding of STACK_REF_BOUND and STACK_REF_BINDING, else -1.
 data stack_ref (int kind, int start, int stop, string name, ptr decl, int bind)
 
 -- Kinds of definitions that the type checker accepts.
@@ -94,10 +94,9 @@ func stack_analysis.names.nodes (array, int, array) () in -- array<stack_ref>, k
 end
 
 -- scope has the bindings of the enclosing matches (array<stack_ast_node>).
--- owner is the stack_ast_func of the body when body is true. body is false in
--- a const.
-func stack_analysis.names.exprs (array, array, ptr, bool, array) () in -- array<stack_ref>, scope, owner, body, array<stack_ast_expr>
-    match refs scope owner body exprs in
+-- owner is the stack_ast_func of the body, or ptr.null in a const.
+func stack_analysis.names.exprs (array, array, ptr, array) () in -- array<stack_ref>, scope, owner, array<stack_ast_expr>
+    match refs scope owner exprs in
         0 while dup exprs array.count < loop
             match i in
                 exprs i array.get unwrap stack_ast_expr.* match expr in
@@ -110,14 +109,14 @@ func stack_analysis.names.exprs (array, array, ptr, bool, array) () in -- array<
                                 match bind bound in
                                     refs bound if STACK_REF_BOUND else STACK_REF_CALL fi node
                                     bound if owner else ptr.null fi
-                                    bound body and if bind else -1 fi
+                                    bound if bind else -1 fi
                                     stack_ref.add.bind
                                 end
                             end
                         else kind STACK_AST_EXPR_COND = if
                             expr stack_ast_expr.expr stack_ast_cond.* match cond in
-                                refs scope owner body cond stack_ast_cond.if_ stack_analysis.names.exprs
-                                refs scope owner body cond stack_ast_cond.else_ stack_analysis.names.exprs
+                                refs scope owner cond stack_ast_cond.if_ stack_analysis.names.exprs
+                                refs scope owner cond stack_ast_cond.else_ stack_analysis.names.exprs
                             end
                         else kind STACK_AST_EXPR_MATCH = if
                             expr stack_ast_expr.expr stack_ast_match.* match m in
@@ -125,22 +124,21 @@ func stack_analysis.names.exprs (array, array, ptr, bool, array) () in -- array<
                                     0 while dup binds array.count < loop
                                         match j in
                                             binds j array.get unwrap stack_ast_node.* match node in
-                                                refs STACK_REF_BINDING node owner
-                                                body if node stack_ast_node.pos 0 + else -1 fi
+                                                refs STACK_REF_BINDING node owner node stack_ast_node.pos 0 +
                                                 stack_ref.add.bind
                                                 scope node stack_ast_node.& array.append unwrap
                                             end
                                             j 1 +
                                         end
                                     pool pop
-                                    refs scope owner body m stack_ast_match.exprs stack_analysis.names.exprs
+                                    refs scope owner m stack_ast_match.exprs stack_analysis.names.exprs
                                     0 while dup binds array.count < loop scope array.pop unwrap 1 + pool pop
                                 end
                             end
                         else kind STACK_AST_EXPR_WHILE = if
                             expr stack_ast_expr.expr stack_ast_while.* match w in
-                                refs scope owner body w stack_ast_while.while_ stack_analysis.names.exprs
-                                refs scope owner body w stack_ast_while.exprs stack_analysis.names.exprs
+                                refs scope owner w stack_ast_while.while_ stack_analysis.names.exprs
+                                refs scope owner w stack_ast_while.exprs stack_analysis.names.exprs
                             end
                         fi fi fi fi
                     end
@@ -182,13 +180,13 @@ func stack_analysis.names (stack_ast) (array) in
                                         refs STACK_REF_FUNC f stack_ast_func.name p stack_ref.add
                                         refs STACK_REF_TYPE f stack_ast_func.args stack_analysis.names.nodes
                                         refs STACK_REF_TYPE f stack_ast_func.rets stack_analysis.names.nodes
-                                        refs scope p true f stack_ast_func.exprs stack_analysis.names.exprs
+                                        refs scope p f stack_ast_func.exprs stack_analysis.names.exprs
                                     end
                                 end
                             else kind STACK_AST_FEATURE_CONST = if
                                 feat stack_ast_feature.feature match p in p stack_ast_const.* match c in
                                     refs STACK_REF_CONST c stack_ast_const.name p stack_ref.add
-                                    refs scope ptr.null false c stack_ast_const.exprs stack_analysis.names.exprs
+                                    refs scope ptr.null c stack_ast_const.exprs stack_analysis.names.exprs
                                 end end
                             fi fi fi
                         end
@@ -1461,7 +1459,7 @@ end
 -- the type of the binding.
 func stack_analysis.hover.bind (stack_analysis, stack_ref) (bool, string, string, string) in -- an, r
     match an r in
-        r stack_ref.bind 0 < if
+        r stack_ref.bind 0 < r stack_ref.decl ptr.null ptr.= or if
             false "" "" ""
         else
             an r stack_ref.decl stack_ast_func.* r stack_ref.bind stack_analysis.bind.type match type ok in
@@ -1504,6 +1502,116 @@ func stack_analysis.hover (stack_analysis, int) (bool, int, int, string, string,
                 fi fi fi fi fi fi fi
             end fi
             match ok code note doc in ok r stack_ref.start 0 + r stack_ref.stop 0 + code note doc end
+        end
+    end
+end
+
+-- DEFINITIONS
+
+-- A definition is found, the stack_lexer of its file and the bytes
+-- [start, stop) of its name. The lexer is ptr.null for the analysed file.
+
+func stack_definition.none () (bool, ptr, int, int) in false ptr.null 0 0 end
+
+-- The name node of a definition when its text has name at its position. A
+-- node that the compiler makes, as the sizeof of a builtin type, has none.
+func stack_definition.node (stack_ast_node, string) (bool, ptr, int, int) in -- node, name
+    match node name in
+        node stack_ast_node.parser stack_parser.lexer node stack_ast_node.pos 0 + name string.len match lexer p n in
+            lexer stack_lexer.buffer match text in
+                p 0 >= p n + text string.len <= and if
+                    text string.str p ptr.+ name string.str n ptr.memcmp 0 =
+                else false fi
+            end
+            if true lexer stack_lexer.& p p n + else stack_definition.none fi
+        end
+    end
+end
+
+-- The data type or the field of a data helper.
+func stack_definition.helper (stack_helper) (bool, ptr, int, int) in -- h
+    match h in
+        h stack_helper.kind match kind in
+            h stack_helper.node kind STACK_HELPER_SIZEOF = kind STACK_HELPER_INIT = or
+            if h stack_helper.owner else h stack_helper.field fi
+            stack_definition.node
+        end
+    end
+end
+
+-- A func, a data type, or the data type of T.& and T.*.
+func stack_definition.decl (stack_decl) (bool, ptr, int, int) in -- d
+    match d in
+        d stack_decl.kind STACK_DECL_FUNC = if
+            d stack_decl.decl stack_ast_func.* stack_ast_func.name
+        else
+            d stack_decl.decl stack_ast_data.* stack_ast_data.name
+        fi
+        dup stack_ast_node.value stack_definition.node
+    end
+end
+
+-- A name in a body, in the order of the compiler: the preprocessor expands
+-- the data helpers, the constants and the special names first, then the type
+-- checker uses the builtins and then the definitions.
+func stack_analysis.definition.call (stack_analysis, string) (bool, ptr, int, int) in -- an, name
+    match an name in
+        an name stack_analysis.helper match h is_helper in
+            is_helper if
+                h stack_definition.helper
+            else an name stack_analysis.const match c is_const in is_const if
+                c stack_ast_const.name dup stack_ast_node.value stack_definition.node
+            else name stack_special.is an stack_analysis.ctx name stack_context.get_symbol pop or if
+                stack_definition.none
+            else an name stack_analysis.decl match d found in
+                found if d stack_definition.decl else stack_definition.none fi
+            end fi fi end fi
+        end
+    end
+end
+
+-- A type in a signature or a data field: a data type that is not a builtin.
+func stack_analysis.definition.type (stack_analysis, string) (bool, ptr, int, int) in -- an, name
+    match an name in
+        an stack_analysis.ctx name stack_context.get_symbol pop if
+            stack_definition.none
+        else an name stack_analysis.decl match d found in
+            found if d stack_decl.kind STACK_DECL_DATA = else false fi
+            if d stack_definition.decl else stack_definition.none fi
+        end fi
+    end
+end
+
+-- The definition of the name at offset. A definition is its own definition.
+-- A bound name is the binding of the innermost match, if the preprocessor
+-- does not expand it and it is not a builtin. Not found for literals,
+-- keywords, special names, builtins, type variables and names that do not
+-- resolve.
+func stack_analysis.definition (stack_analysis, int) (bool, ptr, int, int) in -- an, offset
+    match an offset in
+        an offset stack_analysis.find match r found in
+            found not if
+                stack_definition.none
+            else r stack_ref.kind r stack_ref.name match kind name in
+                kind STACK_REF_FUNC = kind STACK_REF_DATA = or kind STACK_REF_FIELD = or
+                kind STACK_REF_CONST = or kind STACK_REF_BINDING = or if
+                    true ptr.null r stack_ref.start 0 + r stack_ref.stop 0 +
+                else kind STACK_REF_TYPE = if
+                    an name stack_analysis.definition.type
+                else kind STACK_REF_CALL = if
+                    an name stack_analysis.definition.call
+                else kind STACK_REF_BOUND = if
+                    an name stack_analysis.helper swp pop an name stack_analysis.const swp pop or
+                    an stack_analysis.ctx name stack_context.get_symbol pop or
+                    if
+                        an name stack_analysis.definition.call
+                    else
+                        true ptr.null r stack_ref.bind 0 + r stack_ref.bind name string.len +
+                    fi
+                else
+                    stack_definition.none
+                fi fi fi fi
+            end fi
         end
     end
 end

@@ -11,14 +11,23 @@ data stack_cached (string uri, stack_analysis an)
 
 -- cache: array<stack_cached> for the server generation. modules:
 -- array<stack_module>, the imports that the analyses parsed. docs:
--- array<stack_doc> of the modules.
-data stack_service (int generation, array cache, array modules, array docs)
+-- array<stack_doc> of the modules. cwd is the current directory, or empty.
+data stack_service (int generation, array cache, array modules, array docs, string cwd)
+
+-- The current directory, from the getcwd system call. Empty when it fails.
+func stack_cwd () (string) in
+    4096 ptr.alloc match buf in
+        buf 4096 0 79 syscall3 match n in
+            n 1 > if n 1 - buf string.init else buf ptr.free "" fi
+        end
+    end
+end
 
 func stack_service.new (lsp.server) (stack_service) in
     match srv in
         stack_cached.sizeof array.init.with_sz stack_module.sizeof array.init.with_sz stack_doc.sizeof array.init.with_sz
         match cache modules docs in
-            srv lsp.server.generation cache modules docs stack_service.init
+            srv lsp.server.generation cache modules docs stack_cwd stack_service.init
             cache array.& ptr.free
             modules array.& ptr.free
             docs array.& ptr.free
@@ -63,6 +72,80 @@ func stack_uri.path (string) (string, bool) in
                 end
             end
         fi
+    end
+end
+
+-- The absolute path of path without "." parts and empty parts. A relative
+-- path starts at cwd. ".." parts stay, because a directory before them can be
+-- a symbolic link. The caller frees its bytes.
+func stack_path.absolute (string, string) (string) in -- cwd, path
+    match cwd path in
+        path "/" string.starts_with if path else cwd "/" string.concat path string.concat fi match full in
+            stack_strings.new 0 0 while dup full string.len <= loop -- parts, s, i
+                match parts s i in
+                    i full string.len = if true else full i string.!! BYTE_/ = fi if
+                        full s i s - string.substr match part in
+                            part string.len 0 = part "." string.= or if
+                                part string.str ptr.free parts
+                            else
+                                parts part stack_strings.push
+                            fi
+                        end
+                        i 1 + i 1 +
+                    else
+                        parts s i 1 +
+                    fi
+                end
+            pool pop2
+            match parts in
+                parts array.count 0 = if "/" 0 1 string.substr else "" fi
+                0 while dup parts array.count < loop
+                    match out i in
+                        parts i array.get unwrap string.* match part in
+                            out "/" string.concat part string.concat
+                            out string.len 0 > if out string.str ptr.free fi
+                            part string.str ptr.free
+                        end
+                        i 1 +
+                    end
+                pool pop
+                parts array.items ptr.free
+                parts array.& ptr.free
+            end
+            path "/" string.starts_with not if full string.str ptr.free fi
+        end
+    end
+end
+
+-- The file URI of the absolute path, with a percent escape for each byte
+-- that is not a letter, a digit, "-", ".", "_", "~" or "/". The caller frees
+-- its bytes.
+func stack_uri.of_path (string) (string) in -- path
+    match path in
+        1 array.init.with_sz match buf in
+            "file://" match prefix in buf prefix string.str prefix string.len json.buf.bytes end
+            0 while dup path string.len < loop
+                match i in
+                    path i string.!! match c in
+                        c BYTE_A >= c BYTE_Z <= and c BYTE_a >= c BYTE_z <= and or c BYTE_0 >= c BYTE_9 <= and or
+                        c BYTE_- = or c BYTE_. = or c BYTE__ = or c BYTE_~ = or c BYTE_/ = or
+                        if
+                            buf c json.buf.byte
+                        else
+                            "0123456789ABCDEF" match hex in
+                                buf 37 json.buf.byte
+                                buf hex c 16 / string.!! json.buf.byte
+                                buf hex c 16 % string.!! json.buf.byte
+                            end
+                        fi
+                    end
+                    i 1 +
+                end
+            pool pop
+            buf 0 json.buf.byte
+            buf array.count 1 - buf array.items string.init
+            buf array.& ptr.free
+        end
     end
 end
 
@@ -182,28 +265,107 @@ end
 
 -- REQUESTS
 
+-- The open document and the byte offset of the position of a request. When
+-- ok is false, the reply is sent: an error for bad params, else null.
+func stack_service.at (lsp.server, json_object) (lsp.document, int, bool) in -- srv, msg
+    match srv msg in
+        msg lsp.position.params match uri line character ok in
+            srv uri lsp.server.document match doc open in
+                ok not if
+                    msg LSP_INVALID_PARAMS "Invalid params: expected textDocument.uri and a position" lsp.reply.error
+                    doc 0 false
+                else open not if
+                    msg json.null lsp.reply doc 0 false
+                else doc line character lsp.document.offset match offset ok' in
+                    ok' not if msg json.null lsp.reply fi
+                    doc offset ok'
+                end fi fi
+            end
+        end
+    end
+end
+
 func stack_service.hover (stack_service, lsp.server, json_object) () in -- svc, srv, msg
     match svc srv msg in
-        msg lsp.position.params match uri line character ok in
-            ok not if
-                msg LSP_INVALID_PARAMS "Invalid params: expected textDocument.uri and a position" lsp.reply.error
-            else srv uri lsp.server.document match doc open in
-                open not if
-                    msg json.null lsp.reply
-                else doc line character lsp.document.offset match offset ok' in
-                    ok' not if
+        srv msg stack_service.at match doc offset ok in
+            ok if
+                svc srv doc stack_service.analysis offset stack_analysis.hover match found start stop code note text in
+                    found if
+                        msg srv "stack" code text string.len 0 > if text else note fi lsp.server.markup
+                        doc start stop lsp.hover
+                        lsp.reply
+                    else
                         msg json.null lsp.reply
-                    else svc srv doc stack_service.analysis offset stack_analysis.hover match found start stop code note text in
-                        found if
-                            msg srv "stack" code text string.len 0 > if text else note fi lsp.server.markup
-                            doc start stop lsp.hover
-                            lsp.reply
-                        else
-                            msg json.null lsp.reply
-                        fi
-                    end fi
-                end fi
-            end fi
+                    fi
+                end
+            fi
+        end
+    end
+end
+
+-- The URI of the file at path. An open document of the file keeps its URI,
+-- else it is the file URI of the absolute path. The caller frees the bytes
+-- when owned is true.
+func stack_service.uri (stack_service, lsp.server, string) (string, bool) in -- svc, srv, path
+    match svc srv path in
+        path stack_path.identity match id found in
+            found if
+                srv lsp.server.documents match docs in
+                    "" false 0 while dup docs array.count < loop -- uri, hit, i
+                        match uri hit i in
+                            hit if
+                                uri true
+                            else docs i array.get unwrap lsp.document.* lsp.document.uri match u in
+                                u stack_uri.path match p ok in
+                                    ok if
+                                        p stack_path.identity match id' ok' in ok' if id' id stack_file_id.= else false fi end
+                                        p string.str ptr.free
+                                    else false fi
+                                end
+                                if u true else uri false fi
+                            end fi
+                            i 1 +
+                        end
+                    pool pop
+                end
+            else "" false fi
+        end
+        match uri hit in
+            hit if
+                uri false
+            else
+                svc stack_service.cwd path stack_path.absolute match apath in
+                    apath stack_uri.of_path
+                    apath string.str ptr.free
+                    true
+                end
+            fi
+        end
+    end
+end
+
+-- A Location of the definition of the name at the position, or null.
+func stack_service.definition (stack_service, lsp.server, json_object) () in -- svc, srv, msg
+    match svc srv msg in
+        srv msg stack_service.at match doc offset ok in
+            ok if
+                svc srv doc stack_service.analysis offset stack_analysis.definition match found lexer start stop in
+                    found not if
+                        msg json.null lsp.reply
+                    else lexer ptr.null ptr.= if
+                        true
+                    else
+                        lexer stack_lexer.* stack_lexer.buffer string.str doc lsp.document.text string.str ptr.=
+                    fi if
+                        msg doc lsp.document.uri doc start stop lsp.document.range lsp.location lsp.reply
+                    else lexer stack_lexer.* match lx in
+                        svc srv lx stack_lexer.filename stack_service.uri match uri owned in
+                            msg uri lx stack_lexer.buffer start stop lsp.text.range lsp.location lsp.reply
+                            owned if uri string.str ptr.free fi
+                        end
+                    end fi fi
+                end
+            fi
         end
     end
 end
@@ -214,9 +376,11 @@ func stack_service.request (stack_service, lsp.server, json_object) () in -- svc
         msg lsp.message.method match name in
             name "textDocument/hover" string.= if
                 svc srv msg stack_service.hover
+            else name "textDocument/definition" string.= if
+                svc srv msg stack_service.definition
             else
                 msg LSP_METHOD_NOT_FOUND "Method not found" lsp.reply.error
-            fi
+            fi fi
         end
     end
 end

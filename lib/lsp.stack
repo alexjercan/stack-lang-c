@@ -725,3 +725,30 @@ func lsp.hover (json_object, lsp.document, int, int) (json_object) in -- content
         end
     end
 end
+
+-- DEFINITION
+
+-- The range of the bytes [start, stop) of text.
+func lsp.text.range (string, int, int) (json_object) in -- text, start, stop
+    match text start stop in
+        int.sizeof array.init.with_sz match empty in
+            "" "" 0 text empty lsp.document.init match doc in
+                doc start stop lsp.document.range
+                doc lsp.document.lines array.items ptr.free
+                doc lsp.document.& ptr.free
+            end
+            empty array.& ptr.free
+        end
+    end
+end
+
+-- A Location with uri and range.
+func lsp.location (string, json_object) (json_object) in -- uri, range
+    match uri range in
+        json.map match l in
+            l "uri" uri json.string json_object.put
+            l "range" range json_object.put
+            l
+        end
+    end
+end

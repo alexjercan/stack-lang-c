@@ -7,9 +7,10 @@ writes them on stdout, and writes logs to stderr.
 stackls [-h | --help] [-v | --version] [--stdio]
 ```
 
-The server supports hover. It advertises `"hoverProvider": true` and full
-text synchronization (`"textDocumentSync": {"openClose": true, "change": 1}`).
-Go to definition, references, completion and diagnostics are not supported.
+The server supports hover and go to definition. It advertises
+`"hoverProvider": true`, `"definitionProvider": true` and full text
+synchronization (`"textDocumentSync": {"openClose": true, "change": 1}`).
+References, completion and diagnostics are not supported.
 
 The source is `stackls.stack`. It uses these libraries:
 
@@ -113,6 +114,22 @@ Hover (`textDocument/hover`):
 - If a file has a syntax error, the definitions before the error are used.
   Names after the error get `null`. A missing or broken import keeps the
   definitions that were loaded before it.
+
+Go to definition (`textDocument/definition`) has the same positions, params,
+imports and errors as hover. The result is a `Location` with the range of the
+name of the definition, or `null`:
+
+- A `func`, `data`, `const`, field or match binding is its own definition. A
+  name uses the definition that `slc` uses: the data helpers, then the
+  constants, then the builtins, then the first `func` or `data`.
+- A bound name goes to the binding of the innermost `match`. It does not
+  need a type.
+- `T.f`, `T.f.set` and `T.f.offset` go to the field `f`. `T.init`,
+  `T.sizeof`, `T.&` and `T.*` go to the name of `T`.
+- Builtins, special names, literals and names that do not resolve get `null`.
+- The URI of an open document stays as the client sent it. Other files get a
+  `file://` URI of the absolute path, with percent escapes. `..` parts stay
+  as they are, because a directory before them can be a symbolic link.
 
 ## Known limitations
 

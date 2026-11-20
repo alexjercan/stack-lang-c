@@ -13,7 +13,8 @@ import time
 SERVER = sys.argv[1]
 TIMEOUT = 20
 INIT_RESULT = {
-    "capabilities": {"hoverProvider": True, "textDocumentSync": {"openClose": True, "change": 1}},
+    "capabilities": {"hoverProvider": True, "definitionProvider": True,
+                     "textDocumentSync": {"openClose": True, "change": 1}},
     "serverInfo": {"name": "stackls", "version": "0.1.0"},
 }
 TESTS = []
@@ -189,7 +190,7 @@ def not_initialized():
 
 @test
 def unknown_methods():
-    got, _ = expect([frame(INIT), frame(req(2, "textDocument/completion", {})), frame(req(3, "textDocument/definition", {})),
+    got, _ = expect([frame(INIT), frame(req(2, "textDocument/completion", {})), frame(req(3, "textDocument/references", {})),
                      frame(req(4, "$/unknown")), frame(req(5, "a\"b\\")), frame(note("$/cancelRequest", {"id": 2})),
                      frame(note("workspace/didChangeConfiguration", {})), frame(note("unknown")),
                      frame(req(6, "initialize", {})), frame(req(7, "shutdown"))],
@@ -200,11 +201,11 @@ def unknown_methods():
 
 @test
 def escaped_methods():
-    got, _ = expect([frame(INIT), frame(b'{"jsonrpc":"2.0","id":2,"method":"textDocument\\/definition"}'),
+    got, _ = expect([frame(INIT), frame(b'{"jsonrpc":"2.0","id":2,"method":"textDocument\\/references"}'),
                      frame(b'{"jsonrpc":"2.0","id":3,"method":"\\u0073hutdown"}'),
                      frame(b'{"jsonrpc":"2.0","method":"\\u0065xit"}')],
                     [ok(1, INIT_RESULT), err(2, -32601), ok(3, None)])
-    assert got[1]["error"]["message"] == "Method not found: textDocument/definition"
+    assert got[1]["error"]["message"] == "Method not found: textDocument/references"
 
 
 @test
@@ -1233,6 +1234,343 @@ def hover_doc_cache():
         text = '@import "dep"\nfunc main () () in dep.f end\n'
         first, warm = warm_hovers(text, position(text, find(text, "dep.f")), 20, tmp, edit=True)
         assert warm < first, (first, warm)
+
+
+
+# DEFINITIONS
+
+
+def definition(id, pos, uri=URI):
+    return req(id, "textDocument/definition", {"textDocument": {"uri": uri}, "position": pos})
+
+
+def location(uri, text, i):
+    stop = i + len(TOKEN.match(text, i).group())
+    return {"uri": uri, "range": {"start": position(text, i), "end": position(text, stop)}}
+
+
+def file_uri(path):
+    return "file://" + "".join(c if c.isalnum() and c.isascii() or c in "-._~/" else
+                               "".join("%%%02X" % b for b in c.encode()) for c in path)
+
+
+def definitions(text, cases, uri=URI, before=(), after=(), **kw):
+    """Open text and ask the definition of each case (needle, n, offset,
+    want) at offset characters into the n-th needle. want is None for null,
+    (needle, n) for a name in text, or (uri, text, needle, n) for a name in
+    another file."""
+    chunks = [init()] + [frame(m) for m in before] + [frame(did_open(text, uri))] + [frame(m) for m in after]
+    want = [ok(1, INIT_RESULT)]
+    for k, (needle, n, off, w) in enumerate(cases):
+        i = find(text, needle, n)
+        chunks.append(frame(definition(10 + k, position(text, i + off), uri)))
+        if w is not None and len(w) == 2:
+            w = (uri, text) + w
+        want.append(ok(10 + k, None if w is None else location(w[0], w[1], find(w[1], w[2], w[3]))))
+    chunks += [frame(req(2, "shutdown")), frame(note("exit"))]
+    return expect(chunks, want + [ok(2, None)], **kw)
+
+
+DEFS = ('data pair (int a, bool f)\n'
+        'const K 7\n'
+        'func two () (int, bool) in 1 true end\n'
+        'func id (a) (a) in match v in v end end\n'
+        'func f (pair, ptr) (int) in\n'
+        '    match p q in\n'
+        '        p pair.a two match n b in\n'
+        '            b if n else K fi match t in t pop end\n'
+        '            n match t in t match u in u t + pop end end\n'
+        '            q id match r in r pop end\n'
+        '            0 while dup 10 < loop match i in i 1 + end pool pop\n'
+        '            p pair.f pop p 1 pair.a.set pair.a.offset pair.sizeof + pair.init pair.& pair.* pop2\n'
+        '            int.sizeof ptr.sizeof + __line__ __file__ __col__ pop3 "two" pop -- two\n'
+        '            n f\n'
+        '        end\n'
+        '    end\n'
+        'end\n')
+
+
+@test
+def definition_declarations():
+    definitions(DEFS, [
+        ("pair (", 0, 0, ("pair (", 0)),
+        ("a, bool", 0, 0, ("a, bool", 0)),
+        ("int a", 0, 0, None),
+        ("K 7", 0, 0, ("K 7", 0)),
+        ("7", 0, 0, None),
+        ("two ()", 0, 1, ("two ()", 0)),
+        ("id (a)", 0, 0, ("id (a)", 0)),
+        ("(a)", 0, 1, None),
+        ("pair, ptr", 0, 0, ("pair (", 0)),
+        ("ptr) (int", 0, 0, None),
+        ("func f", 0, 0, None),
+        ("in\n", 0, 0, None),
+        ("p q", 0, 0, ("p q", 0)),
+        ("p pair.a", 0, 0, ("p q", 0)),
+        ("pair.a two", 0, 3, ("a, bool", 0)),
+        ("two match", 0, 0, ("two ()", 0)),
+        ("n b in", 0, 0, ("n b in", 0)),
+        ("b if", 0, 0, ("b in", 0)),
+        ("n else", 0, 0, ("n b in", 0)),
+        ("K fi", 0, 0, ("K 7", 0)),
+        ("t in t pop", 0, 0, ("t in t pop", 0)),
+        ("t pop", 0, 0, ("t in t pop", 0)),
+        ("n match t", 0, 0, ("n b in", 0)),
+        ("t in t match", 0, 5, ("t in t match", 0)),
+        ("u t +", 0, 2, ("t in t match", 0)),
+        ("u t +", 0, 0, ("u in u", 0)),
+        ("q id", 0, 0, ("q in", 0)),
+        ("id match r", 0, 0, ("id (a)", 0)),
+        ("v end", 0, 0, ("v in v", 0)),
+        ("i 1 +", 0, 0, ("i in i", 0)),
+        ("while", 0, 0, None),
+        ("dup 10", 0, 0, None),
+        ("+ end", 0, 0, None),
+        ("pair.f pop", 0, 0, ("f)", 0)),
+        ("pair.a.set", 0, 0, ("a, bool", 0)),
+        ("pair.a.offset", 0, 0, ("a, bool", 0)),
+        ("pair.sizeof", 0, 0, ("pair (", 0)),
+        ("pair.init", 0, 0, ("pair (", 0)),
+        ("pair.&", 0, 0, ("pair (", 0)),
+        ("pair.*", 0, 0, ("pair (", 0)),
+        ("int.sizeof", 0, 0, None),
+        ("ptr.sizeof", 0, 0, None),
+        ("__line__", 0, 0, None),
+        ("__file__", 0, 0, None),
+        ("__col__", 0, 0, None),
+        ('"two"', 0, 1, None),
+        ("-- two", 0, 4, None),
+        ("n f\n", 0, 2, ("f (pair", 0)),
+        ("\nend\n", 0, 1, None),
+    ])
+
+
+@test
+def definition_formats():
+    """The result does not depend on the hover format of the client."""
+    text = 'func g () () in end\nfunc f () () in g end\n'
+    for caps in [PLAINTEXT, MARKDOWN, {}]:
+        expect([init(caps), frame(did_open(text)), frame(definition(2, pos(1, 16)))],
+               [ok(1, INIT_RESULT), ok(2, location(URI, text, 5))])
+
+
+@test
+def definition_precedence():
+    text = ('data box (int v)\n'
+            'const dup 1\n'
+            'func swp () () in end\n'
+            'func g () () in end\n'
+            'func g (int) () in end\n'
+            'const box.v 2\n'
+            'const C 3\n'
+            'func f (int) () in\n'
+            '    dup swp g box.v pop2\n'
+            '    1 match g in g pop end\n'
+            '    1 match C in C pop end\n'
+            '    1 match rot in rot pop end\n'
+            '    1 match __line__ in __line__ pop end\n'
+            '    1 match x in 2 match x in x end x pop2 end\n'
+            'end\n')
+    definitions(text, [
+        ("dup swp", 0, 0, ("dup 1", 0)),
+        ("swp g", 0, 0, None),
+        ("swp ()", 0, 0, ("swp ()", 0)),
+        ("g box", 0, 0, ("g ()", 0)),
+        ("g (int)", 0, 0, ("g (int)", 0)),
+        ("box.v pop2", 0, 0, ("v)", 0)),
+        ("box.v 2", 0, 0, ("box.v 2", 0)),
+        ("g in", 0, 0, ("g in", 0)),
+        ("g pop", 0, 0, ("g in", 0)),
+        ("C in", 0, 0, ("C in", 0)),
+        ("C pop", 0, 0, ("C 3", 0)),
+        ("rot in", 0, 0, ("rot in", 0)),
+        ("rot pop", 0, 0, None),
+        ("__line__ in", 0, 0, ("__line__ in", 0)),
+        ("__line__ pop", 0, 0, None),
+        ("x end", 0, 0, ("x in x", 0)),
+        ("x pop2", 0, 0, ("x in 2", 0)),
+    ])
+
+
+@test
+def definition_const_bodies():
+    """A binding in a const has a definition but no type."""
+    text = ('const swap2 match a b in b a end\n'
+            'const twice dup swap2 +\n'
+            'func f () (int) in 1 2 swap2 twice pop end\n')
+    definitions(text, [
+        ("a end", 0, 0, ("a b in", 0)),
+        ("b a end", 0, 0, ("b in", 0)),
+        ("swap2 +", 0, 0, ("swap2 match", 0)),
+        ("twice pop", 0, 0, ("twice dup", 0)),
+        ("dup swap2", 0, 0, None),
+    ])
+    hovers(text, [("a end", 0, 0, None), ("a b in", 0, 0, None)])
+
+
+@test
+def definition_positions():
+    """UTF-16 positions in the request and in the result. Names are ASCII,
+    as in slc; the text before them on the line is not."""
+    with tempfile.TemporaryDirectory() as tmp:
+        text = ('-- \U0001F600\u00e9\r\nconst K "\U0001F600\u00e9" func g () () in end -- c\r\n'
+                'func f () () in "\U0001F600\u4e2d" pop g K end\n')
+        definitions(text, [("g K", 0, 0, ("g ()", 0)), ("K end", 0, 0, ("K ", 0)), ("g ()", 0, 0, ("g ()", 0)),
+                           ('"\U0001F600\u4e2d"', 0, 1, None), ("K end", 0, 1, None)])
+        dep = os.path.join(os.path.realpath(tmp), "dep.stack")
+        dtext = '-- \U0001F600 x\r\n\nconst dep.K "\U0001F600\U0001F600" func dep.f () () in end\n'
+        with open(dep, "w", encoding="utf-8") as f:
+            f.write(dtext)
+        text = '@import "dep"\nfunc f () () in "\u4e2d\U0001F600" pop dep.f dep.K end\n'
+        definitions(text, [("dep.f", 0, 0, (file_uri(dep), dtext, "dep.f", 0)),
+                           ("dep.f", 0, 4, (file_uri(dep), dtext, "dep.f", 0)),
+                           ("dep.K end", 0, 0, (file_uri(dep), dtext, "dep.K", 0))], cwd=tmp)
+
+
+@test
+def definition_imports():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = os.path.realpath(tmp)
+        home = os.path.join(tmp, "h o#m%e+é")
+        os.makedirs(os.path.join(home, "lib"))
+        local = 'data cell (int v)\nfunc local.f (int) (cell) in cell.init end\nconst local.K 1\n'
+        shared = '@import "local"\nfunc shared.g () () in end\n'
+        with open(os.path.join(tmp, "local.stack"), "w") as f:
+            f.write(local)
+        with open(os.path.join(home, "lib", "shared.stack"), "w") as f:
+            f.write(shared)
+        text = '@import "shared"\nfunc main () () in 1 local.f cell.v pop shared.g local.K pop "x" pop end\n'
+        luri = file_uri(os.path.join(tmp, "local.stack"))
+        suri = file_uri(os.path.join(home, "lib", "shared.stack"))
+        cases = [
+            ("local.f", 0, 0, (luri, local, "local.f", 0)),
+            ("cell.v", 0, 0, (luri, local, "v)", 0)),
+            ("shared.g", 0, 0, (suri, shared, "shared.g", 0)),
+            ("local.K", 0, 0, (luri, local, "local.K", 0)),
+            ('"shared"', 0, 1, None),
+        ]
+        for h in [home, os.path.relpath(home, tmp), ".//" + os.path.relpath(home, tmp) + "/./"]:
+            definitions(text, cases, cwd=tmp, env=dict(os.environ, STACK_HOME=h))
+        # ".." stays after a symbolic link: ln/.. is deep, not tmp.
+        os.makedirs(os.path.join(tmp, "deep", "sub"))
+        os.makedirs(os.path.join(tmp, "deep", "h2", "lib"))
+        os.symlink(os.path.join(tmp, "deep", "sub"), os.path.join(tmp, "ln"))
+        with open(os.path.join(tmp, "deep", "h2", "lib", "shared.stack"), "w") as f:
+            f.write(shared)
+        spelled = os.path.join(tmp, "ln", "..", "h2", "lib", "shared.stack")
+        assert os.path.exists(spelled) and not os.path.exists(os.path.join(tmp, "h2"))
+        definitions(text, [("shared.g", 0, 0, (file_uri(spelled), shared, "shared.g", 0))],
+                    cwd=tmp, env=dict(os.environ, STACK_HOME="./ln/../h2"))
+        # stdlib from the root of the repository, with STACK_HOME "." and absolute.
+        text = '@import "stdlib"\nfunc f (string) (int) in string.len end\n'
+        with open(os.path.join(ROOT, "lib", "stdlib.stack"), encoding="utf-8") as f:
+            std = f.read()
+        want = (file_uri(os.path.join(os.path.realpath(ROOT), "lib", "stdlib.stack")), std, "len, ptr str)", 0)
+        definitions(text, [("string.len", 0, 0, want), ("string)", 0, 0, want[:2] + ("string (int len", 0))],
+                    cwd=ROOT, env=dict(os.environ, STACK_HOME="."))
+        want = (file_uri(os.path.join(ROOT, "lib", "stdlib.stack")),) + want[1:]
+        definitions(text, [("string.len", 0, 0, want)], cwd=tmp, env=dict(os.environ, STACK_HOME=ROOT))
+
+
+@test
+def definition_unsaved_imports():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = os.path.join(os.path.realpath(tmp), "a b")
+        os.mkdir(tmp)
+        path = os.path.join(tmp, "dep.stack")
+        disk = 'func dep.old () () in end\nfunc dep.both () () in end\n'
+        with open(path, "w") as f:
+            f.write(disk)
+        dep = "file://" + path.replace(" ", "%20")
+        # The client spelling of the URI is kept for an open document.
+        open_uri = "file://" + path.replace(" ", "%20").replace("dep.stack", "%64ep.stack")
+        uri = "file://" + os.path.join(tmp, "main.stack").replace(" ", "%20")
+        text = '@import "dep"\nfunc main () () in dep.old dep.new dep.both end\n'
+        unsaved = '\n\nfunc dep.both () () in end\nfunc dep.new (int) (int) in end\n'
+        definitions(text, [("dep.old", 0, 0, None), ("dep.new", 0, 0, (open_uri, unsaved, "dep.new", 0)),
+                           ("dep.both", 0, 0, (open_uri, unsaved, "dep.both", 0))],
+                    uri=uri, before=[did_open(unsaved, open_uri)], cwd=tmp)
+        definitions(text, [("dep.old", 0, 0, (dep, disk, "dep.old", 0)), ("dep.new", 0, 0, None),
+                           ("dep.both", 0, 0, (dep, disk, "dep.both", 0))],
+                    uri=uri, before=[did_open(unsaved, open_uri), did_close(open_uri)], cwd=tmp)
+        # A main document that is not a file and is not saved.
+        definitions('func f () () in f end\n', [("f end", 0, 0, ("f ()", 0))], uri="untitled:Untitled-1")
+
+
+@test
+def definition_import_changes():
+    """didChange of an open import moves the target, and of the main file
+    changes its names."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = os.path.realpath(tmp)
+        path = os.path.join(tmp, "dep.stack")
+        with open(path, "w") as f:
+            f.write("func dep.f () () in end\n")
+        dep = file_uri(path)
+        uri = file_uri(os.path.join(tmp, "main.stack"))
+        text = '@import "dep"\nfunc main () () in dep.f end\n'
+        at = position(text, find(text, "dep.f"))
+        srv = Session(cwd=tmp)
+        srv.send(req(1, "initialize", {"capabilities": {}}))
+        assert srv.read() == ok(1, INIT_RESULT)
+        srv.send(did_open(text, uri))
+        srv.send(did_open("func dep.f () () in end\n", dep))
+        for k in range(4):
+            dtext = "\n" * k + "-- " + "\U0001F600" * k + "\nfunc  dep.f () () in end\n"
+            srv.send(did_change(dtext, dep, version=k + 2))
+            srv.send(definition(10 + k, at, uri))
+            assert srv.read() == ok(10 + k, location(dep, dtext, find(dtext, "dep.f")))
+        srv.send(did_change(dtext.replace("dep.f", "dep.g"), dep, version=9))
+        srv.send(definition(20, at, uri))
+        assert srv.read() == ok(20, None)
+        text2 = "\n" + text.replace("dep.f end", "main end")
+        srv.send(did_change(text2, uri, version=3))
+        srv.send(definition(21, position(text2, find(text2, "main end")), uri))
+        assert srv.read() == ok(21, location(uri, text2, find(text2, "main ()")))
+        srv.close()
+
+
+@test
+def definition_errors():
+    """Bad params, closed documents, positions out of the text and source
+    with errors."""
+    bad = [None, {}, {"textDocument": {"uri": URI}}, {"position": pos(0, 0)},
+           {"textDocument": {"uri": 5}, "position": pos(0, 0)},
+           {"textDocument": {"uri": URI}, "position": pos(-1, 0)},
+           {"textDocument": {"uri": URI}, "position": pos(0.5, 0)},
+           {"textDocument": {"uri": URI}, "position": pos(2147483648, 0)}]
+    text = "func f () () in f end\n"
+    chunks = [init(), frame(did_open(text))]
+    chunks += [frame(req(10 + i, "textDocument/definition", p)) for i, p in enumerate(bad)]
+    chunks += [frame(definition(2, pos(0, 16))), frame(definition(3, pos(5, 0))), frame(definition(4, pos(0, 99))),
+               frame(definition(5, pos(0, 16), "file:///other.stack")), frame(did_close()),
+               frame(definition(6, pos(0, 16)))]
+    expect(chunks, [ok(1, INIT_RESULT)] + [err(10 + i, -32602) for i in range(len(bad))] +
+           [ok(2, location(URI, text, 5)), ok(3, None), ok(4, None), ok(5, None), ok(6, None)])
+    expect([frame(definition(1, pos(0, 0)))], [err(1, -32002)])
+    # The names before a syntax error resolve; the names after it do not.
+    text = ('func good () (int) in 1 end\n'
+            'func user () (int) in good end\n'
+            'func bad () (int) in good 1 match x in x \n'
+            'func later () (int) in good end\n')
+    definitions(text, [("good", 1, 0, ("good ()", 0)), ("user", 0, 0, ("user", 0)), ("good", 2, 0, None),
+                       ("x \n", 0, 0, None), ("later", 0, 0, None), ("good", 3, 0, None)])
+    # Type errors, unknown names, duplicates and errors of other functions.
+    text = ('func a () () in 1 match y in y y + "s" + end end\n'
+            'func b () () in missing dup dup b end\n'
+            'data d (int x)\ndata d (bool y)\n'
+            'func c () () in d.x d.y end\n')
+    definitions(text, [("y y", 0, 0, ("y in", 0)), ("missing", 0, 0, None), ("b end", 0, 0, ("b ()", 0)),
+                       ("d.x", 0, 0, ("x)", 0)), ("d.y", 0, 0, ("y)", 0))])
+    env = dict(os.environ, STACK_HOME=ROOT)
+    for text in BROKEN:
+        first = text.split("\n")[0]
+        chunks = [init(), frame(did_open(text))]
+        chunks += [frame(definition(10 + k, pos(0, k))) for k in range(min(len(first), 60) + 1)]
+        chunks += [frame(req(2, "shutdown")), frame(note("exit"))]
+        status, got, errs = run(*chunks, cwd=ROOT, env=env)
+        assert status == 0, (text[:40], status, errs[-200:])
+        assert len(got) == len(chunks) - 2 and got[-1] == ok(2, None), (text[:40], got[-3:])
 
 
 def main():
