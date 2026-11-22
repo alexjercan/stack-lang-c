@@ -3,10 +3,7 @@
 Stack Lang is the new hot thing (makes C obsolete!!!)
 
 Backlog:
-- [ ] generate more tests for all cases ~20 each (lexer, parser, preprocessor, typechecker)
-- [ ] better documentation
 - [ ] optimizations for speed => we don't need everything to be a function we can inline most things
-- [ ] refactor stack.stack to use `while` and `match`
 - [ ] memory management => custom allocator that free's unused variables
 - ...
 
@@ -234,6 +231,15 @@ and should be interpreted as an int. The next 8 are a pointer to a list of
 bytes with the specified length. The `string` data type makes working with this
 much easier.
 
+### 4.5. float
+
+The `float` data type is a 64-bit IEEE 754 double. A float literal is
+`-?D+.D+` with an optional exponent `[eE][+-]?D+`, or `-?D+[eE][+-]?D+`, for
+example `1.5`, `-0.25` and `1e3`. `1.` and `.5` are not float literals. A
+literal rounds to the nearest double, ties to even. A literal that overflows,
+or that is not zero and rounds to zero, is a lexical error. There are no
+implicit conversions between `int` and `float`.
+
 ## 5. Stack Functions
 
 Functions are defined using the `func` keyword. After the `func` keyword comes
@@ -428,6 +434,25 @@ There are also the well known functions for math operations `+`, `-`, `*`, `/`,
 There are also functions for comparing numbers `>`, `<`, `=`. These functions
 will return `bool`.
 
+### 4.16. float
+
+```stack
+func float.+ (float, float) (float) in ... end
+func float.- (float, float) (float) in ... end
+func float.mul (float, float) (float) in ... end
+func float./ (float, float) (float) in ... end
+func float.> (float, float) (bool) in ... end
+func float.< (float, float) (bool) in ... end
+func float.= (float, float) (bool) in ... end
+func int.to_float (int) (float) in ... end
+func float.to_int (float) (int) in ... end
+```
+
+The comparisons are false when an operand is NaN. `-0.0 0.0 float.=` is
+`true`. `float.to_int` truncates toward zero. It gives
+`-9223372036854775808` for NaN and for values out of the `int` range.
+`float.&`, `float.*` and `float.sizeof` work as for `int`.
+
 Other functions that can be derived from the basic math or compare functions
 are available in the `stdlib` module.
 
@@ -441,8 +466,8 @@ deeper block is a parser error, because the compiler recurses for each level.
 
 ### 5.1. Literals
 
-The most basic expression in stack is the literal. These can be `int`, `bool`
-or `string` and are added on the stack by just using them.
+The most basic expression in stack is the literal. These can be `int`,
+`float`, `bool` or `string` and are added on the stack by just using them.
 
 ### 5.2. Function calls
 

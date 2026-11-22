@@ -2,12 +2,14 @@
 @import "stack/parser"
 @import "stack/builtins"
 @import "stack/ffi"
+@import "stack/float"
 
 -- The assembler of the Stack compiler.
 
 const STACK_LITERAL_NUMBER 0
 const STACK_LITERAL_BOOLEAN 1
 const STACK_LITERAL_STRING 2
+const STACK_LITERAL_FLOAT 3
 
 data stack_literal (int kind, string value)
 
@@ -92,6 +94,18 @@ func stack_assembler.emit.expr.number (stack_assembler, stack_ast_node) () in --
     swp dup rot -- asm, asm, node
     stack_ast_node.value dup2 -- asm, asm, value, asm, value
     STACK_LITERAL_NUMBER swp stack_literal.init -- asm, asm, value, asm, stack_literal
+    stack_assembler.literal.name -- asm, asm, value, s
+    "    mov     rdi, " swp string.concat " ; " string.concat swp string.concat emit
+
+    dup "    call    stack_push_addr" emit
+
+    pop
+end
+
+func stack_assembler.emit.expr.float (stack_assembler, stack_ast_node) () in -- asm, float
+    swp dup rot -- asm, asm, node
+    stack_ast_node.value dup2 -- asm, asm, value, asm, value
+    STACK_LITERAL_FLOAT swp stack_literal.init -- asm, asm, value, asm, stack_literal
     stack_assembler.literal.name -- asm, asm, value, s
     "    mov     rdi, " swp string.concat " ; " string.concat swp string.concat emit
 
@@ -290,9 +304,11 @@ func stack_assembler.emit.expr (stack_assembler, stack_ast_expr) () in -- asm, e
         pop stack_ast_expr.expr stack_ast_match.* stack_assembler.emit.expr.match
     else dup STACK_AST_EXPR_WHILE = if -- asm, expr, kind
         pop stack_ast_expr.expr stack_ast_while.* stack_assembler.emit.expr.while
+    else dup STACK_AST_EXPR_FLOAT = if -- asm, expr, kind
+        pop stack_ast_expr.expr stack_ast_node.* stack_assembler.emit.expr.float
     else
         panic pop3
-    fi fi fi fi fi fi fi -- ()
+    fi fi fi fi fi fi fi fi -- ()
 end
 
 func stack_assembler.emit.exprs (stack_assembler, array) () in -- asm, array<expr>
@@ -443,9 +459,12 @@ func stack_assembler.emit.literal (stack_assembler, stack_literal, int) () in --
                 asm "          dq string." id string.concat emit
                 asm "string." id string.concat " db " string.concat bytes stack_assembler.emit.literal.string.helper emit
             end
+        else dup STACK_LITERAL_FLOAT = if
+            pop asm "literal." id string.concat " dq " string.concat
+            value stack_float.bits pop stack_float.hex string.concat emit
         else
             panic pop
-        fi fi fi
+        fi fi fi fi
     end
 end
 
@@ -470,7 +489,8 @@ func stack_assembler.emit (stack_assembler, stack_ast) () in -- asm, ast
     dup stack_assembler.emit.entry
     dup stack_assembler.emit.keywords
     swp dup2 stack_assembler.emit.ast
-    swp dup stack_assembler.emit.literals
+    swp dup stack_assembler.emit.keywords.float
+    dup stack_assembler.emit.literals
 
     dup ""                           emit
     dup "section '.note.GNU-stack'"  emit
@@ -1020,6 +1040,230 @@ func stack_assembler.emit.allocator (stack_assembler) () in
 
     pop
 end
+-- Float builtins. Emit them after the program so that the other func ids do
+-- not change.
+func stack_assembler.emit.keywords.float (stack_assembler) () in
+    dup ";" emit
+    dup ";" emit
+    dup "; float add" emit
+    dup ";" emit
+    dup ";   INPUT: (float, float)" emit
+    dup ";   OUTPUT: (float)" emit
+    dup dup STACK_FUNC_FLOAT_PLUS dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    call    stack_pop" emit
+    dup "    push    rax" emit
+    dup "    call    stack_pop" emit
+    dup "    movq    xmm0, rax" emit
+    dup "    pop     rax" emit
+    dup "    movq    xmm1, rax" emit
+    dup "    addsd   xmm0, xmm1" emit
+    dup "    movq    rdi, xmm0" emit
+    dup "    call    stack_push" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup ";" emit
+    dup ";" emit
+    dup "; float subtract" emit
+    dup ";" emit
+    dup ";   INPUT: (float, float)" emit
+    dup ";   OUTPUT: (float)" emit
+    dup dup STACK_FUNC_FLOAT_MINUS dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    call    stack_pop" emit
+    dup "    push    rax" emit
+    dup "    call    stack_pop" emit
+    dup "    movq    xmm0, rax" emit
+    dup "    pop     rax" emit
+    dup "    movq    xmm1, rax" emit
+    dup "    subsd   xmm0, xmm1" emit
+    dup "    movq    rdi, xmm0" emit
+    dup "    call    stack_push" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup ";" emit
+    dup ";" emit
+    dup "; float multiply" emit
+    dup ";" emit
+    dup ";   INPUT: (float, float)" emit
+    dup ";   OUTPUT: (float)" emit
+    dup dup STACK_FUNC_FLOAT_MUL dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    call    stack_pop" emit
+    dup "    push    rax" emit
+    dup "    call    stack_pop" emit
+    dup "    movq    xmm0, rax" emit
+    dup "    pop     rax" emit
+    dup "    movq    xmm1, rax" emit
+    dup "    mulsd   xmm0, xmm1" emit
+    dup "    movq    rdi, xmm0" emit
+    dup "    call    stack_push" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup ";" emit
+    dup ";" emit
+    dup "; float divide" emit
+    dup ";" emit
+    dup ";   INPUT: (float, float)" emit
+    dup ";   OUTPUT: (float)" emit
+    dup dup STACK_FUNC_FLOAT_DIV dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    call    stack_pop" emit
+    dup "    push    rax" emit
+    dup "    call    stack_pop" emit
+    dup "    movq    xmm0, rax" emit
+    dup "    pop     rax" emit
+    dup "    movq    xmm1, rax" emit
+    dup "    divsd   xmm0, xmm1" emit
+    dup "    movq    rdi, xmm0" emit
+    dup "    call    stack_push" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup ";" emit
+    dup ";" emit
+    dup "; float greater than, false for NaN" emit
+    dup ";" emit
+    dup ";   INPUT: (float, float)" emit
+    dup ";   OUTPUT: (bool)" emit
+    dup dup STACK_FUNC_FLOAT_GT dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    call    stack_pop" emit
+    dup "    push    rax" emit
+    dup "    call    stack_pop" emit
+    dup "    movq    xmm0, rax" emit
+    dup "    pop     rax" emit
+    dup "    movq    xmm1, rax" emit
+    dup "    ucomisd xmm0, xmm1" emit
+    dup "    seta    al" emit
+    dup "    movzx   rax, al" emit
+    dup "    mov     rdi, rax" emit
+    dup "    call    stack_push" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup ";" emit
+    dup ";" emit
+    dup "; float less than, false for NaN" emit
+    dup ";" emit
+    dup ";   INPUT: (float, float)" emit
+    dup ";   OUTPUT: (bool)" emit
+    dup dup STACK_FUNC_FLOAT_LT dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    call    stack_pop" emit
+    dup "    push    rax" emit
+    dup "    call    stack_pop" emit
+    dup "    movq    xmm0, rax" emit
+    dup "    pop     rax" emit
+    dup "    movq    xmm1, rax" emit
+    dup "    ucomisd xmm1, xmm0" emit
+    dup "    seta    al" emit
+    dup "    movzx   rax, al" emit
+    dup "    mov     rdi, rax" emit
+    dup "    call    stack_push" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup ";" emit
+    dup ";" emit
+    dup "; float equal, false for NaN, -0.0 equals 0.0" emit
+    dup ";" emit
+    dup ";   INPUT: (float, float)" emit
+    dup ";   OUTPUT: (bool)" emit
+    dup dup STACK_FUNC_FLOAT_EQ dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    call    stack_pop" emit
+    dup "    push    rax" emit
+    dup "    call    stack_pop" emit
+    dup "    movq    xmm0, rax" emit
+    dup "    pop     rax" emit
+    dup "    movq    xmm1, rax" emit
+    dup "    ucomisd xmm0, xmm1" emit
+    dup "    sete    al" emit
+    dup "    setnp   cl" emit
+    dup "    and     al, cl" emit
+    dup "    movzx   rax, al" emit
+    dup "    mov     rdi, rax" emit
+    dup "    call    stack_push" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup ";" emit
+    dup ";" emit
+    dup "; int to float" emit
+    dup ";" emit
+    dup ";   INPUT: (int)" emit
+    dup ";   OUTPUT: (float)" emit
+    dup dup STACK_FUNC_INT_TO_FLOAT dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    call    stack_pop" emit
+    dup "    cvtsi2sd xmm0, rax" emit
+    dup "    movq    rdi, xmm0" emit
+    dup "    call    stack_push" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup ";" emit
+    dup ";" emit
+    dup "; float to int, truncate toward zero" emit
+    dup ";" emit
+    dup ";   INPUT: (float)" emit
+    dup ";   OUTPUT: (int)" emit
+    dup dup STACK_FUNC_FLOAT_TO_INT dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    call    stack_pop" emit
+    dup "    movq    xmm0, rax" emit
+    dup "    cvttsd2si rax, xmm0" emit
+    dup "    mov     rdi, rax" emit
+    dup "    call    stack_push" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup ";" emit
+    dup ";" emit
+    dup "; address of float" emit
+    dup ";" emit
+    dup ";   INPUT: (float)" emit
+    dup ";   OUTPUT: (ptr)" emit
+    dup dup STACK_FUNC_FLOAT_REF dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    call    stack_pop_addr" emit
+    dup "    mov     rdi, rax" emit
+    dup "    call    stack_push" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup ";" emit
+    dup ";" emit
+    dup "; dereference as float" emit
+    dup ";" emit
+    dup ";   INPUT: (ptr)" emit
+    dup ";   OUTPUT: (float)" emit
+    dup dup STACK_FUNC_FLOAT_DEREF dup rot' stack_assembler.func.name ": ; " string.concat swp string.concat emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    call    stack_pop" emit
+    dup "    mov     rdi, rax" emit
+    dup "    call    stack_push_addr" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    pop
+end
+
 func stack_assembler.emit.keywords (stack_assembler) () in
     dup "section '.text' executable" emit
     dup "" emit

@@ -1,0 +1,8 @@
+tests/03-typecheck/55-float-errors.stack:1:28, Semantic error: func float.+ has non matching args, expected (float, float) but got (int, float)
+tests/03-typecheck/55-float-errors.stack:2:26, Semantic error: func + has non matching args, expected (int, int) but got (float, int)
+tests/03-typecheck/55-float-errors.stack:3:27, Semantic error: func = has non matching args, expected (int, int) but got (float, int)
+tests/03-typecheck/55-float-errors.stack:4:6, Semantic error: func d has non matching return, expected (int) but got (float)
+tests/03-typecheck/55-float-errors.stack:5:21, Semantic error: expected type (bool) but got (float)
+tests/03-typecheck/55-float-errors.stack:5:6, Semantic error: func e has non matching return, expected () but got (float)
+tests/03-typecheck/55-float-errors.stack:6:24, Semantic error: func float.to_int has non matching args, expected (float) but got (int)
+tests/03-typecheck/55-float-errors.stack:6:6, Semantic error: func f has non matching return, expected (float) but got (int)

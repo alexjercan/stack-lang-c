@@ -3,6 +3,7 @@
 const STACK_DATA_INT "int"
 const STACK_DATA_PTR "ptr"
 const STACK_DATA_BOOL "bool"
+const STACK_DATA_FLOAT "float"
 const STACK_DATA_STRING "string"
 
 const STACK_FUNC_MAIN "main"
@@ -40,6 +41,18 @@ const STACK_FUNC_PTR_REF "ptr.&"
 const STACK_FUNC_PTR_DEREF "ptr.*"
 const STACK_FUNC_BOOL_REF "bool.&"
 const STACK_FUNC_BOOL_DEREF "bool.*"
+const STACK_FUNC_FLOAT_REF "float.&"
+const STACK_FUNC_FLOAT_DEREF "float.*"
+
+const STACK_FUNC_FLOAT_PLUS "float.+"
+const STACK_FUNC_FLOAT_MINUS "float.-"
+const STACK_FUNC_FLOAT_MUL "float.mul"
+const STACK_FUNC_FLOAT_DIV "float./"
+const STACK_FUNC_FLOAT_GT "float.>"
+const STACK_FUNC_FLOAT_LT "float.<"
+const STACK_FUNC_FLOAT_EQ "float.="
+const STACK_FUNC_INT_TO_FLOAT "int.to_float"
+const STACK_FUNC_FLOAT_TO_INT "float.to_int"
 
 const STACK_FUNC_ENV "os.env"
 

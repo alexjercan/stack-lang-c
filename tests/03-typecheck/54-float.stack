@@ -1,0 +1,26 @@
+@import "stdlib"
+
+const HALF 0.5
+
+data point (float x, int n)
+
+func id (a) (a) in end
+
+func ops (float, float) (float, bool, bool, bool) in
+    match a b in
+        a b float.+ a b float.- float.mul a b float./ float.+
+        a b float.> a b float.< a b float.=
+    end
+end
+
+func conv (int) (int) in int.to_float HALF float.mul float.to_int end
+
+func refs (float) (float) in float.& float.* end
+
+func fields () (float, int) in
+    HALF id 2 point.init match p in p point.x p point.n end
+end
+
+func size () (int) in float.sizeof end
+
+func main () (int) in 0 end

@@ -154,6 +154,7 @@ func stack_preprocessor.run.base.consts (stack_preprocessor, stack_ast) () in --
             pre ast parser STACK_DATA_INT stack_preprocessor.run.base.sizeof
             pre ast parser STACK_DATA_PTR stack_preprocessor.run.base.sizeof
             pre ast parser STACK_DATA_BOOL stack_preprocessor.run.base.sizeof
+            pre ast parser STACK_DATA_FLOAT stack_preprocessor.run.base.sizeof
         end
     end
 end
@@ -924,6 +925,7 @@ func stack_preprocessor.data.duplicated (stack_preprocessor) (bool) in -- pre
             names STACK_DATA_INT string.& array.append unwrap
             names STACK_DATA_PTR string.& array.append unwrap
             names STACK_DATA_BOOL string.& array.append unwrap
+            names STACK_DATA_FLOAT string.& array.append unwrap
             false 0 while dup features array.count < loop -- found, i
                 dup features swp array.get unwrap stack_ast_feature.* match feat in
                     feat stack_ast_feature.kind STACK_AST_FEATURE_DATA = if

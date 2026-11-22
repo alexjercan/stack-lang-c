@@ -1,0 +1,6 @@
+const HALF 0.5
+
+func main () (int) in
+    1.5 -0.25 1e3 HALF pop pop pop pop
+    0
+end

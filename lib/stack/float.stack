@@ -1,0 +1,370 @@
+@import "stdlib"
+
+-- Exact conversion of float literals to IEEE 754 binary64 bits.
+
+-- A big natural number is an array<int> of 32-bit limbs, the low limb first,
+-- with no high zero limbs.
+
+const STACK_BIG_BASE 4294967296
+const STACK_BIG_MASK 4294967295
+
+func stack_big.init (int) (array) in -- small value
+    match v in
+        int.sizeof array.init.with_sz match xs in
+            v 0 > if xs v int.& array.append pop fi
+            xs
+        end
+    end
+end
+
+func stack_big.get (array, int) (int) in -- xs, i
+    match xs i in
+        i xs array.count < if xs i array.get unwrap int.* 0 + else 0 fi
+    end
+end
+
+func stack_big.put (array, int, int) () in -- xs, i, limb
+    match xs i v in
+        i xs array.count < if xs i v int.& array.set pop else xs v int.& array.append pop fi
+    end
+end
+
+func stack_big.trim (array) () in -- xs
+    match xs in
+        while xs array.count 0 > if xs xs array.count 1 - stack_big.get 0 = else false fi loop
+            xs array.pop pop
+        pool
+    end
+end
+
+-- xs = xs * m + a, for m and a below 2^31.
+func stack_big.muladd (array, int, int) () in -- xs, m, a
+    match xs m a in
+        a 0 while dup xs array.count < loop -- carry, i
+            match carry i in
+                xs i stack_big.get m * carry + match t in
+                    xs i t STACK_BIG_MASK & stack_big.put
+                    t 32 >>
+                end
+                i 1 +
+            end
+        pool pop
+        match carry in carry 0 > if xs xs array.count carry stack_big.put fi end
+    end
+end
+
+-- xs = xs * 10^k.
+func stack_big.mulpow10 (array, int) () in -- xs, k
+    match xs k in
+        k while dup 9 >= loop xs 1000000000 0 stack_big.muladd 9 - pool
+        1 swp while dup 0 > loop swp 10 * swp 1 - pool pop
+        match m in m 1 > if xs m 0 stack_big.muladd fi end
+    end
+end
+
+-- xs = xs * 2^k.
+func stack_big.shl (array, int) () in -- xs, k
+    match xs k in
+        k 32 % match shift in
+            shift 0 > if
+                0 0 while dup xs array.count < loop -- carry, i
+                    match carry i in
+                        xs i stack_big.get match l in
+                            xs i l shift << STACK_BIG_MASK & carry | stack_big.put
+                            l 32 shift - >>
+                        end
+                        i 1 +
+                    end
+                pool pop
+                match carry in carry 0 > if xs xs array.count carry stack_big.put fi end
+            fi
+        end
+        xs array.count 0 > k 32 >= and if
+            int.sizeof array.init.with_sz match zs in
+                0 while dup k 32 / < loop zs 0 int.& array.append pop 1 + pool pop
+                xs 0 zs array.insert_many pop
+                zs stack_big.free
+            end
+        fi
+    end
+end
+
+-- xs = xs / 2.
+func stack_big.shr1 (array) () in -- xs
+    match xs in
+        0 xs array.count while dup 0 > loop -- carry, i
+            1 - match carry i in
+                xs i stack_big.get match l in
+                    xs i l 1 >> carry 31 << | stack_big.put
+                    l 1 &
+                end
+                i
+            end
+        pool pop pop
+        xs stack_big.trim
+    end
+end
+
+-- -1, 0 or 1 for xs < ys, xs = ys or xs > ys.
+func stack_big.cmp (array, array) (int) in -- xs, ys
+    match xs ys in
+        xs array.count ys array.count < if -1
+        else xs array.count ys array.count > if 1
+        else
+            0 xs array.count while match r i in r i i 0 > r 0 = and end loop -- result, i
+                1 - match r i in
+                    xs i stack_big.get ys i stack_big.get match x y in
+                        x y < if -1 else x y > if 1 else 0 fi fi
+                    end
+                    i
+                end
+            pool pop
+        fi fi
+    end
+end
+
+-- xs = xs - ys, for xs >= ys.
+func stack_big.sub (array, array) () in -- xs, ys
+    match xs ys in
+        0 0 while dup xs array.count < loop -- borrow, i
+            match borrow i in
+                xs i stack_big.get ys i stack_big.get - borrow - match d in
+                    d 0 < if
+                        xs i d STACK_BIG_BASE + stack_big.put 1
+                    else
+                        xs i d stack_big.put 0
+                    fi
+                end
+                i 1 +
+            end
+        pool pop pop
+        xs stack_big.trim
+    end
+end
+
+func stack_big.bitlen (array) (int) in -- xs
+    match xs in
+        xs array.count 0 = if
+            0
+        else
+            xs xs array.count 1 - stack_big.get match top in
+                0 top while dup 0 > loop 1 >> swp 1 + swp pool pop
+            end
+            xs array.count 1 - 32 * +
+        fi
+    end
+end
+
+func stack_big.copy (array) (array) in array.copy unwrap end
+
+func stack_big.free (array) () in array.items ptr.free end
+
+const STACK_FLOAT_OK        0
+const STACK_FLOAT_OVERFLOW  1
+const STACK_FLOAT_UNDERFLOW 2
+
+-- The largest saved exponent. It is far from any decimal exponent that a
+-- source can cancel with its digit count.
+const STACK_FLOAT_EXP_MAX 1000000000000000
+
+-- The decimal exponent after e or E in s, saturated at STACK_FLOAT_EXP_MAX.
+func stack_float.exponent (string, int) (int) in -- s, index of e or E
+    match s i in
+        s i 1 + string.!! BYTE_- = s i 1 + string.!! BYTE_+ = or match signed in
+            s i 1 + string.!! BYTE_- = match neg in
+                0 i 1 + signed if 1 + fi while dup s string.len < loop -- x, j
+                    match x j in
+                        x STACK_FLOAT_EXP_MAX < if x 10 * s j string.!! BYTE_0 - + else x fi
+                        STACK_FLOAT_EXP_MAX min
+                        j 1 +
+                    end
+                pool pop
+                neg if 0 swp - fi
+            end
+        end
+    end
+end
+
+-- The decimal place of the digit at p for a dot at dot: 10^place.
+func stack_float.place (int, int) (int) in -- p, dot
+    match p dot in p dot < if dot p - 1 - else dot p - fi end
+end
+
+-- The digits from first to last as a big number, without the dot.
+func stack_float.digits (string, int, int) (array) in -- s, first, last
+    match s first last in
+        0 stack_big.init match xs in
+            0 0 first while dup last <= loop -- chunk, n, p
+                match chunk n p in
+                    s p string.!! match b in
+                        b BYTE_. = if
+                            chunk n
+                        else n 9 = if
+                            xs 1000000000 chunk stack_big.muladd
+                            b BYTE_0 - 1
+                        else
+                            chunk 10 * b BYTE_0 - + n 1 +
+                        fi fi
+                    end
+                    p 1 +
+                end
+            pool pop
+            match chunk n in
+                1 n while dup 0 > loop swp 10 * swp 1 - pool pop
+                xs swp chunk stack_big.muladd
+            end
+            xs
+        end
+    end
+end
+
+-- The bits of the finite magnitude num/den: bits, status. num and den
+-- change.
+func stack_float.round (array, array) (int, int) in -- num, den
+    match num den in
+        num stack_big.bitlen den stack_big.bitlen - match e0 in
+            -- 2^e0 <= num/den, else 2^(e0-1) <= num/den
+            e0 0 >= if
+                num den stack_big.copy dup e0 stack_big.shl
+            else
+                num stack_big.copy dup 0 e0 - stack_big.shl den
+            fi
+            match n d in
+                n d stack_big.cmp 0 < if e0 1 - else e0 fi
+                e0 0 >= if d else n fi stack_big.free
+            end
+        end
+        match e in
+            e 1023 > if
+                0 STACK_FLOAT_OVERFLOW
+            else
+                e -1022 < match subnormal in
+                    -- q = num/den * 2^s, below 2^53
+                    subnormal if 1074 else 52 e - fi match s in
+                        s 0 >= if num s stack_big.shl else den 0 s - stack_big.shl fi
+                    end
+                    den stack_big.copy dup 53 stack_big.shl match t in
+                        0 53 while dup 0 >= loop -- q, i
+                            match q i in
+                                q 1 <<
+                                num t stack_big.cmp 0 >= if num t stack_big.sub 1 + fi
+                                i 0 > if t stack_big.shr1 fi
+                                i 1 -
+                            end
+                        pool pop
+                        t stack_big.free
+                    end
+                    -- round half to even with the remainder num
+                    num 1 stack_big.shl
+                    num den stack_big.cmp match c in
+                        c 0 > if 1 + else c 0 = if dup 1 & + fi fi
+                    end
+                    match q in
+                        subnormal if
+                            q q 0 = if STACK_FLOAT_UNDERFLOW else STACK_FLOAT_OK fi
+                        else
+                            q 9007199254740992 = if 4503599627370496 e 1 + else q e fi
+                            match q' e' in
+                                e' 1023 > if
+                                    0 STACK_FLOAT_OVERFLOW
+                                else
+                                    e' 1023 + 52 << q' 4503599627370496 - | STACK_FLOAT_OK
+                                fi
+                            end
+                        fi
+                    end
+                end
+            fi
+        end
+    end
+end
+
+-- The parts of the float literal s, which matches -?D+(.D+)?([eE][+-]?D+)?:
+-- the first and the last nonzero digit, the dot and the decimal exponent.
+-- The first digit is -1 for zero. Without a dot, the dot is the end of the
+-- digits.
+func stack_float.scan (string) (int, int, int, int) in -- s
+    match s in
+        s string.len s string.len -1 -1 s 0 string.!! BYTE_- = if 1 else 0 fi
+        while dup s string.len < loop -- end of digits, dot, first, last, p
+            match mend dot first last p in
+                s p string.!! match b in
+                    mend s string.len = b 101 = b 69 = or and if p else mend fi
+                    mend s string.len = b BYTE_. = and if p else dot fi
+                    mend s string.len = b BYTE_0 > and b BYTE_9 <= and match nz in
+                        nz first 0 < and if p else first fi
+                        nz if p else last fi
+                    end
+                end
+                p 1 +
+            end
+        pool pop
+        match mend dot first last in
+            first last
+            dot s string.len = if mend else dot fi
+            first 0 >= mend s string.len < and if s mend stack_float.exponent else 0 fi
+        end
+    end
+end
+
+-- The decimal magnitude m of a nonzero literal: 10^(m-1) <= |x| < 10^m.
+func stack_float.magnitude (int, int, int) (int) in -- first, dot, exp
+    match first dot exp in first dot stack_float.place 1 + exp + end
+end
+
+-- The binary64 bits of the float literal s, correctly rounded to nearest
+-- even, and a status.
+func stack_float.bits (string) (int, int) in -- s
+    match s in
+        s stack_float.scan match first last dot exp in
+            first 0 < if
+                0 STACK_FLOAT_OK
+            else first dot exp stack_float.magnitude match m in
+                m 310 >= if
+                    0 STACK_FLOAT_OVERFLOW
+                else m -324 <= if
+                    0 STACK_FLOAT_UNDERFLOW
+                else
+                    s first last stack_float.digits 1 stack_big.init match num den in
+                        last dot stack_float.place exp + match e10 in
+                            e10 0 >= if num e10 stack_big.mulpow10 else den 0 e10 - stack_big.mulpow10 fi
+                        end
+                        num den stack_float.round
+                        num stack_big.free
+                        den stack_big.free
+                    end
+                fi fi
+            end fi
+        end
+        match word status in
+            s 0 string.!! BYTE_- = status STACK_FLOAT_OK = and if word -9223372036854775808 | else word fi
+            status
+        end
+    end
+end
+
+-- The status of the float literal s. Only a literal near the overflow or
+-- the underflow limit needs the full conversion.
+func stack_float.status (string) (int) in -- s
+    match s in
+        s stack_float.scan match first _last dot exp in
+            first 0 < if
+                STACK_FLOAT_OK
+            else first dot exp stack_float.magnitude match m in
+                m 308 <= m -322 >= and if STACK_FLOAT_OK else s stack_float.bits swp pop fi
+            end fi
+        end
+    end
+end
+
+-- The bits as 0x and 16 hex digits.
+func stack_float.hex (int) (string) in -- word
+    match word in
+        "0x" 60 while dup 0 >= loop
+            match h k in
+                h "0123456789ABCDEF" word k >> 15 & 1 string.substr string.concat
+                k 4 -
+            end
+        pool pop
+    end
+end

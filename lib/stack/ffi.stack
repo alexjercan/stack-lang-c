@@ -1,5 +1,6 @@
 @import "stdlib"
 @import "stack/parser"
+@import "stack/builtins"
 
 -- The C function wrappers of the assembler.
 
@@ -30,13 +31,75 @@ func stack_assembler.extern.alias (stack_assembler, string) (string, bool) in --
     end
 end
 
+const STACK_EXTERN_ARG_GP    0
+const STACK_EXTERN_ARG_XMM   1
+const STACK_EXTERN_ARG_STACK 2
+
+-- True when the type of argument i is float.
+func stack_assembler.extern.float (array, int) (bool) in -- array<node>, i
+    array.get unwrap stack_ast_node.* stack_ast_node.value STACK_DATA_FLOAT string.=
+end
+
+-- The number of integer and float arguments before argument i.
+func stack_assembler.extern.counts (array, int) (int, int) in -- array<node>, i
+    match args i in
+        0 0 0 while dup i < loop
+            match g x j in
+                args j stack_assembler.extern.float if g x 1 + else g 1 + x fi j 1 +
+            end
+        pool pop
+    end
+end
+
+-- The number of arguments on the machine stack for g integer and x float
+-- arguments.
+func stack_assembler.extern.spill (int, int) (int) in -- g, x
+    match g x in g g 6 min - x x 8 min - + end
+end
+
+-- The place of argument i: a GP register, an XMM register or a machine stack
+-- slot, and its index.
+func stack_assembler.extern.slot (array, int) (int, int) in -- array<node>, i
+    match args i in
+        args i stack_assembler.extern.counts match g x in
+            args i stack_assembler.extern.float if
+                x 8 < if STACK_EXTERN_ARG_XMM x else STACK_EXTERN_ARG_STACK g x stack_assembler.extern.spill fi
+            else
+                g 6 < if STACK_EXTERN_ARG_GP g else STACK_EXTERN_ARG_STACK g x stack_assembler.extern.spill fi
+            fi
+        end
+    end
+end
+
+-- The frame of an extern with these arguments: the argument count, the
+-- number of stack arguments, the number of register arguments, true when the
+-- stack arguments stay in place, and the offset of the argument slots.
+func stack_assembler.extern.frame (array) (int, int, int, bool, int) in -- array<node>
+    match args in
+        args array.count 0 + match count in
+            args count stack_assembler.extern.counts stack_assembler.extern.spill match spill in
+                count spill - match regs in
+                    count spill regs
+                    args regs stack_assembler.extern.counts stack_assembler.extern.spill 0 =
+                    spill 0 = regs 2 % 0 = or and
+                    dup if 0 else spill 1 + 2 / 16 * fi
+                end
+            end
+        end
+    end
+end
+
 -- The wrapper pops the arguments into an aligned frame, the last argument
 -- first, and then loads the registers. The pop helpers use rax, rsi and rdi.
--- Arguments after the sixth stay on the machine stack.
+-- Float arguments go in xmm0 to xmm7, other arguments in the GP registers.
+-- Arguments without a register go on the machine stack in source order. When
+-- they follow an even number of register arguments, they stay in the frame.
+-- Else the wrapper copies them to an area below the frame.
 func stack_assembler.emit.extern (stack_assembler, stack_ast_extern) () in -- asm, extern
     match asm decl in
-        decl stack_ast_extern.args array.count decl stack_ast_extern.symbol stack_ast_node.value
-        match count symbol in
+        decl stack_ast_extern.args decl stack_ast_extern.symbol stack_ast_node.value
+        decl stack_ast_extern.args stack_assembler.extern.frame
+        match args symbol count spill regs direct base in
             asm symbol stack_assembler.extern.alias match alias first in
                 first if asm "extrn '" symbol string.concat "' as " string.concat alias string.concat emit fi
 
@@ -44,28 +107,59 @@ func stack_assembler.emit.extern (stack_assembler, stack_ast_extern) () in -- as
                 asm "    push    rbp" emit
                 asm "    mov     rbp, rsp" emit
                 asm "    and     rsp, -16" emit
-                count 0 > if asm "    sub     rsp, " count 1 + 2 / 16 * int.show string.concat emit fi
+                count 0 > if
+                    asm "    sub     rsp, " base count 1 + 2 / 16 * + int.show string.concat emit
+                fi
 
                 count while dup 0 > loop
                     1 - match i in
                         asm "    call    stack_pop" emit
-                        asm "    mov     qword [rsp + " i 8 * int.show string.concat "], rax" string.concat emit
+                        asm "    mov     qword [rsp + " base i 8 * + int.show string.concat "], rax" string.concat emit
                         i
                     end
                 pool pop
 
-                0 while dup count 6 min < loop
+                direct not if
+                    0 while dup count < loop
+                        match i in
+                            args i stack_assembler.extern.slot match kind index in
+                                kind STACK_EXTERN_ARG_STACK = if
+                                    asm "    mov     rax, qword [rsp + " base i 8 * + int.show string.concat
+                                    "]" string.concat emit
+                                    asm "    mov     qword [rsp + " index 8 * int.show string.concat
+                                    "], rax" string.concat emit
+                                fi
+                            end
+                            i 1 +
+                        end
+                    pool pop
+                fi
+
+                0 while dup count < loop
                     match i in
-                        asm "    mov     " i stack_assembler.extern.register string.concat
-                        ", qword [rsp + " string.concat i 8 * int.show string.concat "]" string.concat emit
+                        args i stack_assembler.extern.slot match kind index in
+                            kind STACK_EXTERN_ARG_GP = if
+                                asm "    mov     " index stack_assembler.extern.register string.concat
+                                ", qword [rsp + " string.concat base i 8 * + int.show string.concat
+                                "]" string.concat emit
+                            else kind STACK_EXTERN_ARG_XMM = if
+                                asm "    movq    xmm" index int.show string.concat
+                                ", qword [rsp + " string.concat base i 8 * + int.show string.concat
+                                "]" string.concat emit
+                            fi fi
+                        end
                         i 1 +
                     end
                 pool pop
 
-                count 6 > if asm "    add     rsp, 48" emit fi
+                direct spill 0 > and if asm "    add     rsp, " regs 8 * int.show string.concat emit fi
                 asm "    call    " alias string.concat emit
                 decl stack_ast_extern.rets array.count 0 > if
-                    asm "    mov     rdi, rax" emit
+                    decl stack_ast_extern.rets 0 stack_assembler.extern.float if
+                        asm "    movq    rdi, xmm0" emit
+                    else
+                        asm "    mov     rdi, rax" emit
+                    fi
                     asm "    call    stack_push" emit
                 fi
                 asm "    mov     rsp, rbp" emit

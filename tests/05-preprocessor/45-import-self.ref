@@ -41,6 +41,9 @@ const ptr.sizeof
 const bool.sizeof
     8
 
+const float.sizeof
+    8
+
 const self.sizeof
     0
     8

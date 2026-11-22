@@ -1,0 +1,1 @@
+tests/02-parser/107-float-underflow.stack:1:12, Lexical Error: Float out of range: -2.4703282292062327e-324

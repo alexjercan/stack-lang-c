@@ -70,9 +70,13 @@
 
             nativeBuildInputs = with pkgs; [
               fasm
+              gdb
               valgrind
               python3
+              pkg-config
             ];
+
+            buildInputs = with pkgs; [raylib];
           };
       };
     };

@@ -1,0 +1,1 @@
+tests/02-parser/106-float-overflow.stack:2:9, Lexical Error: Float out of range: 1e309

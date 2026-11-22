@@ -32,6 +32,9 @@ func stack_context.init.base () (stack_context) in
     dup STACK_CONTEXT_SYMBOL_DATA STACK_DATA_BOOL stack_context_data.init stack_context_data.& stack_context_symbol.init -- symbol
     stack_context_symbol.& array.append unwrap -- symbols
 
+    dup STACK_CONTEXT_SYMBOL_DATA STACK_DATA_FLOAT stack_context_data.init stack_context_data.& stack_context_symbol.init -- symbol
+    stack_context_symbol.& array.append unwrap -- symbols
+
     dup STACK_CONTEXT_SYMBOL_FUNC -- symbols, kind
     STACK_FUNC_DUP -- name
     string.sizeof array.init.with_sz -- args
@@ -382,7 +385,51 @@ func stack_context.init.base () (stack_context) in
     stack_context_symbol.init -- symbol
     stack_context_symbol.& array.append unwrap -- symbols
 
+    dup stack_context.init.base.float
+
     true false ptr.null stack_context.init
+end
+
+func stack_context.types.1 (string) (array) in -- type
+    match t1 in string.sizeof array.init.with_sz dup t1 string.& array.append unwrap end
+end
+
+func stack_context.types.float2 () (array) in
+    STACK_DATA_FLOAT stack_context.types.1 dup STACK_DATA_FLOAT string.& array.append unwrap
+end
+
+func stack_context.init.base.func (array, string, array, array) () in -- symbols, name, args, rets
+    match symbols name args rets in
+        symbols STACK_CONTEXT_SYMBOL_FUNC name args rets stack_context_func.init stack_context_func.&
+        stack_context_symbol.init stack_context_symbol.& array.append unwrap
+    end
+end
+
+func stack_context.init.base.float (array) () in -- symbols
+    match symbols in
+        symbols STACK_FUNC_FLOAT_PLUS stack_context.types.float2 STACK_DATA_FLOAT stack_context.types.1
+        stack_context.init.base.func
+        symbols STACK_FUNC_FLOAT_MINUS stack_context.types.float2 STACK_DATA_FLOAT stack_context.types.1
+        stack_context.init.base.func
+        symbols STACK_FUNC_FLOAT_MUL stack_context.types.float2 STACK_DATA_FLOAT stack_context.types.1
+        stack_context.init.base.func
+        symbols STACK_FUNC_FLOAT_DIV stack_context.types.float2 STACK_DATA_FLOAT stack_context.types.1
+        stack_context.init.base.func
+        symbols STACK_FUNC_FLOAT_GT stack_context.types.float2 STACK_DATA_BOOL stack_context.types.1
+        stack_context.init.base.func
+        symbols STACK_FUNC_FLOAT_LT stack_context.types.float2 STACK_DATA_BOOL stack_context.types.1
+        stack_context.init.base.func
+        symbols STACK_FUNC_FLOAT_EQ stack_context.types.float2 STACK_DATA_BOOL stack_context.types.1
+        stack_context.init.base.func
+        symbols STACK_FUNC_FLOAT_REF STACK_DATA_FLOAT stack_context.types.1 STACK_DATA_PTR stack_context.types.1
+        stack_context.init.base.func
+        symbols STACK_FUNC_FLOAT_DEREF STACK_DATA_PTR stack_context.types.1 STACK_DATA_FLOAT stack_context.types.1
+        stack_context.init.base.func
+        symbols STACK_FUNC_INT_TO_FLOAT STACK_DATA_INT stack_context.types.1 STACK_DATA_FLOAT stack_context.types.1
+        stack_context.init.base.func
+        symbols STACK_FUNC_FLOAT_TO_INT STACK_DATA_FLOAT stack_context.types.1 STACK_DATA_INT stack_context.types.1
+        stack_context.init.base.func
+    end
 end
 
 func stack_context.append.data (stack_context, stack_context_data) () in
@@ -974,6 +1021,10 @@ func stack_context.typecheck.expr (stack_context, array, stack_ast_expr) () in -
         pop pop -- ctx, stack, expr
         STACK_DATA_INT -- ctx, stack, int
         string.& array.append unwrap pop -- ()
+    else dup STACK_AST_EXPR_FLOAT = if
+        pop pop -- ctx, stack, expr
+        STACK_DATA_FLOAT -- ctx, stack, float
+        string.& array.append unwrap pop -- ()
     else dup STACK_AST_EXPR_STRING = if
         pop pop -- ctx, stack, expr
         STACK_DATA_STRING -- ctx, stack, string
@@ -1004,7 +1055,7 @@ func stack_context.typecheck.expr (stack_context, array, stack_ast_expr) () in -
         stack_context.typecheck.expr.while -- ()
     else
         todo pop pop pop pop
-    fi fi fi fi fi fi fi -- ()
+    fi fi fi fi fi fi fi fi -- ()
 end
 
 func stack_context.typecheck.exprs (stack_context, array, array) () in -- ctx, stack, exprs

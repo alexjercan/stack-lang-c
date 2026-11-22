@@ -1,0 +1,1 @@
+tests/03-typecheck/56-float-redefined.stack:1:6, Semantic error: data float is redefined

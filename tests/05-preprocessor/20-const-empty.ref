@@ -34,3 +34,6 @@ const ptr.sizeof
 const bool.sizeof
     8
 
+const float.sizeof
+    8
+

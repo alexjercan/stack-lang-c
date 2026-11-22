@@ -92,9 +92,11 @@ func stack_ast.dump.exprs (int, array) () in -- indent, array<expr>
                     pop indent expr stack_ast_expr.expr stack_ast_match.* stack_ast.dump.match
                 else dup STACK_AST_EXPR_WHILE = if
                     pop indent expr stack_ast_expr.expr stack_ast_while.* stack_ast.dump.while
+                else dup STACK_AST_EXPR_FLOAT = if
+                    pop indent expr stack_ast_expr.expr stack_ast_node.* stack_ast.dump.node
                 else
                     panic pop
-                fi fi fi fi fi fi fi
+                fi fi fi fi fi fi fi fi
             end
             1 +
         pool pop

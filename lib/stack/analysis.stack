@@ -659,7 +659,8 @@ func stack_doc_scan.step (stack_doc_scan, array, stack_file_id, string, int, int
                 s stack_doc_scan.depth 0 > if
                     s s stack_doc_scan.depth 0 + opens if 1 + fi closes if 1 - fi stack_doc_scan.depth.set true
                 else
-                    opens k STACK_TOKEN_NAME = or k STACK_TOKEN_NUMBER = or k STACK_TOKEN_BOOLEAN = or k STACK_TOKEN_STRING = or
+                    opens k STACK_TOKEN_NAME = or k STACK_TOKEN_NUMBER = or k STACK_TOKEN_FLOAT = or k STACK_TOKEN_BOOLEAN = or
+                    k STACK_TOKEN_STRING = or
                     if
                         s opens if 1 else 0 fi stack_doc_scan.depth.set true
                     else
@@ -1190,6 +1191,7 @@ func stack_types.symbols (stack_types, stack_ast_func, array, array) (array, boo
             f stack_ast_func.rets stack_params.node_to_string match xs in names xs array.extend unwrap xs array.items ptr.free end
             names STACK_DATA_INT string.& array.append unwrap
             names STACK_DATA_BOOL string.& array.append unwrap
+            names STACK_DATA_FLOAT string.& array.append unwrap
             names STACK_DATA_PTR string.& array.append unwrap
             names STACK_DATA_STRING string.& array.append unwrap
             types names check sigs stack_types.need

@@ -14,6 +14,21 @@ extern c.is_neg (int) (bool) "is_neg"
 extern c.not (bool) (bool) "negate"
 extern c.misaligned () (int) "misaligned"
 extern c.clobber () () "clobber"
+extern c.fadd (float, float) (float) "fadd"
+extern c.neg (float) (float) "neg"
+extern c.half () (float) "half"
+extern c.ftrunc (float) (int) "ftrunc"
+extern c.scale (int, float, int) (float) "scale"
+extern c.fdigits9 (float, float, float, float, float, float, float, float, float) (float) "fdigits9"
+extern c.fdigits8 (float, int, int, int, int, int, int, int) (int) "fdigits8"
+extern c.interleave
+    (int, float, int, float, int, float, int, float, int, float, int, float, int, float, int, float, int, float)
+    (int) "interleave"
+extern c.misaligned_f7 (float, int, int, int, int, int, int, int) (int) "misaligned_f7"
+extern c.misaligned_f9 (float, float, float, float, float, float, float, float, float) (int) "misaligned_f9"
+extern c.misaligned_mix
+    (int, float, int, float, int, float, int, float, int, float, int, float, int, float, float, float)
+    (int) "misaligned_mix"
 
 -- status is 0 or the id of the first failed check.
 func check (int, bool, int) (int) in -- status, ok, id
@@ -24,6 +39,8 @@ end
 func align.1 () (int) in c.misaligned end
 func align.2 () (int) in 1 match a in align.1 a pop end end
 func align.3 () (int) in 1 2 match a b in align.2 c.misaligned + end end
+
+func bits (float) (int) in float.& int.* 0 + end
 
 func clobbered () (int) in
     11 22 match a b in
@@ -53,4 +70,17 @@ func main () (int) in
     clobbered 66 = 18 check
     align.3 0 = 19 check
     c.misaligned 0 = 20 check
+    1.5 2.25 c.fadd bits 3.75 bits = 21 check
+    0.0 c.neg bits -0.0 bits = 22 check
+    c.half bits 0.5 bits = 23 check
+    -2.75 c.ftrunc -2 = 24 check
+    7 1.5 3 c.scale bits 6.0 bits = 25 check
+    1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 c.fdigits9 bits 123456789.0 bits = 26 check
+    1.0 2 3 4 5 6 7 8 c.fdigits8 12345678 = 27 check
+    1 2.0 3 4.0 5 6.0 7 8.0 9 1.0 2 3.0 4 5.0 6 7.0 8 9.0
+    c.interleave 123456789123456789 = 28 check
+    1.0 2 3 4 5 6 7 8 c.misaligned_f7 0 = 29 check
+    1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 c.misaligned_f9 0 = 30 check
+    1 2.0 3 4.0 5 6.0 7 8.0 9 1.0 2 3.0 4 5.0 6.0 7.0 c.misaligned_mix 0 = 31 check
+    1 match a in 1.0 2 3 4 5 6 7 8 c.misaligned_f7 a pop end 0 = 32 check
 end

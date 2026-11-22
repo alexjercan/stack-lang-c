@@ -1,0 +1,8 @@
+func a () (float) in 1 1.5 float.+ end
+func b () (int) in 1.5 2 + end
+func c () (bool) in 1.5 1 = end
+func d () (int) in 1.5 end
+func e () () in 1.5 if fi end
+func f () (float) in 1 float.to_int end
+
+func main () (int) in 0 end

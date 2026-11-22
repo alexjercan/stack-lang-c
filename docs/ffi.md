@@ -7,14 +7,17 @@ System V AMD64 calling convention.
 extern c.add (int, int) (int) "add"
 ```
 
-- Arguments and the result of type `int`, `ptr` or `bool` are implemented. In
-  C, `int` maps to `int64_t`, `ptr` to `void *`, and `bool` to `int64_t`
-  containing `0` or `1` (not C `_Bool`). Other types are undefined behavior.
-  The assembler does not reject them.
+- Arguments and the result of type `int`, `ptr`, `bool` or `float` are
+  implemented. In C, `int` maps to `int64_t`, `ptr` to `void *`, `bool` to
+  `int64_t` containing `0` or `1` (not C `_Bool`), and `float` to `double`.
+  Other types are undefined behavior. The assembler does not reject them.
 - An extern with no result or one result is implemented. More than one result
   is undefined behavior. The assembler does not reject it.
-- The first argument is the deepest stack item. Arguments 1 to 6 go in `rdi`,
-  `rsi`, `rdx`, `rcx`, `r8` and `r9`. Other arguments go on the machine stack.
+- The first argument is the deepest stack item. The first 6 non-float
+  arguments go in `rdi`, `rsi`, `rdx`, `rcx`, `r8` and `r9`. The first 8
+  float arguments go in `xmm0` to `xmm7`. Other arguments go on the machine
+  stack in source order.
+- A `float` result comes from `xmm0`. Other results come from `rax`.
 - The wrapper aligns `rsp` to 16 bytes before the call.
 - The symbol must be printable ASCII without spaces or quotes. Many externs can
   use the same symbol.

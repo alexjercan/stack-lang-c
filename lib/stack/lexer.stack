@@ -1,4 +1,5 @@
 @import "stdlib"
+@import "stack/float"
 
 -- Tokens and the lexer of the Stack compiler.
 
@@ -25,6 +26,7 @@ const STACK_TOKEN_WHILE     19
 const STACK_TOKEN_LOOP      20
 const STACK_TOKEN_POOL      21
 const STACK_TOKEN_EXTERN    22
+const STACK_TOKEN_FLOAT     23
 
 func stack_token_kind.map (int) (string) in
     dup STACK_TOKEN_EOF = if pop "<EOF>"
@@ -50,13 +52,15 @@ func stack_token_kind.map (int) (string) in
     else dup STACK_TOKEN_LOOP = if pop "LOOP"
     else dup STACK_TOKEN_POOL = if pop "POOL"
     else dup STACK_TOKEN_EXTERN = if pop "EXTERN"
-    else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- (string)
+    else dup STACK_TOKEN_FLOAT = if pop "FLOAT"
+    else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- (string)
 end
 
 func stack_token_kind.describe (int) (string) in
     dup STACK_TOKEN_EOF = if pop "end of file"
     else dup STACK_TOKEN_NAME = if pop "name"
     else dup STACK_TOKEN_NUMBER = if pop "number"
+    else dup STACK_TOKEN_FLOAT = if pop "float"
     else dup STACK_TOKEN_BOOLEAN = if pop "boolean"
     else dup STACK_TOKEN_STRING = if pop "string"
     else
@@ -77,7 +81,7 @@ func stack_token_kind.describe (int) (string) in
         else stack_token_kind.map
         fi fi fi fi fi fi fi fi fi fi fi fi fi fi
         "'" swp string.concat "'" string.concat
-    fi fi fi fi fi
+    fi fi fi fi fi fi
 end
 
 const STACK_ILLEGAL_NO_ERROR    0
@@ -85,6 +89,7 @@ const STACK_ILLEGAL_INVALID     1
 const STACK_ILLEGAL_STRING_NULL 2
 const STACK_ILLEGAL_STRING_\N   3
 const STACK_ILLEGAL_STRING_EOF  4
+const STACK_ILLEGAL_FLOAT_RANGE 5
 
 data stack_token (int kind, string value, int pos, int err)
 
@@ -204,18 +209,71 @@ func stack_lexer.skip.until_newline (stack_lexer) () in
     end
 end
 
-func stack_lexer.next.number (stack_lexer) (string) in
-    match lexer in
+-- The byte at read_pos + offset, or BYTE_EOF.
+func stack_lexer.peek.at (stack_lexer, int) (int) in -- lexer, offset
+    match lexer offset in
+        lexer stack_lexer.read_pos offset + match i in
+            i lexer stack_lexer.buffer string.len < if
+                lexer stack_lexer.buffer i string.!!
+            else
+                BYTE_EOF
+            fi
+        end
+    end
+end
+
+func stack_lexer.next.digits (string, stack_lexer) (string) in -- value, lexer
+    match value lexer in
+        value while lexer stack_lexer.ch byte.isdigit loop
+            lexer stack_lexer.ch byte.chr string.concat
+            lexer stack_lexer.read pop
+        pool
+    end
+end
+
+func stack_lexer.next.char (string, stack_lexer) (string) in -- value, lexer
+    match value lexer in
+        value lexer stack_lexer.ch byte.chr string.concat
+        lexer stack_lexer.read pop
+    end
+end
+
+-- Lex -?D+ as a number. Lex -?D+.D+([eE][+-]?D+)? and -?D+[eE][+-]?D+ as
+-- a float. A float that overflows, or that is not zero and rounds to zero,
+-- is illegal. The token keeps the source text.
+func stack_lexer.next.number (int, stack_lexer) (stack_token) in -- pos, lexer
+    match pos lexer in
         lexer stack_lexer.ch BYTE_- = if
             lexer stack_lexer.read pop "-"
         else
             ""
-        fi -- digits
+        fi lexer stack_lexer.next.digits -- digits
 
-        while lexer stack_lexer.ch byte.isdigit loop
-            lexer stack_lexer.ch byte.chr string.concat
-            lexer stack_lexer.read pop
-        pool
+        lexer stack_lexer.ch BYTE_. = lexer stack_lexer.peek byte.isdigit and dup if
+            swp lexer stack_lexer.next.char lexer stack_lexer.next.digits swp
+        fi -- value, frac
+
+        lexer stack_lexer.ch 101 = lexer stack_lexer.ch 69 = or -- e, E
+        lexer 0 stack_lexer.peek.at match exp_ch next_ch in
+            exp_ch
+            next_ch byte.isdigit
+            next_ch BYTE_- = next_ch BYTE_+ = or lexer 1 stack_lexer.peek.at byte.isdigit and or
+            and
+        end dup if
+            rot lexer stack_lexer.next.char
+            lexer stack_lexer.ch byte.isdigit not if lexer stack_lexer.next.char fi
+            lexer stack_lexer.next.digits rot rot
+        fi -- value, frac, exp
+
+        or match value is_float in
+            is_float not if
+                STACK_TOKEN_NUMBER value pos stack_token.init.ok
+            else value stack_float.status STACK_FLOAT_OK = if
+                STACK_TOKEN_FLOAT value pos stack_token.init.ok
+            else
+                STACK_TOKEN_ILLEGAL value pos STACK_ILLEGAL_FLOAT_RANGE stack_token.init
+            fi fi
+        end
     end
 end
 
@@ -325,7 +383,7 @@ func stack_lexer.next (stack_lexer) (stack_token) in
             else ch BYTE_COMMA = if
                 lexer stack_lexer.read pop STACK_TOKEN_COMMA "" pos stack_token.init.ok
             else ch byte.isdigit ch BYTE_- = lexer stack_lexer.peek byte.isdigit and or if
-                STACK_TOKEN_NUMBER lexer stack_lexer.next.number pos stack_token.init.ok
+                pos lexer stack_lexer.next.number
             else ch BYTE_QUOTE = if
                 pos lexer stack_lexer.next.string
             else ch byte.isname if
