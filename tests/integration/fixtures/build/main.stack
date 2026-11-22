@@ -1,0 +1,3 @@
+@import "mod"
+
+func main () (int) in mod.value end

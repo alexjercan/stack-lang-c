@@ -43,7 +43,7 @@ make
 To compile a `Stack` program using the `slc` compiler:
 
 ```console
-slc [ -o main ] main.stack
+slc main.stack -o main
 ```
 
 [Documentation](docs/)
@@ -422,7 +422,8 @@ func syscall3 (a, b, c, int) (int) in
 end
 ```
 
-The last argument of a syscall function is the syscall number.
+The last argument of a syscall function is the syscall number. The other
+argument registers of the system call are 0.
 
 ### 4.14. math
 

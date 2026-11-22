@@ -6,6 +6,7 @@
 @import "stack/builtins"
 @import "stack/assembler"
 @import "stack/dump"
+@import "stack/driver"
 
 data stack_args
     ( string filename
@@ -14,15 +15,18 @@ data stack_args
     , bool preprocessor
     , bool typecheck
     , bool assembler
+    , string output
+    , array link
+    , bool linking
     )
 
 func stack_args.init.empty () (stack_args) in
-    "" false false false false false stack_args.init
+    "" false false false false false "" string.sizeof array.init.with_sz false stack_args.init
 end
 
 func stack_args.usage () () in
-    "usage: slc [option] [input]\n" string.stdout
-    "stack lang compiler\n" string.stdout
+    "usage: slc [option] [input] [-- cc-argument...]\n" string.stdout
+    "stack lang compiler: build an executable with fasm and cc\n" string.stdout
     "\n" string.stdout
     "options:\n" string.stdout
     "  -h, --help\n" string.stdout
@@ -41,41 +45,122 @@ func stack_args.usage () () in
     "      flag to stop on the typecheck phase\n" string.stdout
     "\n" string.stdout
     "  -a, --assembler\n" string.stdout
-    "      flag to stop on the assembler phase\n" string.stdout
+    "      flag to stop on the assembler phase and write the assembly\n" string.stdout
+    "\n" string.stdout
+    "  -o FILE\n" string.stdout
+    "      the executable (default a.out), or the assembly file with -a\n" string.stdout
+    "      (default standard output)\n" string.stdout
+    "\n" string.stdout
+    "  -lNAME, -LDIR\n" string.stdout
+    "      give the argument to cc, in order\n" string.stdout
+    "\n" string.stdout
+    "  -- cc-argument...\n" string.stdout
+    "      give all the next arguments to cc\n" string.stdout
     "\n" string.stdout
     "  i, input\n" string.stdout
     "      the input file\n" string.stdout
     "\n" string.stdout
 end
 
+func stack_args.fail (string) () in -- message
+    "CLI error: " swp string.concat "\n" string.concat string.stderr
+    1 sys.exit
+end
+
+func stack_args.link.add (stack_args, string) () in -- args, arg
+    match args arg in
+        args stack_args.link arg string.& array.append unwrap
+        args true stack_args.linking.set
+    end
+end
+
+-- Parse the argument at index i. Return the index of the next argument.
+func stack_args.parse.arg (stack_args, array, int) (int) in -- args, argv, i
+    match args argv i in
+        argv i array.get unwrap ptr.* string.init.cstr match arg in
+            arg "--help" string.= arg "-h" string.= or if
+                stack_args.usage 0 sys.exit i
+            else arg "--lexer" string.= arg "-l" string.= or if
+                args true stack_args.lexer.set i 1 +
+            else arg "--parser" string.= arg "-p" string.= or if
+                args true stack_args.parser.set i 1 +
+            else arg "--preprocessor" string.= arg "-P" string.= or if
+                args true stack_args.preprocessor.set i 1 +
+            else arg "--typecheck" string.= arg "-t" string.= or if
+                args true stack_args.typecheck.set i 1 +
+            else arg "--assembler" string.= arg "-a" string.= or if
+                args true stack_args.assembler.set i 1 +
+            else arg "-o" string.= if
+                i 1 + argv array.count < not if "`-o` needs a file name" stack_args.fail fi
+                args stack_args.output string.len 0 > if "`-o` is given more than once" stack_args.fail fi
+                argv i 1 + array.get unwrap ptr.* string.init.cstr match output in
+                    output string.len 0 = if "`-o` needs a file name" stack_args.fail fi
+                    args output stack_args.output.set
+                end
+                i 2 +
+            else arg "--" string.= if
+                args true stack_args.linking.set
+                i 1 + while dup argv array.count < loop
+                    match j in
+                        args argv j array.get unwrap ptr.* string.init.cstr stack_args.link.add
+                        j 1 +
+                    end
+                pool
+            else arg "-L" string.= if
+                "`-L` needs a directory: use -LDIR" stack_args.fail i
+            else arg "-l" string.starts_with arg "-L" string.starts_with or if
+                args arg stack_args.link.add i 1 +
+            else
+                args stack_args.filename string.len 0 > if
+                    stack_args.usage
+                    "Got unexpected CLI argument: `" arg string.concat "`\n" string.concat string.stderr
+                    1 sys.exit
+                else
+                    args arg stack_args.filename.set
+                fi
+                i 1 +
+            fi fi fi fi fi fi fi fi fi fi
+        end
+    end
+end
+
+-- The name of the first flag of lexer, parser, preprocessor and typecheck,
+-- or "".
+func stack_args.stop (stack_args) (string) in -- args
+    match args in
+        args stack_args.lexer if "`-l, --lexer`"
+        else args stack_args.parser if "`-p, --parser`"
+        else args stack_args.preprocessor if "`-P, --preprocessor`"
+        else args stack_args.typecheck if "`-t, --typecheck`"
+        else "" fi fi fi fi
+    end
+end
+
+func stack_args.validate (stack_args) () in -- args
+    match args in
+        args stack_args.stop match stop in
+            stop string.len 0 > args stack_args.output string.len 0 > and if
+                "`-o` cannot be used with " stop string.concat stack_args.fail
+            fi
+            stop string.len 0 = args stack_args.assembler and if "`-a, --assembler`" else stop fi
+            match phase in
+                phase string.len 0 > args stack_args.linking and if
+                    "`-lNAME`, `-LDIR` and `--` cannot be used with " phase string.concat stack_args.fail
+                fi
+                phase string.len 0 = args stack_args.output string.len 0 = and if
+                    args "a.out" stack_args.output.set
+                fi
+            end
+        end
+    end
+end
+
 func stack_args.parse (int, ptr) (stack_args) in -- argc, argv
     swp dup ptr.sizeof rot4 array.init stack_args.init.empty match argv args in
         1 while dup argv array.count < loop
-            dup argv swp array.get unwrap ptr.* string.init.cstr match arg in
-                arg "--help" string.= arg "-h" string.= or if
-                    stack_args.usage 0 sys.exit
-                else arg "--lexer" string.= arg "-l" string.= or if
-                    args true stack_args.lexer.set
-                else arg "--parser" string.= arg "-p" string.= or if
-                    args true stack_args.parser.set
-                else arg "--preprocessor" string.= arg "-P" string.= or if
-                    args true stack_args.preprocessor.set
-                else arg "--typecheck" string.= arg "-t" string.= or if
-                    args true stack_args.typecheck.set
-                else arg "--assembler" string.= arg "-a" string.= or if
-                    args true stack_args.assembler.set
-                else
-                    args stack_args.filename string.len 0 > if
-                        stack_args.usage
-                        "Got unexpected CLI argument: `" arg string.concat "`\n" string.concat string.stderr
-                        1 sys.exit
-                    else
-                        args arg stack_args.filename.set
-                    fi
-                fi fi fi fi fi fi
-            end
-            1 +
+            match i in args argv i stack_args.parse.arg end
         pool pop
+        args stack_args.validate
         args
     end
 end
@@ -144,17 +229,19 @@ func main (int, ptr) (int) in -- argc, argv
 
                             ast stack_assembler.check.externs not if 1 sys.exit fi
 
-                            STDOUT stack_assembler.init.with_fd ast stack_assembler.emit
-                            args stack_args.assembler if 0 sys.exit fi
+                            args stack_args.assembler if
+                                ast args stack_args.output pre stack_preprocessor.files
+                                stack_driver.assembly sys.exit
+                            fi
+
+                            ast args stack_args.output args stack_args.link pre stack_preprocessor.files
+                            stack_driver.build sys.exit
                         end
                     end
                 end
             end
         end
     end
-
-    -- TODO: fasm stage
-    -- TODO: ld stage
 
     0
 end

@@ -2,16 +2,48 @@ func sys.read (int, ptr, int) (int) in 0 syscall3 end
 func sys.write (int, ptr, int) (int) in 1 syscall3 end
 func sys.open (ptr, int, int) (int) in 2 syscall3 end
 func sys.close (int) (int) in 3 syscall1 end
+func sys.stat (ptr, ptr) (int) in 0 4 syscall3 end
 func sys.fstat (int, ptr) (int) in 0 5 syscall3 end
+func sys.access (ptr, int) (int) in 0 21 syscall3 end
+func sys.dup2 (int, int) (int) in 0 33 syscall3 end
+func sys.fork () (int) in 0 57 syscall1 end
+func sys.execve (ptr, ptr, ptr) (int) in 59 syscall3 end
 func sys.exit (int) () in 60 syscall1 pop end
+func sys.fcntl (int, int, int) (int) in 72 syscall3 end
+func sys.ftruncate (int, int) (int) in 0 77 syscall3 end
+-- pid, status, options. The rusage argument is 0 because syscall3 sets r10
+-- to 0.
+func sys.wait4 (int, ptr, int) (int) in 61 syscall3 end
+func sys.mkdir (ptr, int) (int) in 0 83 syscall3 end
+func sys.rmdir (ptr) (int) in 84 syscall1 end
+func sys.unlink (ptr) (int) in 87 syscall1 end
+func sys.getrandom (ptr, int, int) (int) in 318 syscall3 end
 
 const O_RDONLY 0
 const O_WRONLY 1
 const O_RDWR   2
 const O_CREAT  64
+const O_EXCL   128
+const O_NOFOLLOW 131072
+const O_CLOEXEC 524288
 
+const O_0600   384
 const O_0644   420
+const O_0700   448
+
+const X_OK 1
+
+const F_SETFD 2
+
+-- System calls return the negative error number.
+const EINTR  -4
+const EEXIST -17
+const EINVAL -22
 
 const STAT_SIZE    144
 const STAT_DEV_OFF 0
 const STAT_INO_OFF 8
+const STAT_MODE_OFF 24
+
+const S_IFMT  61440
+const S_IFREG 32768

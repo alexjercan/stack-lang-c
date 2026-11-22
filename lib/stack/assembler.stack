@@ -13,7 +13,8 @@ const STACK_LITERAL_FLOAT 3
 
 data stack_literal (int kind, string value)
 
-data stack_assembler (int fd, array bind_map, array func_map, array literal_map, int if_counter, array extern_map)
+-- ok is false after a write to fd failed. Then emit writes nothing more.
+data stack_assembler (int fd, array bind_map, array func_map, array literal_map, int if_counter, array extern_map, bool ok)
 
 func stack_literal.= (stack_literal, stack_literal) (bool) in
     dup2 stack_literal.kind swp stack_literal.kind = rot' -- bool, l1, l2
@@ -26,14 +27,19 @@ func stack_assembler.init.with_fd (int) (stack_assembler) in
     stack_literal.sizeof array.init.with_sz
     0
     string.sizeof array.init.with_sz
+    true
 
     stack_assembler.init -- stack_assembler
 end
 
 func emit (stack_assembler, string) () in -- asm, s
-    swp stack_assembler.fd swp -- fd, s
-    "\n" string.concat -- fd, s
-    stdlib.fwrite not if "cannot write assembly output" stack_io.error fi
+    match asm s in
+        asm stack_assembler.ok if
+            asm stack_assembler.fd s "\n" string.concat stdlib.fwrite not if
+                asm false stack_assembler.ok.set
+            fi
+        fi
+    end
 end
 
 func stack_assembler.bind.index (stack_assembler, string) (int) in -- asm, name
@@ -2032,6 +2038,11 @@ func stack_assembler.emit.keywords (stack_assembler) () in
     dup "    ; syscall1(t0) t1" emit
     dup "    mov     rax, qword [rbp - loc_0]" emit
     dup "    mov     rdi, qword [rbp - loc_1]" emit
+    dup "    xor     esi, esi                   ; unused arguments are 0" emit
+    dup "    xor     edx, edx" emit
+    dup "    xor     r10d, r10d" emit
+    dup "    xor     r8d, r8d" emit
+    dup "    xor     r9d, r9d" emit
     dup "    syscall" emit
     dup "" emit
     dup "    mov     rdi, rax" emit
@@ -2074,6 +2085,9 @@ func stack_assembler.emit.keywords (stack_assembler) () in
     dup "    mov     rdi, qword [rbp - loc_3]" emit
     dup "    mov     rsi, qword [rbp - loc_2]" emit
     dup "    mov     rdx, qword [rbp - loc_1]" emit
+    dup "    xor     r10d, r10d                 ; unused arguments are 0" emit
+    dup "    xor     r8d, r8d" emit
+    dup "    xor     r9d, r9d" emit
     dup "    syscall" emit
     dup "" emit
     dup "    mov     rdi, rax" emit

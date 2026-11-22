@@ -1,0 +1,196 @@
+@import "stdlib"
+
+-- Processes and temporary directories of Linux x86_64. The functions use
+-- system calls, not libc.
+
+-- A new C string with the bytes of s and a NUL byte. The bool is false when
+-- s contains a NUL byte, because C cannot see the bytes after it.
+func cstr.from (string) (ptr, bool) in -- s
+    match s in
+        s string.len 1 + ptr.alloc match p in
+            p s string.str s string.len ptr.@
+        end
+        true 0 while dup s string.len < loop -- ok, i
+            match ok i in ok s i string.!! BYTE_NULL = not and i 1 + end
+        pool pop
+    end
+end
+
+-- A NULL terminated array of new C strings for xs (array<string>).
+func cstr.array (array) (ptr, bool) in -- xs
+    match xs in
+        xs array.count 1 + ptr.sizeof * ptr.alloc match argv in
+            true 0 while dup xs array.count < loop -- ok, i
+                match ok i in
+                    xs i array.get unwrap string.* cstr.from match p p_ok in
+                        argv i ptr.sizeof * ptr.+ p ptr.& ptr.sizeof ptr.@ pop
+                        ok p_ok and i 1 +
+                    end
+                end
+            pool pop
+            argv swp
+        end
+    end
+end
+
+-- Free the C strings of cstr.array and the array.
+func cstr.array.free (ptr) () in -- argv
+    match argv in
+        argv while dup ptr.* ptr.null ptr.= not loop
+            dup ptr.* ptr.free ptr.sizeof ptr.+
+        pool pop
+        argv ptr.free
+    end
+end
+
+-- True when path is a regular file that this process can execute.
+func process.executable (string) (bool) in -- path
+    cstr.from match p ok in
+        ok if
+            STAT_SIZE ptr.alloc match buf in
+                p buf sys.stat 0 = if
+                    buf STAT_MODE_OFF ptr.+ int.* 0 + S_IFMT & S_IFREG =
+                    p X_OK sys.access 0 = and
+                else false fi
+                buf ptr.free
+            end
+        else false fi
+        p ptr.free
+    end
+end
+
+-- The path of the program name. A name with a slash is a path. Else search
+-- the directories in PATH in order, like execvp. An empty directory is the
+-- current directory. When PATH is not set, the directories are /bin:/usr/bin.
+func process.which (string) (string, bool) in -- name
+    match name in
+        name "/" string.index swp pop if
+            name name process.executable
+        else
+            "PATH" os.env.get not if pop "/bin:/usr/bin" fi
+            "" false true while -- rest, result, found, more
+                match rest result found more in rest result found more found not more and end loop
+                match rest _result _found _more in
+                    rest ":" string.cut match dir tail more in
+                        dir string.len 0 = if "." else dir fi "/" string.concat name string.concat
+                        match path in
+                            path process.executable match ok in
+                                tail ok if path else "" fi ok more
+                            end
+                        end
+                    end
+                end
+            pool
+            pop rot pop
+        fi
+    end
+end
+
+-- Wait for the child pid. Return the wait status and true, or false when
+-- wait4 fails.
+func process.wait (int) (int, bool) in -- pid
+    match pid in
+        int.sizeof ptr.alloc match buf in
+            pid buf 0 sys.wait4 while dup EINTR = loop pop pid buf 0 sys.wait4 pool
+            pid = if buf int.* 0 + true else 0 false fi
+            buf ptr.free
+        end
+    end
+end
+
+-- Run the program path with the arguments args (array<string>, the first is
+-- the name of the program) and the environment of this process. The child
+-- uses out as its standard output. When the redirect or execve fails, the
+-- child writes a message to stderr and exits with status 127. Return the wait status and
+-- true, or false when the arguments contain NUL or fork or wait fails.
+func process.run (string, array, int) (int, bool) in -- path, args, out
+    match path args out in
+        path cstr.from match file file_ok in
+            args cstr.array match argv argv_ok in
+                file_ok argv_ok and if
+                    sys.fork match pid in
+                        pid 0 = if
+                            out STDOUT = if
+                                STDOUT F_SETFD 0 sys.fcntl
+                            else
+                                out STDOUT sys.dup2
+                            fi
+                            0 < if
+                                "cannot redirect the output of `" path string.concat "`\n" string.concat
+                            else
+                                file argv os.env sys.execve pop
+                                "cannot execute `" path string.concat "`\n" string.concat
+                            fi
+                            STDERR swp stdlib.fwrite pop
+                            127 sys.exit
+                        fi
+                        pid 0 > if pid process.wait else 0 false fi
+                    end
+                else 0 false fi
+                argv cstr.array.free
+            end
+            file ptr.free
+        end
+    end
+end
+
+-- The parts of a wait status.
+func process.status.exited (int) (bool) in 127 & 0 = end
+func process.status.code (int) (int) in 8 >> 255 & end
+func process.status.signal (int) (int) in 127 & end
+
+-- n random bytes as 2 * n lowercase hex digits.
+func os.random.hex (int) (string, bool) in -- n
+    match n in
+        n ptr.alloc match buf in
+            buf n 0 sys.getrandom n = if
+                "" 0 while dup n < loop -- s, i
+                    match s i in
+                        buf i ptr.+ byte.init match b in
+                            s
+                            "0123456789abcdef" b 4 >> 1 string.substr string.concat
+                            "0123456789abcdef" b 15 & 1 string.substr string.concat
+                            i 1 +
+                        end
+                    end
+                pool pop true
+            else "" false fi
+            buf ptr.free
+        end
+    end
+end
+
+-- Make a new directory with mode 0700 in TMPDIR, or in /tmp when TMPDIR is
+-- not an absolute path. The name is prefix and 16 random hex digits. Return
+-- the path and true, or false on failure.
+func os.tempdir.create (string) (string, bool) in -- prefix
+    match prefix in
+        "TMPDIR" os.env.get match tmp ok in
+            ok tmp "/" string.starts_with and if tmp else "/tmp" fi
+        end
+        match base in
+            "" false 0 while -- path, ok, tries
+                match path ok tries in path ok tries ok not tries 16 < and end loop
+                match _path _ok tries in
+                    8 os.random.hex match hex hex_ok in
+                        base "/" string.concat prefix string.concat hex string.concat
+                        cstr.from match p p_ok in
+                            hex_ok p_ok and if
+                                p O_0700 sys.mkdir match r in
+                                    r 0 = if
+                                        base "/" string.concat prefix string.concat hex string.concat true tries 1 +
+                                    else r EEXIST = if
+                                        "" false tries 1 +
+                                    else
+                                        "" false 16
+                                    fi fi
+                                end
+                            else "" false 16 fi
+                            p ptr.free
+                        end
+                    end
+                end
+            pool pop
+        end
+    end
+end

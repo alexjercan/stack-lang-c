@@ -1,0 +1,235 @@
+@import "stdlib"
+@import "process"
+@import "stack/parser"
+@import "stack/preprocessor"
+@import "stack/assembler"
+
+-- The build driver of the Stack compiler. It writes the assembly into a new
+-- private directory, runs fasm, and links the object with cc. The tools get
+-- argument arrays, not a shell command, so all bytes are literal.
+
+-- A failed write is ignored, so the driver still removes its files.
+func stack_driver.error (string) () in -- message
+    "Build error: " swp string.concat "\n" string.concat STDERR swp stdlib.fwrite pop
+end
+
+-- Run tool (searched in PATH) with args (array<string>, without the name).
+-- The tool uses out as its standard output. Return 0, the exit status of the
+-- tool, 128 + the signal number, or 127 when the tool cannot run.
+func stack_driver.run (string, array, int) (int) in -- tool, args, out
+    match tool args out in
+        tool process.which match path found in
+            found not if
+                "cannot find `" tool string.concat "` in PATH" string.concat stack_driver.error
+                127
+            else
+                string.sizeof array.init.with_sz match argv in
+                    argv tool string.& array.append unwrap
+                    argv args array.extend unwrap
+                    path argv out process.run
+                end
+                match status ok in
+                    ok not if
+                        "cannot run `" tool string.concat "`" string.concat stack_driver.error
+                        127
+                    else status process.status.exited if
+                        status process.status.code match code in
+                            code 0 = not if
+                                "`" tool string.concat "` failed with exit status " string.concat
+                                code int.show string.concat stack_driver.error
+                            fi
+                            code
+                        end
+                    else
+                        status process.status.signal match signal in
+                            "`" tool string.concat "` was killed by signal " string.concat
+                            signal int.show string.concat stack_driver.error
+                            128 signal +
+                        end
+                    fi fi
+                end
+            fi
+        end
+    end
+end
+
+-- True when id is in files (array<stack_file_id>).
+func stack_driver.inputs.has (array, stack_file_id) (bool) in -- files, id
+    match files id in
+        false 0 while dup files array.count < loop -- found, i
+            match found i in
+                found files i array.get unwrap stack_file_id.* id stack_file_id.= or
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+func stack_driver.output.error (string) () in -- output
+    "I/O error: output `" swp string.concat "` is an input file\n" string.concat STDERR swp stdlib.fwrite pop
+end
+
+-- False when output is one of the input files (array<stack_file_id>).
+func stack_driver.output.check (string, array) (bool) in -- output, files
+    match output files in
+        output cstr.from match p _ok in
+            STAT_SIZE ptr.alloc match buf in
+                p buf sys.stat 0 = if
+                    files
+                    buf STAT_DEV_OFF ptr.+ int.* 0 + buf STAT_INO_OFF ptr.+ int.* 0 + stack_file_id.init
+                    stack_driver.inputs.has not
+                else true fi
+                buf ptr.free
+            end
+            p ptr.free
+        end
+        dup not if output stack_driver.output.error fi
+    end
+end
+
+-- Write the assembly of ast to stdout, or to the file output when it is not
+-- empty. The file must not be one of the input files (array<stack_file_id>).
+-- The check uses the open file, before the file is truncated. Return the exit
+-- status.
+func stack_driver.assembly (stack_ast, string, array) (int) in -- ast, output, files
+    match ast output files in
+        output string.len 0 = if
+            STDOUT 0
+        else
+            output cstr.from match p _ok in
+                p O_WRONLY O_CREAT | O_CLOEXEC | O_0644 sys.open
+                p ptr.free
+            end
+            match fd in
+                fd 0 < if
+                    "I/O error: cannot open output file \"" output string.concat "\"\n" string.concat
+                    STDERR swp stdlib.fwrite pop
+                    fd 1
+                else fd stdlib.fidentity match dev ino ok in
+                    ok not if
+                        "I/O error: cannot stat output file \"" output string.concat "\"\n" string.concat
+                        STDERR swp stdlib.fwrite pop
+                        fd stdlib.fclose pop fd 1
+                    else files dev ino stack_file_id.init stack_driver.inputs.has if
+                        output stack_driver.output.error
+                        fd stdlib.fclose pop fd 1
+                    -- Devices and pipes cannot be truncated: they give EINVAL.
+                    else fd 0 sys.ftruncate match r in r 0 = r EINVAL = or end not if
+                        "I/O error: cannot truncate output file \"" output string.concat "\"\n" string.concat
+                        STDERR swp stdlib.fwrite pop
+                        fd stdlib.fclose pop fd 1
+                    else
+                        fd 0
+                    fi fi fi
+                end fi
+            end
+        fi
+        match fd status in
+            status 0 = not if status else
+                fd stack_assembler.init.with_fd match asm in
+                    asm ast stack_assembler.emit
+                    asm stack_assembler.ok
+                    output string.len 0 > if fd stdlib.fclose and fi
+                end
+                if 0 else
+                    "I/O error: cannot write assembly output\n" STDERR swp stdlib.fwrite pop 1
+                fi
+            fi
+        end
+    end
+end
+
+-- Write the assembly of ast to the new file asm.
+func stack_driver.write (stack_ast, string) (bool) in -- ast, asm
+    match ast asm in
+        asm cstr.from match p _ok in
+            p O_WRONLY O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC | O_0600 sys.open
+            p ptr.free
+        end
+        match fd in
+            fd 0 < if
+                false
+            else
+                fd stack_assembler.init.with_fd match a in
+                    a ast stack_assembler.emit
+                    fd stdlib.fclose a stack_assembler.ok and
+                end
+            fi
+        end
+        dup not if "cannot write `" asm string.concat "`" string.concat stack_driver.error fi
+    end
+end
+
+func stack_driver.args (string, string) (array) in -- a, b
+    match a b in
+        string.sizeof array.init.with_sz match xs in
+            xs a string.& array.append unwrap
+            xs b string.& array.append unwrap
+            xs
+        end
+    end
+end
+
+-- Build in the temporary files asm and obj. Return the exit status.
+func stack_driver.build.files (stack_ast, string, string, string, array) (int) in -- ast, asm, obj, output, link
+    match ast asm obj output link in
+        ast asm stack_driver.write not if 1 else
+            "/dev/null" cstr.from match p _ok in
+                p O_WRONLY O_CLOEXEC | 0 sys.open
+                p ptr.free
+            end
+            match null in
+                null 0 < if
+                    "cannot open `/dev/null`" stack_driver.error 1
+                else
+                    "fasm" asm obj stack_driver.args null stack_driver.run
+                    null stdlib.fclose pop
+                fi
+            end
+            match status in
+                status 0 = not if status else
+                    "-nostartfiles" "-no-pie" stack_driver.args match args in
+                        args obj string.& array.append unwrap
+                        args link array.extend unwrap
+                        args "-o" output stack_driver.args array.extend unwrap
+                        "cc" args STDERR stack_driver.run
+                    end
+                fi
+            end
+        fi
+    end
+end
+
+-- Remove the temporary files and directory. Missing files are not errors.
+func stack_driver.cleanup (string, string, string) () in -- asm, obj, dir
+    match asm obj dir in
+        asm cstr.from pop match p in p sys.unlink pop p ptr.free end
+        obj cstr.from pop match p in p sys.unlink pop p ptr.free end
+        dir cstr.from pop match p in
+            p sys.rmdir 0 = not if
+                "cannot remove the temporary directory `" dir string.concat "`" string.concat stack_driver.error
+            fi
+            p ptr.free
+        end
+    end
+end
+
+-- Build the executable output from ast. link (array<string>) has the
+-- arguments for cc after the object file. files (array<stack_file_id>) has
+-- the input files, which the build must not write. Return the exit status.
+func stack_driver.build (stack_ast, string, array, array) (int) in -- ast, output, link, files
+    match ast output link files in
+        output files stack_driver.output.check not if 1 else
+            "slc-" os.tempdir.create match dir ok in
+                ok not if
+                    "cannot create a temporary directory" stack_driver.error 1
+                else
+                    dir "/main.asm" string.concat dir "/main.o" string.concat match asm obj in
+                        ast asm obj output link stack_driver.build.files
+                        asm obj dir stack_driver.cleanup
+                    end
+                fi
+            end
+        fi
+    end
+end

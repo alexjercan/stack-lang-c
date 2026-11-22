@@ -1,0 +1,28 @@
+@import "stdlib"
+
+extern ray.InitWindow (int, int, ptr) () "InitWindow"
+extern ray.SetTargetFPS (int) () "SetTargetFPS"
+extern ray.WindowShouldClose () (int) "WindowShouldClose"
+extern ray.BeginDrawing () () "BeginDrawing"
+extern ray.ClearBackground (int) () "ClearBackground"
+extern ray.DrawText (ptr, int, int, int, int) () "DrawText"
+extern ray.EndDrawing () () "EndDrawing"
+extern ray.CloseWindow () () "CloseWindow"
+
+func main () (int) in
+   800 600 "Hello from Stack!" string.str ray.InitWindow
+   60 ray.SetTargetFPS
+
+   while ray.WindowShouldClose 255 & 0 = loop
+       ray.BeginDrawing
+
+       4294967295 ray.ClearBackground
+       "Hello from Stack!" string.str
+       240 280 30 4278190080 ray.DrawText
+
+       ray.EndDrawing
+   pool
+
+   ray.CloseWindow
+   0
+end

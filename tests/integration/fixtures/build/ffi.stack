@@ -1,0 +1,4 @@
+extern c.add (int, int) (int) "add"
+extern c.twice (int) (int) "twice"
+
+func main () (int) in 20 1 c.add c.twice end

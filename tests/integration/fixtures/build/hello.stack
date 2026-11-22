@@ -1,0 +1,3 @@
+@import "stdlib"
+
+func main () (int) in "hello\n" string.stdout 0 end

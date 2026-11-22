@@ -32,10 +32,31 @@ also when the program does not call it.
 printf '#include <stdint.h>\nint64_t add(int64_t a, int64_t b) { return a + b; }\n' > add.c
 printf 'extern c.add (int, int) (int) "add"\nfunc main () (int) in 40 2 c.add end\n' > add.stack
 cc -c -O2 -fno-stack-protector add.c -o add.o
-out/slc add.stack -a > add.asm
-fasm add.asm add-stack.o
-ld -z noexecstack add-stack.o add.o -o add
+out/slc add.stack -o add -- add.o
 ./add; echo $status
 ```
 
 The last command writes `42`.
+
+## Linking
+
+`slc` gives `-lNAME`, `-LDIR` and all the arguments after `--` to `cc`
+after the object of the program, in the order of the command line. Use `--`
+for objects, archives and other `cc` arguments, for example `-Wl,...`.
+
+```fish
+out/slc app.stack -o app -Llibs -lfoo -- extra.o -Wl,-z,now
+```
+
+Without the driver, link the object of `fasm` yourself:
+
+```fish
+out/slc -a add.stack -o add.asm
+fasm add.asm add-stack.o
+ld -z noexecstack add-stack.o add.o -o add
+```
+
+`cc` links shared libraries and libc when a library needs them. The program
+still has no C runtime startup, so code that uses libc can fail. For example,
+`make examples` links the raylib example, but libc allocation in raylib can
+crash at run time.
