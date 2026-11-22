@@ -1,0 +1,7 @@
+@import "stdlib"
+
+-- 2 MiB needs a new region. Its first block comes after the region header.
+func main () (int) in
+    2097152 ptr.alloc -16 ptr.+ ptr.free
+    0
+end

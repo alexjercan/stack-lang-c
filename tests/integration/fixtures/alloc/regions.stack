@@ -1,0 +1,123 @@
+@import "stdlib"
+
+-- Each failed check exits with its case number.
+func check (bool, int) () in swp if pop else sys.exit fi end
+
+func addr (ptr) (int) in ptr.& int.* 0 + end
+func poke (ptr, int) () in int.& int.sizeof ptr.@ pop end
+func peek (ptr) (int) in int.* 0 + end
+
+-- True when the n bytes at a and the m bytes at b do not overlap.
+func disjoint (ptr, int, ptr, int) (bool) in
+    match a n b m in a addr n + b addr <= b addr m + a addr <= or end
+end
+
+func ptrs.new () (array) in ptr.sizeof array.init.with_sz end
+func ptrs.add (array, ptr) () in match xs p in xs p ptr.& array.append unwrap end end
+func ptrs.at (array, int) (ptr) in array.get unwrap ptr.* end
+
+-- 1.5 MiB does not fit the rest of a 2 MiB region, so each block gets a new
+-- region (mapping).
+const BIG 1572864
+const COUNT 40
+
+func big.mark (ptr, int) () in
+    match p v in p v poke p BIG 8 - ptr.+ v 1 + poke end
+end
+
+func big.marked (ptr, int) (bool) in
+    match p v in p peek v = p BIG 8 - ptr.+ peek v 1 + = and end
+end
+
+-- True when p is one of the blocks in xs.
+func ptrs.has (array, ptr) (bool) in
+    match xs p in
+        false 0 while dup xs array.count < loop
+            match found i in found xs i ptrs.at p ptr.= or i 1 + end
+        pool pop
+    end
+end
+
+func main () (int) in
+    -- Many mappings. All blocks keep their content.
+    ptrs.new match bigs in
+        0 while dup COUNT < loop
+            match i in
+                BIG ptr.alloc match p in p i 2 * big.mark bigs p ptrs.add end
+                i 1 +
+            end
+        pool pop
+        0 while dup COUNT < loop
+            match i in
+                bigs i ptrs.at i 2 * big.marked 1 check
+                i 1 + while dup COUNT < loop
+                    match j in
+                        bigs i ptrs.at BIG bigs j ptrs.at BIG disjoint 2 check
+                        j 1 +
+                    end
+                pool pop
+                i 1 +
+            end
+        pool pop
+
+        -- Free all. Regions can be next to each other, but a block never
+        -- merges with a block of another region, so 3 MiB needs new memory.
+        0 while dup COUNT < loop match i in bigs i ptrs.at ptr.free i 1 + end pool pop
+        BIG 2 * ptr.alloc match huge in
+            0 while dup COUNT < loop
+                match i in
+                    huge BIG 2 * bigs i ptrs.at BIG disjoint 3 check
+                    i 1 +
+                end
+            pool pop
+        end
+
+        -- The free blocks are used again, and they are zero. Each block gets
+        -- a mark, so a block that is given two times is not zero (5).
+        0 while dup COUNT < loop
+            match i in
+                BIG ptr.alloc match p in
+                    bigs p ptrs.has 4 check
+                    p peek 0 = p BIG 8 - ptr.+ peek 0 = and 5 check
+                    p 1 big.mark
+                end
+                i 1 +
+            end
+        pool pop
+    end
+
+    -- Many cell chunks. Old cells keep their values.
+    ptrs.new match cells in
+        0 while dup 300000 < loop
+            match i in
+                i 10000 % 0 = if cells i 7 * int.& ptrs.add fi
+                i 1 +
+            end
+        pool pop
+        0 while dup cells array.count < loop
+            match k in
+                cells k ptrs.at peek k 70000 * = 7 check
+                k 1 +
+            end
+        pool pop
+    end
+
+    -- Small blocks after the mappings: reuse, dirty memory is zero, merge.
+    24 ptr.alloc 24 ptr.alloc 24 ptr.alloc 8 ptr.alloc match a b c _guard in
+        a 1 poke b 2 poke c 3 poke
+        b ptr.free
+        24 ptr.alloc match d in
+            d b ptr.= 8 check
+            d peek 0 = 9 check
+        end
+        a ptr.free
+        c ptr.free
+        b ptr.free
+        -- a, b and c are adjacent blocks of 32 bytes: one block of 96.
+        88 ptr.alloc match e in
+            e a ptr.= 10 check
+            e peek 0 = e 80 ptr.+ peek 0 = and 11 check
+        end
+    end
+    0
+end

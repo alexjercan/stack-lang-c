@@ -1,0 +1,8 @@
+@import "stdlib"
+
+-- The block fills its 2 MiB region with the region header (16 bytes) and the
+-- block header (8 bytes). The pointer is 16 bytes after the end of the region.
+func main () (int) in
+    2097128 ptr.alloc 2097144 ptr.+ ptr.free
+    0
+end

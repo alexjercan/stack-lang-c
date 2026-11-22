@@ -1,0 +1,41 @@
+@import "stdlib"
+
+-- Each failed check exits with its case number.
+func check (bool, int) () in swp if pop else sys.exit fi end
+
+func poke (ptr, int) () in int.& int.sizeof ptr.@ pop end
+func peek (ptr) (int) in int.* 0 + end
+
+-- A region of 1 MiB has 1048560 bytes for blocks. A block is the request
+-- rounded up to 8 bytes, plus an 8-byte header. Each case fills a new region
+-- and leaves a tail of 0, 8 or 16 bytes. The next request does not fit the
+-- tail, so it gets a new region.
+func main () (int) in
+    1048552 ptr.alloc   -- block 1048560, tail 0
+    1048544 ptr.alloc   -- block 1048552, tail 8
+    1048536 ptr.alloc   -- block 1048544, tail 16
+    16 ptr.alloc        -- does not fit: the 16-byte tail becomes a free block
+    match a d f g in
+        f 1048528 ptr.+ 7 poke
+
+        -- Tail 0: a block of 1048568 does not fit the region of a.
+        a ptr.free
+        1048553 ptr.alloc a ptr.= not 1 check
+        1048552 ptr.alloc a ptr.= 2 check
+
+        -- Tail 8: the 8 bytes are not part of a block. They do not join d.
+        d ptr.free
+        1048552 ptr.alloc d ptr.= not 3 check
+        1048544 ptr.alloc d ptr.= 4 check
+
+        -- Tail 16: the free tail merges with f when f is free. The memory
+        -- is zero again.
+        f ptr.free
+        1048552 ptr.alloc match e in
+            e f ptr.= 5 check
+            e 1048528 ptr.+ peek 0 = e 1048536 ptr.+ peek 0 = and e 1048544 ptr.+ peek 0 = and 6 check
+        end
+        g ptr.free
+    end
+    0
+end

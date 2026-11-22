@@ -5,7 +5,7 @@ section '.data' writeable
 ; memory layout
 stack_pos dq 0
 stack_end dq 0
-heap_base dq 0
+heap_regions dq 0
 heap_top dq 0
 heap_end dq 0
 cell_pos dq 0
@@ -24,6 +24,7 @@ alloc_double_len = $ - alloc_double_msg
 STACK_SIZE = 0x10000
 CELL_CHUNK_SIZE = 0x10000
 HEAP_GROW_SIZE = 0x100000
+HEAP_REGION_HEADER = 16
 
 section '.text' executable
 
@@ -37,26 +38,13 @@ allocator_init:
     push    rbp                        ; save return address
     mov     rbp, rsp                   ; set up stack frame
 
-    ; initialize the heap
-    mov     rax, 12                    ; brk
-    mov     rdi, 0                     ; increment = 0
-    syscall
-    mov     [heap_end], rax            ; save the end of the heap
-    add     rax, 7
-    and     rax, -8
-    mov     [heap_top], rax            ; align the top of the heap
-
-    ; allocate the stack 64K
+    ; allocate the stack 64K. Cell chunks and heap regions get their own
+    ; mappings when they are needed.
     mov     rdi, STACK_SIZE
-    call    heap_take
+    call    map_take
     mov     [stack_pos], rax           ; save the current position of the stack
     add     rax, STACK_SIZE
     mov     [stack_end], rax           ; save the end of the stack
-
-    ; blocks and cell chunks come after the stack
-    mov     [heap_base], rax
-    mov     [cell_pos], rax
-    mov     [cell_end], rax
 
     pop     rbp                        ; restore return address
     ret
@@ -96,7 +84,7 @@ stack_push:
 
     push    rdi
     mov     rdi, CELL_CHUNK_SIZE
-    call    heap_take                  ; start a new cell chunk
+    call    map_take                   ; start a new cell chunk
     pop     rdi
     lea     rsi, [rax + CELL_CHUNK_SIZE]
     mov     qword [cell_end], rsi
@@ -206,10 +194,57 @@ stack_pick_addr:
 
 ;
 ;
+; map take
+;
+;   INPUT: rdi contains the size in bytes
+;   OUTPUT: rax points to new zero memory from an anonymous private mmap
+;   All other registers keep their values. The mapping is never unmapped.
+;
+map_take:
+    push    rbp                        ; save return address
+    mov     rbp, rsp                   ; set up stack frame
+    push    rcx
+    push    rdx
+    push    rsi
+    push    rdi
+    push    r8
+    push    r9
+    push    r10
+    push    r11
+
+    mov     rsi, rdi                   ; length
+    xor     edi, edi                   ; the kernel selects the address
+    mov     edx, 3                     ; PROT_READ | PROT_WRITE
+    mov     r10d, 0x22                 ; MAP_PRIVATE | MAP_ANONYMOUS
+    mov     r8, -1                     ; no file
+    xor     r9d, r9d                   ; offset 0
+    mov     eax, 9                     ; mmap
+    syscall
+    cmp     rax, -4096
+    ja      alloc_oom                  ; -4095 to -1 are errors
+
+    pop     r11
+    pop     r10
+    pop     r9
+    pop     r8
+    pop     rdi
+    pop     rsi
+    pop     rdx
+    pop     rcx
+    pop     rbp                        ; restore return address
+    ret
+
+;
+;
 ; heap take
 ;
 ;   INPUT: rdi contains the size in bytes (multiple of 8)
-;   OUTPUT: rax points to new memory at the top of the heap
+;   OUTPUT: rax points to new zero memory at the top of the current region
+;   The heap is a list of regions. A region starts with a header: the next
+;   (older) region and the end of the region. heap_regions is the current
+;   region; its blocks end at heap_top. When a size does not fit, the rest of
+;   the current region becomes a free block and a new region is mapped. The
+;   header keeps blocks of different regions apart, so they never merge.
 ;
 heap_take:
     push    rbp                        ; save return address
@@ -217,36 +252,57 @@ heap_take:
     push    rcx
     push    rdx
     push    rdi
-    push    r11
 
     mov     rdx, qword [heap_top]
-    add     rdx, rdi                   ; new top of the heap
-    jc      alloc_oom
+    add     rdx, rdi                   ; new top of the region
+    jc      .take_new
     cmp     rdx, qword [heap_end]
     jbe     .take_ok
 
-    mov     rdi, rdx
-    add     rdi, HEAP_GROW_SIZE - 1
+.take_new:
+    ; free the rest of the current region
+    mov     rax, qword [heap_top]
+    mov     rcx, qword [heap_end]
+    mov     qword [heap_top], rcx
+    sub     rcx, rax
+    cmp     rcx, 16
+    jb      .take_map
+    or      rcx, 1
+    mov     qword [rax], rcx           ; an allocated block of the rest
+    push    rdi
+    lea     rdi, [rax + 8]
+    call    deallocate
+    pop     rdi
+
+.take_map:
+    mov     rcx, rdi
+    add     rcx, HEAP_REGION_HEADER + HEAP_GROW_SIZE - 1
     jc      alloc_oom
-    and     rdi, -HEAP_GROW_SIZE       ; new end of the heap
-    mov     rax, 12                    ; brk
-    syscall
-    cmp     rax, rdi                   ; brk returns the old end on failure
-    jb      alloc_oom
-    mov     qword [heap_end], rax
+    and     rcx, -HEAP_GROW_SIZE       ; region size
+    push    rdi
+    mov     rdi, rcx
+    call    map_take
+    pop     rdi
+    mov     rdx, qword [heap_regions]
+    mov     qword [rax], rdx           ; next region
+    add     rcx, rax
+    mov     qword [rax + 8], rcx       ; end of the region
+    mov     qword [heap_regions], rax
+    mov     qword [heap_end], rcx
+    lea     rdx, [rax + HEAP_REGION_HEADER]
+    mov     qword [heap_top], rdx
+    add     rdx, rdi
 
 .take_ok:
     mov     rax, qword [heap_top]
     mov     qword [heap_top], rdx
 
-    pop     r11
     pop     rdi
     pop     rdx
     pop     rcx
     pop     rbp                        ; restore return address
     ret
 
-;
 ;
 ; allocate
 ;
@@ -356,11 +412,27 @@ deallocate:
     test    rdi, 7
     jnz     alloc_invalid_free
     sub     rdi, 8                     ; block header
-    cmp     rdi, qword [heap_base]
-    jb      alloc_invalid_free
-    mov     rax, qword [heap_top]
-    sub     rax, rdi                   ; bytes from the block to the heap top
-    jb      alloc_invalid_free
+
+    ; find the region of the block. Read only region headers until then.
+    mov     rax, qword [heap_regions]
+    test    rax, rax
+    jz      alloc_invalid_free
+    mov     rdx, qword [heap_top]      ; blocks of the current region end here
+.free_region:
+    lea     rcx, [rax + HEAP_REGION_HEADER]
+    cmp     rdi, rcx
+    jb      .free_region_next
+    cmp     rdi, rdx
+    jb      .free_region_found
+.free_region_next:
+    mov     rax, qword [rax]           ; next region
+    test    rax, rax
+    jz      alloc_invalid_free
+    mov     rdx, qword [rax + 8]       ; blocks of an older region end at its end
+    jmp     .free_region
+.free_region_found:
+    mov     rax, rdx
+    sub     rax, rdi                   ; bytes from the block to the end
     cmp     rax, 16
     jb      alloc_invalid_free
     mov     rdx, qword [rdi]
@@ -85348,7 +85420,7 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.670 ; "heap_base dq 0"
+    mov     rdi, literal.670 ; "heap_regions dq 0"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85424,6 +85496,10 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
+    mov     rdi, literal.687 ; "HEAP_REGION_HEADER = 16"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
     mov     rdi, literal.0 ; ""
     call    stack_push_addr
     call    func.378 ; emit
@@ -85436,39 +85512,39 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.688 ; "; allocator_init"
+    mov     rdi, literal.689 ; "; allocator_init"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.689 ; ";   INPUT: nothing"
+    mov     rdi, literal.690 ; ";   INPUT: nothing"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.690 ; ";   OUTPUT: nothing"
+    mov     rdi, literal.691 ; ";   OUTPUT: nothing"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.691 ; "allocator_init:"
+    mov     rdi, literal.692 ; "allocator_init:"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85476,15 +85552,727 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.694 ; "    ; initialize the heap"
+    mov     rdi, literal.695 ; "    ; allocate the stack 64K. Cell chunks and heap regions get their own"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.695 ; "    mov     rax, 12                    ; brk"
+    mov     rdi, literal.696 ; "    ; mappings when they are needed."
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.696 ; "    mov     rdi, 0                     ; increment = 0"
+    mov     rdi, literal.697 ; "    mov     rdi, STACK_SIZE"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.698 ; "    call    map_take"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.699 ; "    mov     [stack_pos], rax           ; save the current position of the stack"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.700 ; "    add     rax, STACK_SIZE"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.701 ; "    mov     [stack_end], rax           ; save the end of the stack"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.613 ; "    ret"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.703 ; "; stack push addr"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.704 ; ";   INPUT: rdi contains the int64 (pointer) that we add to the stack"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.691 ; ";   OUTPUT: nothing"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.705 ; "stack_push_addr:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.706 ; "    mov     rsi, qword [stack_pos]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.707 ; "    mov     qword [rsi], rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.708 ; "    add     qword [stack_pos], 8"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.613 ; "    ret"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.709 ; "; stack push"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.704 ; ";   INPUT: rdi contains the int64 (pointer) that we add to the stack"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.691 ; ";   OUTPUT: nothing"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.710 ; "stack_push:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.711 ; "    mov     rax, qword [cell_pos]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.712 ; "    cmp     rax, qword [cell_end]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.713 ; "    jb      .push_cell"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.714 ; "    push    rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.715 ; "    mov     rdi, CELL_CHUNK_SIZE"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.716 ; "    call    map_take                   ; start a new cell chunk"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.717 ; "    pop     rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.718 ; "    lea     rsi, [rax + CELL_CHUNK_SIZE]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.719 ; "    mov     qword [cell_end], rsi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.720 ; ".push_cell:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.721 ; "    mov     qword [rax], rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.722 ; "    lea     rsi, [rax + 8]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.723 ; "    mov     qword [cell_pos], rsi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.706 ; "    mov     rsi, qword [stack_pos]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.724 ; "    mov     qword [rsi], rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.708 ; "    add     qword [stack_pos], 8"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.613 ; "    ret"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.725 ; "; stack peek addr"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.690 ; ";   INPUT: nothing"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.726 ; ";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.727 ; "stack_peek_addr:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.728 ; "    mov     rax, qword [stack_pos]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.729 ; "    mov     rax, qword [rax - 8]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.613 ; "    ret"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.730 ; "; stack peek"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.690 ; ";   INPUT: nothing"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.726 ; ";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.731 ; "stack_peek:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.728 ; "    mov     rax, qword [stack_pos]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.729 ; "    mov     rax, qword [rax - 8]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.732 ; "    mov     rax, qword [rax]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.613 ; "    ret"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.733 ; "; stack pop addr"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.690 ; ";   INPUT: nothing"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.726 ; ";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.734 ; "stack_pop_addr:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.728 ; "    mov     rax, qword [stack_pos]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.729 ; "    mov     rax, qword [rax - 8]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.735 ; "    sub     qword [stack_pos], 8"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.613 ; "    ret"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.736 ; "; stack pop"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.690 ; ";   INPUT: nothing"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.726 ; ";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.737 ; "stack_pop:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.728 ; "    mov     rax, qword [stack_pos]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.729 ; "    mov     rax, qword [rax - 8]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.732 ; "    mov     rax, qword [rax]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.735 ; "    sub     qword [stack_pos], 8"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.613 ; "    ret"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.738 ; "; stack pick"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.739 ; ";   INPUT: rdi contains the index"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.740 ; ";   OUTPUT: rax contains the int64 (pointer) that we pick from the stack"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.741 ; "stack_pick_addr:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.728 ; "    mov     rax, qword [stack_pos]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.742 ; "    shl     rdi, 3 ; multiply index with 8"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.743 ; "    sub     rax, rdi ; offset stack_pos with index*8"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.729 ; "    mov     rax, qword [rax - 8]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.613 ; "    ret"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.744 ; "; map take"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.745 ; ";   INPUT: rdi contains the size in bytes"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.746 ; ";   OUTPUT: rax points to new zero memory from an anonymous private mmap"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.747 ; ";   All other registers keep their values. The mapping is never unmapped."
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.748 ; "map_take:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.749 ; "    push    rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.750 ; "    push    rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.751 ; "    push    rsi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.714 ; "    push    rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.752 ; "    push    r8"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.753 ; "    push    r9"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.754 ; "    push    r10"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.755 ; "    push    r11"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.756 ; "    mov     rsi, rdi                   ; length"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.757 ; "    xor     edi, edi                   ; the kernel selects the address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.758 ; "    mov     edx, 3                     ; PROT_READ | PROT_WRITE"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.759 ; "    mov     r10d, 0x22                 ; MAP_PRIVATE | MAP_ANONYMOUS"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.760 ; "    mov     r8, -1                     ; no file"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.761 ; "    xor     r9d, r9d                   ; offset 0"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.762 ; "    mov     eax, 9                     ; mmap"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85492,19 +86280,11 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.697 ; "    mov     [heap_end], rax            ; save the end of the heap"
+    mov     rdi, literal.763 ; "    cmp     rax, -4096"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.698 ; "    add     rax, 7"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.699 ; "    and     rax, -8"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.700 ; "    mov     [heap_top], rax            ; align the top of the heap"
+    mov     rdi, literal.764 ; "    ja      alloc_oom                  ; -4095 to -1 are errors"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85512,55 +86292,39 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.701 ; "    ; allocate the stack 64K"
+    mov     rdi, literal.765 ; "    pop     r11"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.702 ; "    mov     rdi, STACK_SIZE"
+    mov     rdi, literal.766 ; "    pop     r10"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.703 ; "    call    heap_take"
+    mov     rdi, literal.767 ; "    pop     r9"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.704 ; "    mov     [stack_pos], rax           ; save the current position of the stack"
+    mov     rdi, literal.768 ; "    pop     r8"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.705 ; "    add     rax, STACK_SIZE"
+    mov     rdi, literal.717 ; "    pop     rdi"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.706 ; "    mov     [stack_end], rax           ; save the end of the stack"
+    mov     rdi, literal.769 ; "    pop     rsi"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
+    mov     rdi, literal.770 ; "    pop     rdx"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.707 ; "    ; blocks and cell chunks come after the stack"
+    mov     rdi, literal.771 ; "    pop     rcx"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.708 ; "    mov     [heap_base], rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.709 ; "    mov     [cell_pos], rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.710 ; "    mov     [cell_end], rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85572,43 +86336,75 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.712 ; "; stack push addr"
+    mov     rdi, literal.772 ; "; heap take"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.713 ; ";   INPUT: rdi contains the int64 (pointer) that we add to the stack"
+    mov     rdi, literal.773 ; ";   INPUT: rdi contains the size in bytes (multiple of 8)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.690 ; ";   OUTPUT: nothing"
+    mov     rdi, literal.774 ; ";   OUTPUT: rax points to new zero memory at the top of the current region"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.775 ; ";   The heap is a list of regions. A region starts with a header: the next"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.714 ; "stack_push_addr:"
+    mov     rdi, literal.776 ; ";   (older) region and the end of the region. heap_regions is the current"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.777 ; ";   region; its blocks end at heap_top. When a size does not fit, the rest of"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.778 ; ";   the current region becomes a free block and a new region is mapped. The"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.779 ; ";   header keeps blocks of different regions apart, so they never merge."
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.688 ; ";"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.780 ; "heap_take:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.749 ; "    push    rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.750 ; "    push    rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.714 ; "    push    rdi"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85616,15 +86412,23 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.715 ; "    mov     rsi, qword [stack_pos]"
+    mov     rdi, literal.781 ; "    mov     rdx, qword [heap_top]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.716 ; "    mov     qword [rsi], rdi"
+    mov     rdi, literal.782 ; "    add     rdx, rdi                   ; new top of the region"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.717 ; "    add     qword [stack_pos], 8"
+    mov     rdi, literal.783 ; "    jc      .take_new"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.784 ; "    cmp     rdx, qword [heap_end]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.785 ; "    jbe     .take_ok"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85632,7 +86436,171 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.786 ; ".take_new:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.787 ; "    ; free the rest of the current region"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.788 ; "    mov     rax, qword [heap_top]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.789 ; "    mov     rcx, qword [heap_end]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.790 ; "    mov     qword [heap_top], rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.791 ; "    sub     rcx, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.792 ; "    cmp     rcx, 16"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.793 ; "    jb      .take_map"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.794 ; "    or      rcx, 1"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.795 ; "    mov     qword [rax], rcx           ; an allocated block of the rest"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.714 ; "    push    rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.796 ; "    lea     rdi, [rax + 8]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.797 ; "    call    deallocate"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.717 ; "    pop     rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.798 ; ".take_map:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.799 ; "    mov     rcx, rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.800 ; "    add     rcx, HEAP_REGION_HEADER + HEAP_GROW_SIZE - 1"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.801 ; "    jc      alloc_oom"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.802 ; "    and     rcx, -HEAP_GROW_SIZE       ; region size"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.714 ; "    push    rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.803 ; "    mov     rdi, rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.698 ; "    call    map_take"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.717 ; "    pop     rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.804 ; "    mov     rdx, qword [heap_regions]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.805 ; "    mov     qword [rax], rdx           ; next region"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.806 ; "    add     rcx, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.807 ; "    mov     qword [rax + 8], rcx       ; end of the region"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.808 ; "    mov     qword [heap_regions], rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.809 ; "    mov     qword [heap_end], rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.810 ; "    lea     rdx, [rax + HEAP_REGION_HEADER]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.811 ; "    mov     qword [heap_top], rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.812 ; "    add     rdx, rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.813 ; ".take_ok:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.788 ; "    mov     rax, qword [heap_top]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.811 ; "    mov     qword [heap_top], rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.717 ; "    pop     rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.770 ; "    pop     rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.771 ; "    pop     rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85644,87 +86612,71 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.814 ; "; allocate"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.718 ; "; stack push"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.745 ; ";   INPUT: rdi contains the size in bytes"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.713 ; ";   INPUT: rdi contains the int64 (pointer) that we add to the stack"
+    mov     rdi, literal.815 ; ";   OUTPUT: rax points to the newly allocated zeroed memory"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.690 ; ";   OUTPUT: nothing"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.816 ; ";   A block has an 8 byte header with the block size and bit 0 set when"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.719 ; "stack_push:"
+    mov     rdi, literal.817 ; ";   allocated. A free block keeps the next free block in its first 8 bytes."
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.818 ; "allocate:"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.720 ; "    mov     rax, qword [cell_pos]"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.721 ; "    cmp     rax, qword [cell_end]"
+    mov     rdi, literal.749 ; "    push    rcx"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.722 ; "    jb      .push_cell"
+    mov     rdi, literal.750 ; "    push    rdx"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
+    mov     rdi, literal.751 ; "    push    rsi"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.723 ; "    push    rdi"
+    mov     rdi, literal.714 ; "    push    rdi"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.724 ; "    mov     rdi, CELL_CHUNK_SIZE"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.725 ; "    call    heap_take                  ; start a new cell chunk"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.726 ; "    pop     rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.727 ; "    lea     rsi, [rax + CELL_CHUNK_SIZE]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.728 ; "    mov     qword [cell_end], rsi"
+    mov     rdi, literal.752 ; "    push    r8"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85732,19 +86684,35 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.729 ; ".push_cell:"
+    mov     rdi, literal.819 ; "    test    rdi, rdi"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.730 ; "    mov     qword [rax], rdi"
+    mov     rdi, literal.820 ; "    js      alloc_negative"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.731 ; "    lea     rsi, [rax + 8]"
+    mov     rdi, literal.821 ; "    add     rdi, 15"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.732 ; "    mov     qword [cell_pos], rsi"
+    mov     rdi, literal.822 ; "    and     rdi, -8                    ; block size with header"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.823 ; "    cmp     rdi, 16"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.824 ; "    jae     .alloc_sized"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.825 ; "    mov     rdi, 16                    ; at least 8 bytes of memory"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.826 ; ".alloc_sized:"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85752,15 +86720,51 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.715 ; "    mov     rsi, qword [stack_pos]"
+    mov     rdi, literal.827 ; "    ; first fit in the free list"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.733 ; "    mov     qword [rsi], rax"
+    mov     rdi, literal.828 ; "    xor     esi, esi                   ; previous free block"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.717 ; "    add     qword [stack_pos], 8"
+    mov     rdi, literal.829 ; "    mov     rax, qword [free_list]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.830 ; ".alloc_find:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.593 ; "    test    rax, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.831 ; "    jz      .alloc_fresh"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.832 ; "    mov     rdx, qword [rax]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.833 ; "    cmp     rdx, rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.834 ; "    jae     .alloc_found"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.835 ; "    mov     rsi, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.836 ; "    mov     rax, qword [rax + 8]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.837 ; "    jmp     .alloc_find"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85768,7 +86772,175 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.838 ; ".alloc_found:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.839 ; "    mov     rcx, qword [rax + 8]       ; next free block"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.840 ; "    sub     rdx, rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.841 ; "    cmp     rdx, 16"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.842 ; "    jb      .alloc_whole"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.843 ; "    lea     r8, [rax + rdi]            ; split the rest into a free block"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.844 ; "    mov     qword [r8], rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.845 ; "    mov     qword [r8 + 8], rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.846 ; "    mov     rcx, r8"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.847 ; "    jmp     .alloc_unlink"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.848 ; ".alloc_whole:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.849 ; "    add     rdi, rdx                   ; use the whole free block"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.850 ; ".alloc_unlink:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.851 ; "    test    rsi, rsi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.852 ; "    jz      .alloc_head"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.853 ; "    mov     qword [rsi + 8], rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.854 ; "    jmp     .alloc_clear"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.855 ; ".alloc_head:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.856 ; "    mov     qword [free_list], rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.857 ; ".alloc_clear:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.858 ; "    lea     rcx, [rax + 8]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.859 ; "    lea     rdx, [rax + rdi]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.860 ; ".alloc_clear_next:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.861 ; "    mov     qword [rcx], 0"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.862 ; "    add     rcx, 8"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.863 ; "    cmp     rcx, rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.864 ; "    jb      .alloc_clear_next"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.865 ; "    jmp     .alloc_ok"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.866 ; ".alloc_fresh:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.867 ; "    call    heap_take                  ; new memory is already zero"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.868 ; ".alloc_ok:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.869 ; "    or      rdi, 1"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.721 ; "    mov     qword [rax], rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.870 ; "    add     rax, 8"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.768 ; "    pop     r8"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.717 ; "    pop     rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.769 ; "    pop     rsi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.770 ; "    pop     rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.771 ; "    pop     rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85780,43 +86952,75 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.734 ; "; stack peek addr"
+    mov     rdi, literal.871 ; "; deallocate"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.689 ; ";   INPUT: nothing"
+    mov     rdi, literal.872 ; ";   INPUT: rdi points to memory from allocate, or is 0"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.735 ; ";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack"
+    mov     rdi, literal.691 ; ";   OUTPUT: nothing"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.736 ; "stack_peek_addr:"
+    mov     rdi, literal.873 ; ";   The free list is sorted by address. Adjacent free blocks are merged."
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.874 ; "deallocate:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.875 ; "    push    rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.749 ; "    push    rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.750 ; "    push    rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.751 ; "    push    rsi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.714 ; "    push    rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.752 ; "    push    r8"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85824,11 +87028,23 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.737 ; "    mov     rax, qword [stack_pos]"
+    mov     rdi, literal.819 ; "    test    rdi, rdi"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.738 ; "    mov     rax, qword [rax - 8]"
+    mov     rdi, literal.876 ; "    jz      .free_done"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.877 ; "    test    rdi, 7"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.878 ; "    jnz     alloc_invalid_free"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.879 ; "    sub     rdi, 8                     ; block header"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85836,7 +87052,367 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.880 ; "    ; find the region of the block. Read only region headers until then."
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.881 ; "    mov     rax, qword [heap_regions]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.593 ; "    test    rax, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.882 ; "    jz      alloc_invalid_free"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.883 ; "    mov     rdx, qword [heap_top]      ; blocks of the current region end here"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.884 ; ".free_region:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.885 ; "    lea     rcx, [rax + HEAP_REGION_HEADER]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.886 ; "    cmp     rdi, rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.887 ; "    jb      .free_region_next"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.888 ; "    cmp     rdi, rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.889 ; "    jb      .free_region_found"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.890 ; ".free_region_next:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.891 ; "    mov     rax, qword [rax]           ; next region"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.593 ; "    test    rax, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.882 ; "    jz      alloc_invalid_free"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.892 ; "    mov     rdx, qword [rax + 8]       ; blocks of an older region end at its end"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.893 ; "    jmp     .free_region"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.894 ; ".free_region_found:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.895 ; "    mov     rax, rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.896 ; "    sub     rax, rdi                   ; bytes from the block to the end"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.897 ; "    cmp     rax, 16"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.898 ; "    jb      alloc_invalid_free"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.899 ; "    mov     rdx, qword [rdi]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.900 ; "    mov     rcx, rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.901 ; "    and     rcx, -8                    ; block size"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.792 ; "    cmp     rcx, 16"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.898 ; "    jb      alloc_invalid_free"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.902 ; "    cmp     rcx, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.903 ; "    ja      alloc_invalid_free"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.904 ; "    test    rdx, 6"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.878 ; "    jnz     alloc_invalid_free"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.905 ; "    test    rdx, 1"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.906 ; "    jz      alloc_double_free"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.907 ; "    ; find the free blocks before and after the block"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.828 ; "    xor     esi, esi                   ; previous free block"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.908 ; "    mov     rax, qword [free_list]     ; next free block"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.909 ; ".free_find:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.593 ; "    test    rax, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.910 ; "    jz      .free_check"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.911 ; "    cmp     rax, rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.912 ; "    jae     .free_check"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.835 ; "    mov     rsi, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.836 ; "    mov     rax, qword [rax + 8]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.913 ; "    jmp     .free_find"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.914 ; ".free_check:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.851 ; "    test    rsi, rsi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.915 ; "    jz      .free_check_next"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.916 ; "    mov     rdx, qword [rsi]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.917 ; "    add     rdx, rsi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.833 ; "    cmp     rdx, rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.918 ; "    ja      alloc_double_free          ; the block is inside a free block"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.919 ; ".free_check_next:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.593 ; "    test    rax, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.920 ; "    jz      .free_merge_prev"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.921 ; "    lea     rdx, [rdi + rcx]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.922 ; "    cmp     rdx, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.923 ; "    ja      alloc_invalid_free         ; the block overlaps a free block"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.924 ; "    jb      .free_merge_prev"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.925 ; "    add     rcx, qword [rax]           ; merge with the next free block"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.836 ; "    mov     rax, qword [rax + 8]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.926 ; ".free_merge_prev:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.851 ; "    test    rsi, rsi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.927 ; "    jz      .free_head"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.916 ; "    mov     rdx, qword [rsi]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.928 ; "    lea     r8, [rsi + rdx]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.929 ; "    cmp     r8, rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.930 ; "    jne     .free_after"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.931 ; "    add     rdx, rcx                   ; merge with the previous free block"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.932 ; "    mov     qword [rsi], rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.933 ; "    mov     qword [rsi + 8], rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.934 ; "    jmp     .free_done"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.935 ; ".free_after:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.936 ; "    mov     qword [rsi + 8], rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.937 ; "    jmp     .free_link"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.938 ; ".free_head:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.939 ; "    mov     qword [free_list], rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.940 ; ".free_link:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.941 ; "    mov     qword [rdi], rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.942 ; "    mov     qword [rdi + 8], rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.943 ; ".free_done:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.768 ; "    pop     r8"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.717 ; "    pop     rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.769 ; "    pop     rsi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.770 ; "    pop     rdx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.771 ; "    pop     rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.944 ; "    pop     rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -85848,403 +87424,91 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.739 ; "; stack peek"
+    mov     rdi, literal.945 ; "; allocator errors write a message and exit with status 1"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.689 ; ";   INPUT: nothing"
+    mov     rdi, literal.946 ; "alloc_oom:"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.735 ; ";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack"
+    mov     rdi, literal.947 ; "    mov     rsi, alloc_oom_msg"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.948 ; "    mov     rdx, alloc_oom_len"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.740 ; "stack_peek:"
+    mov     rdi, literal.949 ; "    jmp     alloc_abort"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.950 ; "alloc_negative:"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.951 ; "    mov     rsi, alloc_negative_msg"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
+    mov     rdi, literal.952 ; "    mov     rdx, alloc_negative_len"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.737 ; "    mov     rax, qword [stack_pos]"
+    mov     rdi, literal.949 ; "    jmp     alloc_abort"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.738 ; "    mov     rax, qword [rax - 8]"
+    mov     rdi, literal.953 ; "alloc_invalid_free:"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.741 ; "    mov     rax, qword [rax]"
+    mov     rdi, literal.954 ; "    mov     rsi, alloc_invalid_msg"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
+    mov     rdi, literal.955 ; "    mov     rdx, alloc_invalid_len"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.949 ; "    jmp     alloc_abort"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.613 ; "    ret"
+    mov     rdi, literal.956 ; "alloc_double_free:"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
+    mov     rdi, literal.957 ; "    mov     rsi, alloc_double_msg"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.958 ; "    mov     rdx, alloc_double_len"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.959 ; "alloc_abort:"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.742 ; "; stack pop addr"
+    mov     rdi, literal.960 ; "    mov     rax, 1                     ; write"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.689 ; ";   INPUT: nothing"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.735 ; ";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.743 ; "stack_pop_addr:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.737 ; "    mov     rax, qword [stack_pos]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.738 ; "    mov     rax, qword [rax - 8]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.744 ; "    sub     qword [stack_pos], 8"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.613 ; "    ret"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.745 ; "; stack pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.689 ; ";   INPUT: nothing"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.735 ; ";   OUTPUT: rax contains the int64 (pointer) that we pop from the stack"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.746 ; "stack_pop:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.737 ; "    mov     rax, qword [stack_pos]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.738 ; "    mov     rax, qword [rax - 8]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.741 ; "    mov     rax, qword [rax]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.744 ; "    sub     qword [stack_pos], 8"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.613 ; "    ret"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.747 ; "; stack pick"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.748 ; ";   INPUT: rdi contains the index"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.749 ; ";   OUTPUT: rax contains the int64 (pointer) that we pick from the stack"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.750 ; "stack_pick_addr:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.737 ; "    mov     rax, qword [stack_pos]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.751 ; "    shl     rdi, 3 ; multiply index with 8"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.752 ; "    sub     rax, rdi ; offset stack_pos with index*8"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.738 ; "    mov     rax, qword [rax - 8]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.613 ; "    ret"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.753 ; "; heap take"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.754 ; ";   INPUT: rdi contains the size in bytes (multiple of 8)"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.755 ; ";   OUTPUT: rax points to new memory at the top of the heap"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.756 ; "heap_take:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.757 ; "    push    rcx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.758 ; "    push    rdx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.723 ; "    push    rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.759 ; "    push    r11"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.760 ; "    mov     rdx, qword [heap_top]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.761 ; "    add     rdx, rdi                   ; new top of the heap"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.762 ; "    jc      alloc_oom"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.763 ; "    cmp     rdx, qword [heap_end]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.764 ; "    jbe     .take_ok"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.765 ; "    mov     rdi, rdx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.766 ; "    add     rdi, HEAP_GROW_SIZE - 1"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.762 ; "    jc      alloc_oom"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.767 ; "    and     rdi, -HEAP_GROW_SIZE       ; new end of the heap"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.695 ; "    mov     rax, 12                    ; brk"
+    mov     rdi, literal.961 ; "    mov     rdi, 2                     ; stderr"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -86252,915 +87516,11 @@ func.412: ; stack_assembler.emit.allocator
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.768 ; "    cmp     rax, rdi                   ; brk returns the old end on failure"
+    mov     rdi, literal.962 ; "    mov     rax, 60                    ; exit"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.769 ; "    jb      alloc_oom"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.770 ; "    mov     qword [heap_end], rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.771 ; ".take_ok:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.772 ; "    mov     rax, qword [heap_top]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.773 ; "    mov     qword [heap_top], rdx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.774 ; "    pop     r11"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.726 ; "    pop     rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.775 ; "    pop     rdx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.776 ; "    pop     rcx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.613 ; "    ret"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.777 ; "; allocate"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.778 ; ";   INPUT: rdi contains the size in bytes"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.779 ; ";   OUTPUT: rax points to the newly allocated zeroed memory"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.780 ; ";   A block has an 8 byte header with the block size and bit 0 set when"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.781 ; ";   allocated. A free block keeps the next free block in its first 8 bytes."
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.782 ; "allocate:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.757 ; "    push    rcx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.758 ; "    push    rdx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.783 ; "    push    rsi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.723 ; "    push    rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.784 ; "    push    r8"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.785 ; "    test    rdi, rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.786 ; "    js      alloc_negative"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.787 ; "    add     rdi, 15"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.788 ; "    and     rdi, -8                    ; block size with header"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.789 ; "    cmp     rdi, 16"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.790 ; "    jae     .alloc_sized"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.791 ; "    mov     rdi, 16                    ; at least 8 bytes of memory"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.792 ; ".alloc_sized:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.793 ; "    ; first fit in the free list"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.794 ; "    xor     esi, esi                   ; previous free block"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.795 ; "    mov     rax, qword [free_list]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.796 ; ".alloc_find:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.593 ; "    test    rax, rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.797 ; "    jz      .alloc_fresh"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.798 ; "    mov     rdx, qword [rax]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.799 ; "    cmp     rdx, rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.800 ; "    jae     .alloc_found"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.801 ; "    mov     rsi, rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.802 ; "    mov     rax, qword [rax + 8]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.803 ; "    jmp     .alloc_find"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.804 ; ".alloc_found:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.805 ; "    mov     rcx, qword [rax + 8]       ; next free block"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.806 ; "    sub     rdx, rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.807 ; "    cmp     rdx, 16"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.808 ; "    jb      .alloc_whole"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.809 ; "    lea     r8, [rax + rdi]            ; split the rest into a free block"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.810 ; "    mov     qword [r8], rdx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.811 ; "    mov     qword [r8 + 8], rcx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.812 ; "    mov     rcx, r8"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.813 ; "    jmp     .alloc_unlink"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.814 ; ".alloc_whole:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.815 ; "    add     rdi, rdx                   ; use the whole free block"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.816 ; ".alloc_unlink:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.817 ; "    test    rsi, rsi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.818 ; "    jz      .alloc_head"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.819 ; "    mov     qword [rsi + 8], rcx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.820 ; "    jmp     .alloc_clear"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.821 ; ".alloc_head:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.822 ; "    mov     qword [free_list], rcx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.823 ; ".alloc_clear:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.824 ; "    lea     rcx, [rax + 8]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.825 ; "    lea     rdx, [rax + rdi]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.826 ; ".alloc_clear_next:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.827 ; "    mov     qword [rcx], 0"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.828 ; "    add     rcx, 8"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.829 ; "    cmp     rcx, rdx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.830 ; "    jb      .alloc_clear_next"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.831 ; "    jmp     .alloc_ok"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.832 ; ".alloc_fresh:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.833 ; "    call    heap_take                  ; new memory is already zero"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.834 ; ".alloc_ok:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.835 ; "    or      rdi, 1"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.730 ; "    mov     qword [rax], rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.836 ; "    add     rax, 8"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.837 ; "    pop     r8"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.726 ; "    pop     rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.838 ; "    pop     rsi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.775 ; "    pop     rdx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.776 ; "    pop     rcx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.613 ; "    ret"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.839 ; "; deallocate"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.840 ; ";   INPUT: rdi points to memory from allocate, or is 0"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.690 ; ";   OUTPUT: nothing"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.841 ; ";   The free list is sorted by address. Adjacent free blocks are merged."
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.842 ; "deallocate:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.757 ; "    push    rcx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.758 ; "    push    rdx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.783 ; "    push    rsi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.723 ; "    push    rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.784 ; "    push    r8"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.785 ; "    test    rdi, rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.844 ; "    jz      .free_done"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.845 ; "    test    rdi, 7"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.846 ; "    jnz     alloc_invalid_free"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.847 ; "    sub     rdi, 8                     ; block header"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.848 ; "    cmp     rdi, qword [heap_base]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.849 ; "    jb      alloc_invalid_free"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.772 ; "    mov     rax, qword [heap_top]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.850 ; "    sub     rax, rdi                   ; bytes from the block to the heap top"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.849 ; "    jb      alloc_invalid_free"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.851 ; "    cmp     rax, 16"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.849 ; "    jb      alloc_invalid_free"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.852 ; "    mov     rdx, qword [rdi]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.853 ; "    mov     rcx, rdx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.854 ; "    and     rcx, -8                    ; block size"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.855 ; "    cmp     rcx, 16"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.849 ; "    jb      alloc_invalid_free"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.856 ; "    cmp     rcx, rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.857 ; "    ja      alloc_invalid_free"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.858 ; "    test    rdx, 6"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.846 ; "    jnz     alloc_invalid_free"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.859 ; "    test    rdx, 1"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.860 ; "    jz      alloc_double_free"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.861 ; "    ; find the free blocks before and after the block"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.794 ; "    xor     esi, esi                   ; previous free block"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.862 ; "    mov     rax, qword [free_list]     ; next free block"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.863 ; ".free_find:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.593 ; "    test    rax, rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.864 ; "    jz      .free_check"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.865 ; "    cmp     rax, rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.866 ; "    jae     .free_check"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.801 ; "    mov     rsi, rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.802 ; "    mov     rax, qword [rax + 8]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.867 ; "    jmp     .free_find"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.868 ; ".free_check:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.817 ; "    test    rsi, rsi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.869 ; "    jz      .free_check_next"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.870 ; "    mov     rdx, qword [rsi]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.871 ; "    add     rdx, rsi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.799 ; "    cmp     rdx, rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.872 ; "    ja      alloc_double_free          ; the block is inside a free block"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.873 ; ".free_check_next:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.593 ; "    test    rax, rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.874 ; "    jz      .free_merge_prev"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.875 ; "    lea     rdx, [rdi + rcx]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.876 ; "    cmp     rdx, rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.877 ; "    ja      alloc_invalid_free         ; the block overlaps a free block"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.878 ; "    jb      .free_merge_prev"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.879 ; "    add     rcx, qword [rax]           ; merge with the next free block"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.802 ; "    mov     rax, qword [rax + 8]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.880 ; ".free_merge_prev:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.817 ; "    test    rsi, rsi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.881 ; "    jz      .free_head"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.870 ; "    mov     rdx, qword [rsi]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.882 ; "    lea     r8, [rsi + rdx]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.883 ; "    cmp     r8, rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.884 ; "    jne     .free_after"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.885 ; "    add     rdx, rcx                   ; merge with the previous free block"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.886 ; "    mov     qword [rsi], rdx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.887 ; "    mov     qword [rsi + 8], rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.888 ; "    jmp     .free_done"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.889 ; ".free_after:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.890 ; "    mov     qword [rsi + 8], rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.891 ; "    jmp     .free_link"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.892 ; ".free_head:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.893 ; "    mov     qword [free_list], rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.894 ; ".free_link:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.895 ; "    mov     qword [rdi], rcx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.896 ; "    mov     qword [rdi + 8], rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.897 ; ".free_done:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.837 ; "    pop     r8"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.726 ; "    pop     rdi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.838 ; "    pop     rsi"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.775 ; "    pop     rdx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.776 ; "    pop     rcx"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.898 ; "    pop     rax"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.613 ; "    ret"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.899 ; "; allocator errors write a message and exit with status 1"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.900 ; "alloc_oom:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.901 ; "    mov     rsi, alloc_oom_msg"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.902 ; "    mov     rdx, alloc_oom_len"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.903 ; "    jmp     alloc_abort"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.904 ; "alloc_negative:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.905 ; "    mov     rsi, alloc_negative_msg"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.906 ; "    mov     rdx, alloc_negative_len"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.903 ; "    jmp     alloc_abort"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.907 ; "alloc_invalid_free:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.908 ; "    mov     rsi, alloc_invalid_msg"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.909 ; "    mov     rdx, alloc_invalid_len"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.903 ; "    jmp     alloc_abort"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.910 ; "alloc_double_free:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.911 ; "    mov     rsi, alloc_double_msg"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.912 ; "    mov     rdx, alloc_double_len"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.913 ; "alloc_abort:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.914 ; "    mov     rax, 1                     ; write"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.915 ; "    mov     rdi, 2                     ; stderr"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.666 ; "    syscall"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.916 ; "    mov     rax, 60                    ; exit"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.917 ; "    mov     rdi, 1"
+    mov     rdi, literal.963 ; "    mov     rdi, 1"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87181,27 +87541,27 @@ func.415: ; stack_assembler.emit.keywords.float
     mov     rbp, rsp
 
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.918 ; "; float add"
+    mov     rdi, literal.964 ; "; float add"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.919 ; ";   INPUT: (float, float)"
+    mov     rdi, literal.965 ; ";   INPUT: (float, float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.920 ; ";   OUTPUT: (float)"
+    mov     rdi, literal.966 ; ";   OUTPUT: (float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87211,26 +87571,18 @@ func.415: ; stack_assembler.emit.keywords.float
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87238,23 +87590,31 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.922 ; "    movq    xmm0, rax"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.898 ; "    pop     rax"
+    mov     rdi, literal.592 ; "    call    stack_pop"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.923 ; "    movq    xmm1, rax"
+    mov     rdi, literal.968 ; "    movq    xmm0, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.924 ; "    addsd   xmm0, xmm1"
+    mov     rdi, literal.944 ; "    pop     rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.925 ; "    movq    rdi, xmm0"
+    mov     rdi, literal.969 ; "    movq    xmm1, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.970 ; "    addsd   xmm0, xmm1"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.971 ; "    movq    rdi, xmm0"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87262,7 +87622,7 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87274,27 +87634,27 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.926 ; "; float subtract"
+    mov     rdi, literal.972 ; "; float subtract"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.919 ; ";   INPUT: (float, float)"
+    mov     rdi, literal.965 ; ";   INPUT: (float, float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.920 ; ";   OUTPUT: (float)"
+    mov     rdi, literal.966 ; ";   OUTPUT: (float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87304,26 +87664,18 @@ func.415: ; stack_assembler.emit.keywords.float
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87331,23 +87683,31 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.922 ; "    movq    xmm0, rax"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.898 ; "    pop     rax"
+    mov     rdi, literal.592 ; "    call    stack_pop"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.923 ; "    movq    xmm1, rax"
+    mov     rdi, literal.968 ; "    movq    xmm0, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.927 ; "    subsd   xmm0, xmm1"
+    mov     rdi, literal.944 ; "    pop     rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.925 ; "    movq    rdi, xmm0"
+    mov     rdi, literal.969 ; "    movq    xmm1, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.973 ; "    subsd   xmm0, xmm1"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.971 ; "    movq    rdi, xmm0"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87355,7 +87715,7 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87367,27 +87727,27 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.928 ; "; float multiply"
+    mov     rdi, literal.974 ; "; float multiply"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.919 ; ";   INPUT: (float, float)"
+    mov     rdi, literal.965 ; ";   INPUT: (float, float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.920 ; ";   OUTPUT: (float)"
+    mov     rdi, literal.966 ; ";   OUTPUT: (float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87397,26 +87757,18 @@ func.415: ; stack_assembler.emit.keywords.float
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87424,23 +87776,31 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.922 ; "    movq    xmm0, rax"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.898 ; "    pop     rax"
+    mov     rdi, literal.592 ; "    call    stack_pop"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.923 ; "    movq    xmm1, rax"
+    mov     rdi, literal.968 ; "    movq    xmm0, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.929 ; "    mulsd   xmm0, xmm1"
+    mov     rdi, literal.944 ; "    pop     rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.925 ; "    movq    rdi, xmm0"
+    mov     rdi, literal.969 ; "    movq    xmm1, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.975 ; "    mulsd   xmm0, xmm1"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.971 ; "    movq    rdi, xmm0"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87448,7 +87808,7 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87460,27 +87820,27 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.930 ; "; float divide"
+    mov     rdi, literal.976 ; "; float divide"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.919 ; ";   INPUT: (float, float)"
+    mov     rdi, literal.965 ; ";   INPUT: (float, float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.920 ; ";   OUTPUT: (float)"
+    mov     rdi, literal.966 ; ";   OUTPUT: (float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87490,26 +87850,18 @@ func.415: ; stack_assembler.emit.keywords.float
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87517,23 +87869,31 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.922 ; "    movq    xmm0, rax"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.898 ; "    pop     rax"
+    mov     rdi, literal.592 ; "    call    stack_pop"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.923 ; "    movq    xmm1, rax"
+    mov     rdi, literal.968 ; "    movq    xmm0, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.931 ; "    divsd   xmm0, xmm1"
+    mov     rdi, literal.944 ; "    pop     rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.925 ; "    movq    rdi, xmm0"
+    mov     rdi, literal.969 ; "    movq    xmm1, rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.977 ; "    divsd   xmm0, xmm1"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.971 ; "    movq    rdi, xmm0"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87541,7 +87901,7 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87553,27 +87913,27 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.932 ; "; float greater than, false for NaN"
+    mov     rdi, literal.978 ; "; float greater than, false for NaN"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.919 ; ";   INPUT: (float, float)"
+    mov     rdi, literal.965 ; ";   INPUT: (float, float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.933 ; ";   OUTPUT: (bool)"
+    mov     rdi, literal.979 ; ";   OUTPUT: (bool)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87583,26 +87943,18 @@ func.415: ; stack_assembler.emit.keywords.float
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87610,27 +87962,35 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.922 ; "    movq    xmm0, rax"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.898 ; "    pop     rax"
+    mov     rdi, literal.592 ; "    call    stack_pop"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.923 ; "    movq    xmm1, rax"
+    mov     rdi, literal.968 ; "    movq    xmm0, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.934 ; "    ucomisd xmm0, xmm1"
+    mov     rdi, literal.944 ; "    pop     rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.935 ; "    seta    al"
+    mov     rdi, literal.969 ; "    movq    xmm1, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.936 ; "    movzx   rax, al"
+    mov     rdi, literal.980 ; "    ucomisd xmm0, xmm1"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.981 ; "    seta    al"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.982 ; "    movzx   rax, al"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87642,7 +88002,7 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87654,27 +88014,27 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.937 ; "; float less than, false for NaN"
+    mov     rdi, literal.983 ; "; float less than, false for NaN"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.919 ; ";   INPUT: (float, float)"
+    mov     rdi, literal.965 ; ";   INPUT: (float, float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.933 ; ";   OUTPUT: (bool)"
+    mov     rdi, literal.979 ; ";   OUTPUT: (bool)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87684,26 +88044,18 @@ func.415: ; stack_assembler.emit.keywords.float
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87711,27 +88063,35 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.922 ; "    movq    xmm0, rax"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.898 ; "    pop     rax"
+    mov     rdi, literal.592 ; "    call    stack_pop"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.923 ; "    movq    xmm1, rax"
+    mov     rdi, literal.968 ; "    movq    xmm0, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.938 ; "    ucomisd xmm1, xmm0"
+    mov     rdi, literal.944 ; "    pop     rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.935 ; "    seta    al"
+    mov     rdi, literal.969 ; "    movq    xmm1, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.936 ; "    movzx   rax, al"
+    mov     rdi, literal.984 ; "    ucomisd xmm1, xmm0"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.981 ; "    seta    al"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.982 ; "    movzx   rax, al"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87743,7 +88103,7 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87755,27 +88115,27 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.939 ; "; float equal, false for NaN, -0.0 equals 0.0"
+    mov     rdi, literal.985 ; "; float equal, false for NaN, -0.0 equals 0.0"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.919 ; ";   INPUT: (float, float)"
+    mov     rdi, literal.965 ; ";   INPUT: (float, float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.933 ; ";   OUTPUT: (bool)"
+    mov     rdi, literal.979 ; ";   OUTPUT: (bool)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87785,26 +88145,18 @@ func.415: ; stack_assembler.emit.keywords.float
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87812,35 +88164,43 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.922 ; "    movq    xmm0, rax"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.898 ; "    pop     rax"
+    mov     rdi, literal.592 ; "    call    stack_pop"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.923 ; "    movq    xmm1, rax"
+    mov     rdi, literal.968 ; "    movq    xmm0, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.934 ; "    ucomisd xmm0, xmm1"
+    mov     rdi, literal.944 ; "    pop     rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.940 ; "    sete    al"
+    mov     rdi, literal.969 ; "    movq    xmm1, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.941 ; "    setnp   cl"
+    mov     rdi, literal.980 ; "    ucomisd xmm0, xmm1"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.942 ; "    and     al, cl"
+    mov     rdi, literal.986 ; "    sete    al"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.936 ; "    movzx   rax, al"
+    mov     rdi, literal.987 ; "    setnp   cl"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.988 ; "    and     al, cl"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.982 ; "    movzx   rax, al"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87852,7 +88212,7 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87864,27 +88224,27 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.943 ; "; int to float"
+    mov     rdi, literal.989 ; "; int to float"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.944 ; ";   INPUT: (int)"
+    mov     rdi, literal.990 ; ";   INPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.920 ; ";   OUTPUT: (float)"
+    mov     rdi, literal.966 ; ";   OUTPUT: (float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87894,18 +88254,18 @@ func.415: ; stack_assembler.emit.keywords.float
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87913,11 +88273,11 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.945 ; "    cvtsi2sd xmm0, rax"
+    mov     rdi, literal.991 ; "    cvtsi2sd xmm0, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.925 ; "    movq    rdi, xmm0"
+    mov     rdi, literal.971 ; "    movq    rdi, xmm0"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87925,7 +88285,7 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87937,27 +88297,27 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.946 ; "; float to int, truncate toward zero"
+    mov     rdi, literal.992 ; "; float to int, truncate toward zero"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.947 ; ";   INPUT: (float)"
+    mov     rdi, literal.993 ; ";   INPUT: (float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.948 ; ";   OUTPUT: (int)"
+    mov     rdi, literal.994 ; ";   OUTPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87967,18 +88327,18 @@ func.415: ; stack_assembler.emit.keywords.float
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -87986,11 +88346,11 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.922 ; "    movq    xmm0, rax"
+    mov     rdi, literal.968 ; "    movq    xmm0, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.949 ; "    cvttsd2si rax, xmm0"
+    mov     rdi, literal.995 ; "    cvttsd2si rax, xmm0"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88002,7 +88362,7 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88014,27 +88374,27 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.950 ; "; address of float"
+    mov     rdi, literal.996 ; "; address of float"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.947 ; ";   INPUT: (float)"
+    mov     rdi, literal.993 ; ";   INPUT: (float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.951 ; ";   OUTPUT: (ptr)"
+    mov     rdi, literal.997 ; ";   OUTPUT: (ptr)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88044,18 +88404,18 @@ func.415: ; stack_assembler.emit.keywords.float
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88071,7 +88431,7 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88083,27 +88443,27 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.952 ; "; dereference as float"
+    mov     rdi, literal.998 ; "; dereference as float"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.953 ; ";   INPUT: (ptr)"
+    mov     rdi, literal.999 ; ";   INPUT: (ptr)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.920 ; ";   OUTPUT: (float)"
+    mov     rdi, literal.966 ; ";   OUTPUT: (float)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88113,18 +88473,18 @@ func.415: ; stack_assembler.emit.keywords.float
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88140,7 +88500,7 @@ func.415: ; stack_assembler.emit.keywords.float
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88169,27 +88529,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.954 ; "; dup"
+    mov     rdi, literal.1000 ; "; dup"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.955 ; ";   INPUT: (a)"
+    mov     rdi, literal.1001 ; ";   INPUT: (a)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.956 ; ";   OUTPUT: (a, a)"
+    mov     rdi, literal.1002 ; ";   OUTPUT: (a, a)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88199,22 +88559,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88222,7 +88582,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.958 ; "    call    stack_peek_addr"
+    mov     rdi, literal.1004 ; "    call    stack_peek_addr"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88238,11 +88598,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88254,27 +88614,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.960 ; "; swp"
+    mov     rdi, literal.1006 ; "; swp"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.961 ; ";   INPUT: (a, b)"
+    mov     rdi, literal.1007 ; ";   INPUT: (a, b)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.962 ; ";   OUTPUT: (b, a)"
+    mov     rdi, literal.1008 ; ";   OUTPUT: (b, a)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88284,22 +88644,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88307,7 +88667,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.963 ; "    ; t0 <- A"
+    mov     rdi, literal.1009 ; "    ; t0 <- A"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88315,7 +88675,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.964 ; "    mov     qword [rbp - loc_0], rax"
+    mov     rdi, literal.1010 ; "    mov     qword [rbp - loc_0], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88323,7 +88683,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.965 ; "    ; t1 <- B"
+    mov     rdi, literal.1011 ; "    ; t1 <- B"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88331,7 +88691,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.966 ; "    mov     qword [rbp - loc_1], rax"
+    mov     rdi, literal.1012 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88339,11 +88699,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.967 ; "    ; push A"
+    mov     rdi, literal.1013 ; "    ; push A"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.968 ; "    mov     rdi, [rbp - loc_0]"
+    mov     rdi, literal.1014 ; "    mov     rdi, [rbp - loc_0]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88355,11 +88715,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.969 ; "    ; push B"
+    mov     rdi, literal.1015 ; "    ; push B"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.970 ; "    mov     rdi, [rbp - loc_1]"
+    mov     rdi, literal.1016 ; "    mov     rdi, [rbp - loc_1]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88371,11 +88731,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88387,27 +88747,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.971 ; "; rot"
+    mov     rdi, literal.1017 ; "; rot"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.972 ; ";   INPUT: (a, b, c)"
+    mov     rdi, literal.1018 ; ";   INPUT: (a, b, c)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.973 ; ";   OUTPUT: (b, c, a)"
+    mov     rdi, literal.1019 ; ";   OUTPUT: (b, c, a)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88417,30 +88777,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.974 ; "    sub     rsp, 32                    ; allocate 4 local variables"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.975 ; "    ; (C B A) -> (B A C)"
+    mov     rdi, literal.1020 ; "    sub     rsp, 32                    ; allocate 4 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88448,7 +88800,15 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.963 ; "    ; t0 <- A"
+    mov     rdi, literal.1021 ; "    ; (C B A) -> (B A C)"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1009 ; "    ; t0 <- A"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88456,7 +88816,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.964 ; "    mov     qword [rbp - loc_0], rax"
+    mov     rdi, literal.1010 ; "    mov     qword [rbp - loc_0], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88464,7 +88824,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.965 ; "    ; t1 <- B"
+    mov     rdi, literal.1011 ; "    ; t1 <- B"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88472,7 +88832,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.966 ; "    mov     qword [rbp - loc_1], rax"
+    mov     rdi, literal.1012 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88480,7 +88840,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.976 ; "    ; t2 <- C"
+    mov     rdi, literal.1022 ; "    ; t2 <- C"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88488,7 +88848,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.977 ; "    mov     qword [rbp - loc_2], rax"
+    mov     rdi, literal.1023 ; "    mov     qword [rbp - loc_2], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88496,11 +88856,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.969 ; "    ; push B"
+    mov     rdi, literal.1015 ; "    ; push B"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.970 ; "    mov     rdi, [rbp - loc_1]"
+    mov     rdi, literal.1016 ; "    mov     rdi, [rbp - loc_1]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88512,27 +88872,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.967 ; "    ; push A"
+    mov     rdi, literal.1013 ; "    ; push A"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.968 ; "    mov     rdi, [rbp - loc_0]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.586 ; "    call    stack_push_addr"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.978 ; "    ; push C"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.979 ; "    mov     rdi, [rbp - loc_2]"
+    mov     rdi, literal.1014 ; "    mov     rdi, [rbp - loc_0]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88544,11 +88888,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.980 ; "    add     rsp, 32                    ; deallocate local variables"
+    mov     rdi, literal.1024 ; "    ; push C"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.1025 ; "    mov     rdi, [rbp - loc_2]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.586 ; "    call    stack_push_addr"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1026 ; "    add     rsp, 32                    ; deallocate local variables"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88560,27 +88920,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.981 ; "; rot4"
+    mov     rdi, literal.1027 ; "; rot4"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.982 ; ";   INPUT: (a, b, c, d)"
+    mov     rdi, literal.1028 ; ";   INPUT: (a, b, c, d)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.983 ; ";   OUTPUT: (b, c, d, a)"
+    mov     rdi, literal.1029 ; ";   OUTPUT: (b, c, d, a)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88590,30 +88950,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.974 ; "    sub     rsp, 32                    ; allocate 4 local variables"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.984 ; "    ; (D C B A) -> (C B A D)"
+    mov     rdi, literal.1020 ; "    sub     rsp, 32                    ; allocate 4 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88621,7 +88973,15 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.963 ; "    ; t0 <- A"
+    mov     rdi, literal.1030 ; "    ; (D C B A) -> (C B A D)"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1009 ; "    ; t0 <- A"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88629,7 +88989,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.964 ; "    mov     qword [rbp - loc_0], rax"
+    mov     rdi, literal.1010 ; "    mov     qword [rbp - loc_0], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88637,7 +88997,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.965 ; "    ; t1 <- B"
+    mov     rdi, literal.1011 ; "    ; t1 <- B"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88645,7 +89005,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.966 ; "    mov     qword [rbp - loc_1], rax"
+    mov     rdi, literal.1012 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88653,7 +89013,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.976 ; "    ; t2 <- C"
+    mov     rdi, literal.1022 ; "    ; t2 <- C"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88661,7 +89021,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.977 ; "    mov     qword [rbp - loc_2], rax"
+    mov     rdi, literal.1023 ; "    mov     qword [rbp - loc_2], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88669,7 +89029,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.985 ; "    ; t3 <- D"
+    mov     rdi, literal.1031 ; "    ; t3 <- D"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88677,7 +89037,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.986 ; "    mov     qword [rbp - loc_3], rax"
+    mov     rdi, literal.1032 ; "    mov     qword [rbp - loc_3], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88685,11 +89045,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.978 ; "    ; push C"
+    mov     rdi, literal.1024 ; "    ; push C"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.979 ; "    mov     rdi, [rbp - loc_2]"
+    mov     rdi, literal.1025 ; "    mov     rdi, [rbp - loc_2]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88701,27 +89061,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.969 ; "    ; push B"
+    mov     rdi, literal.1015 ; "    ; push B"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.970 ; "    mov     rdi, [rbp - loc_1]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.586 ; "    call    stack_push_addr"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.967 ; "    ; push A"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.968 ; "    mov     rdi, [rbp - loc_0]"
+    mov     rdi, literal.1016 ; "    mov     rdi, [rbp - loc_1]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88733,11 +89077,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.987 ; "    ; push D"
+    mov     rdi, literal.1013 ; "    ; push A"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.988 ; "    mov     rdi, [rbp - loc_3]"
+    mov     rdi, literal.1014 ; "    mov     rdi, [rbp - loc_0]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88749,11 +89093,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.980 ; "    add     rsp, 32                    ; deallocate local variables"
+    mov     rdi, literal.1033 ; "    ; push D"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.1034 ; "    mov     rdi, [rbp - loc_3]"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.586 ; "    call    stack_push_addr"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1026 ; "    add     rsp, 32                    ; deallocate local variables"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88765,27 +89125,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.989 ; "; pop"
+    mov     rdi, literal.1035 ; "; pop"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.955 ; ";   INPUT: (a)"
+    mov     rdi, literal.1001 ; ";   INPUT: (a)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.990 ; ";   OUTPUT: ()"
+    mov     rdi, literal.1036 ; ";   OUTPUT: ()"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88795,22 +89155,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88826,11 +89186,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88842,27 +89202,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.991 ; "; pick"
+    mov     rdi, literal.1037 ; "; pick"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.944 ; ";   INPUT: (int)"
+    mov     rdi, literal.990 ; ";   INPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.951 ; ";   OUTPUT: (ptr)"
+    mov     rdi, literal.997 ; ";   OUTPUT: (ptr)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88872,22 +89232,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88903,7 +89263,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.992 ; "    call    stack_pick_addr"
+    mov     rdi, literal.1038 ; "    call    stack_pick_addr"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88919,11 +89279,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88935,27 +89295,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.993 ; "; plus"
+    mov     rdi, literal.1039 ; "; plus"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.994 ; ";   INPUT: (int, int)"
+    mov     rdi, literal.1040 ; ";   INPUT: (int, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.948 ; ";   OUTPUT: (int)"
+    mov     rdi, literal.994 ; ";   OUTPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -88965,34 +89325,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89004,7 +89352,19 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.726 ; "    pop     rdi"
+    mov     rdi, literal.875 ; "    push    rax"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.592 ; "    call    stack_pop"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.717 ; "    pop     rdi"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89024,11 +89384,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89040,27 +89400,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.995 ; "; sub"
+    mov     rdi, literal.1041 ; "; sub"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.994 ; ";   INPUT: (int, int)"
+    mov     rdi, literal.1040 ; ";   INPUT: (int, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.948 ; ";   OUTPUT: (int)"
+    mov     rdi, literal.994 ; ";   OUTPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89070,22 +89430,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89097,7 +89457,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89113,7 +89473,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.898 ; "    pop     rax"
+    mov     rdi, literal.944 ; "    pop     rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89121,7 +89481,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.996 ; "    sub     rdi, rax"
+    mov     rdi, literal.1042 ; "    sub     rdi, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89133,11 +89493,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89149,27 +89509,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.997 ; "; mul"
+    mov     rdi, literal.1043 ; "; mul"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.994 ; ";   INPUT: (int, int)"
+    mov     rdi, literal.1040 ; ";   INPUT: (int, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.948 ; ";   OUTPUT: (int)"
+    mov     rdi, literal.994 ; ";   OUTPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89179,34 +89539,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89218,7 +89566,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.726 ; "    pop     rdi"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89226,7 +89574,19 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.998 ; "    mul     rdi"
+    mov     rdi, literal.592 ; "    call    stack_pop"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.717 ; "    pop     rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1044 ; "    mul     rdi"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89242,11 +89602,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89258,27 +89618,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.999 ; "; div"
+    mov     rdi, literal.1045 ; "; div"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.994 ; ";   INPUT: (int, int)"
+    mov     rdi, literal.1040 ; ";   INPUT: (int, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.948 ; ";   OUTPUT: (int)"
+    mov     rdi, literal.994 ; ";   OUTPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89288,34 +89648,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89327,7 +89675,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.726 ; "    pop     rdi"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89335,11 +89683,23 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1000 ; "    cqo"
+    mov     rdi, literal.592 ; "    call    stack_pop"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1001 ; "    idiv    rdi"
+    mov     rdi, literal.717 ; "    pop     rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1046 ; "    cqo"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1047 ; "    idiv    rdi"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89355,11 +89715,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89371,27 +89731,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1002 ; "; mod"
+    mov     rdi, literal.1048 ; "; mod"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.994 ; ";   INPUT: (int, int)"
+    mov     rdi, literal.1040 ; ";   INPUT: (int, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.948 ; ";   OUTPUT: (int)"
+    mov     rdi, literal.994 ; ";   OUTPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89401,34 +89761,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89440,7 +89788,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.726 ; "    pop     rdi"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89448,15 +89796,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1000 ; "    cqo"
+    mov     rdi, literal.592 ; "    call    stack_pop"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1001 ; "    idiv    rdi"
+    mov     rdi, literal.717 ; "    pop     rdi"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.765 ; "    mov     rdi, rdx"
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1046 ; "    cqo"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1047 ; "    idiv    rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1049 ; "    mov     rdi, rdx"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89468,11 +89828,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89484,27 +89844,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1003 ; "; and"
+    mov     rdi, literal.1050 ; "; and"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.994 ; ";   INPUT: (int, int)"
+    mov     rdi, literal.1040 ; ";   INPUT: (int, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.948 ; ";   OUTPUT: (int)"
+    mov     rdi, literal.994 ; ";   OUTPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89514,34 +89874,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89553,7 +89901,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.726 ; "    pop     rdi"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89561,7 +89909,19 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1004 ; "    and     rdi, rax"
+    mov     rdi, literal.592 ; "    call    stack_pop"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.717 ; "    pop     rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1051 ; "    and     rdi, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89573,11 +89933,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89589,27 +89949,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1005 ; "; or"
+    mov     rdi, literal.1052 ; "; or"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.994 ; ";   INPUT: (int, int)"
+    mov     rdi, literal.1040 ; ";   INPUT: (int, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.948 ; ";   OUTPUT: (int)"
+    mov     rdi, literal.994 ; ";   OUTPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89619,34 +89979,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89658,7 +90006,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.726 ; "    pop     rdi"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89666,7 +90014,19 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1006 ; "    or      rdi, rax"
+    mov     rdi, literal.592 ; "    call    stack_pop"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.717 ; "    pop     rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1053 ; "    or      rdi, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89678,11 +90038,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89694,27 +90054,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1007 ; "; xor"
+    mov     rdi, literal.1054 ; "; xor"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.994 ; ";   INPUT: (int, int)"
+    mov     rdi, literal.1040 ; ";   INPUT: (int, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.948 ; ";   OUTPUT: (int)"
+    mov     rdi, literal.994 ; ";   OUTPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89724,34 +90084,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89763,7 +90111,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.726 ; "    pop     rdi"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89771,7 +90119,19 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1008 ; "    xor     rdi, rax"
+    mov     rdi, literal.592 ; "    call    stack_pop"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.717 ; "    pop     rdi"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1055 ; "    xor     rdi, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89783,11 +90143,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89799,27 +90159,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1009 ; "; shr"
+    mov     rdi, literal.1056 ; "; shr"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.994 ; ";   INPUT: (int, int)"
+    mov     rdi, literal.1040 ; ";   INPUT: (int, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.948 ; ";   OUTPUT: (int)"
+    mov     rdi, literal.994 ; ";   OUTPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89829,34 +90189,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89868,7 +90216,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.776 ; "    pop     rcx"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89876,7 +90224,19 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1010 ; "    sar     rax, cl"
+    mov     rdi, literal.592 ; "    call    stack_pop"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.771 ; "    pop     rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1057 ; "    sar     rax, cl"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89892,11 +90252,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89908,27 +90268,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1011 ; "; shl"
+    mov     rdi, literal.1058 ; "; shl"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.994 ; ";   INPUT: (int, int)"
+    mov     rdi, literal.1040 ; ";   INPUT: (int, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.948 ; ";   OUTPUT: (int)"
+    mov     rdi, literal.994 ; ";   OUTPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89938,34 +90298,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.592 ; "    call    stack_pop"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89977,7 +90325,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.776 ; "    pop     rcx"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -89985,7 +90333,19 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1012 ; "    shl     rax, cl"
+    mov     rdi, literal.592 ; "    call    stack_pop"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.771 ; "    pop     rcx"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1059 ; "    shl     rax, cl"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90001,11 +90361,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90017,27 +90377,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1013 ; "; greater than"
+    mov     rdi, literal.1060 ; "; greater than"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.994 ; ";   INPUT: (int, int)"
+    mov     rdi, literal.1040 ; ";   INPUT: (int, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.933 ; ";   OUTPUT: (bool)"
+    mov     rdi, literal.979 ; ";   OUTPUT: (bool)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90047,22 +90407,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90074,7 +90434,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90090,7 +90450,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.898 ; "    pop     rax"
+    mov     rdi, literal.944 ; "    pop     rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90098,19 +90458,19 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1014 ; "    cmp     rdi, rax"
+    mov     rdi, literal.1061 ; "    cmp     rdi, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1015 ; "    setg    al"
+    mov     rdi, literal.1062 ; "    setg    al"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1016 ; "    and     al, 1"
+    mov     rdi, literal.1063 ; "    and     al, 1"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.936 ; "    movzx   rax, al"
+    mov     rdi, literal.982 ; "    movzx   rax, al"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90126,11 +90486,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90142,27 +90502,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1017 ; "; less than"
+    mov     rdi, literal.1064 ; "; less than"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.994 ; ";   INPUT: (int, int)"
+    mov     rdi, literal.1040 ; ";   INPUT: (int, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.933 ; ";   OUTPUT: (bool)"
+    mov     rdi, literal.979 ; ";   OUTPUT: (bool)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90172,22 +90532,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90199,7 +90559,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90215,7 +90575,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.898 ; "    pop     rax"
+    mov     rdi, literal.944 ; "    pop     rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90223,19 +90583,19 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1014 ; "    cmp     rdi, rax"
+    mov     rdi, literal.1061 ; "    cmp     rdi, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1018 ; "    setl    al"
+    mov     rdi, literal.1065 ; "    setl    al"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1016 ; "    and     al, 1"
+    mov     rdi, literal.1063 ; "    and     al, 1"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.936 ; "    movzx   rax, al"
+    mov     rdi, literal.982 ; "    movzx   rax, al"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90251,11 +90611,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90267,27 +90627,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1017 ; "; less than"
+    mov     rdi, literal.1064 ; "; less than"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.994 ; ";   INPUT: (int, int)"
+    mov     rdi, literal.1040 ; ";   INPUT: (int, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.933 ; ";   OUTPUT: (bool)"
+    mov     rdi, literal.979 ; ";   OUTPUT: (bool)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90297,22 +90657,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90324,7 +90684,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.843 ; "    push    rax"
+    mov     rdi, literal.875 ; "    push    rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90340,7 +90700,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.898 ; "    pop     rax"
+    mov     rdi, literal.944 ; "    pop     rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90348,19 +90708,19 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1014 ; "    cmp     rdi, rax"
+    mov     rdi, literal.1061 ; "    cmp     rdi, rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.940 ; "    sete    al"
+    mov     rdi, literal.986 ; "    sete    al"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1016 ; "    and     al, 1"
+    mov     rdi, literal.1063 ; "    and     al, 1"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.936 ; "    movzx   rax, al"
+    mov     rdi, literal.982 ; "    movzx   rax, al"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90376,11 +90736,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90392,27 +90752,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1019 ; "; memory allocate"
+    mov     rdi, literal.1066 ; "; memory allocate"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.944 ; ";   INPUT: (int)"
+    mov     rdi, literal.990 ; ";   INPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.951 ; ";   OUTPUT: (ptr)"
+    mov     rdi, literal.997 ; ";   OUTPUT: (ptr)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90422,22 +90782,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.957 ; "    sub     rsp, 16                    ; allocate 2 local variables"
+    mov     rdi, literal.1003 ; "    sub     rsp, 16                    ; allocate 2 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90453,7 +90813,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1020 ; "    call    allocate"
+    mov     rdi, literal.1067 ; "    call    allocate"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90469,11 +90829,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.959 ; "    add     rsp, 16                    ; deallocate local variables"
+    mov     rdi, literal.1005 ; "    add     rsp, 16                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90485,27 +90845,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1021 ; "; memory free"
+    mov     rdi, literal.1068 ; "; memory free"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.953 ; ";   INPUT: (ptr)"
+    mov     rdi, literal.999 ; ";   INPUT: (ptr)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.990 ; ";   OUTPUT: ()"
+    mov     rdi, literal.1036 ; ";   OUTPUT: ()"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90515,18 +90875,18 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90542,7 +90902,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1022 ; "    call    deallocate"
+    mov     rdi, literal.797 ; "    call    deallocate"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90550,7 +90910,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90562,27 +90922,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1023 ; "; memory offset"
+    mov     rdi, literal.1069 ; "; memory offset"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1024 ; ";   INPUT: (ptr, int)"
+    mov     rdi, literal.1070 ; ";   INPUT: (ptr, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.951 ; ";   OUTPUT: (ptr)"
+    mov     rdi, literal.997 ; ";   OUTPUT: (ptr)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90592,22 +90952,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1025 ; "    sub     rsp, 24                    ; allocate 3 local variables"
+    mov     rdi, literal.1071 ; "    sub     rsp, 24                    ; allocate 3 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90615,7 +90975,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1026 ; "    ; t1 <- int"
+    mov     rdi, literal.1072 ; "    ; t1 <- int"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90623,7 +90983,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.966 ; "    mov     qword [rbp - loc_1], rax"
+    mov     rdi, literal.1012 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90631,7 +90991,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1027 ; "    ; t2 <- ptr"
+    mov     rdi, literal.1073 ; "    ; t2 <- ptr"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90639,7 +90999,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.977 ; "    mov     qword [rbp - loc_2], rax"
+    mov     rdi, literal.1023 ; "    mov     qword [rbp - loc_2], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90647,15 +91007,15 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1028 ; "    ; ptr[0] <- byte a"
+    mov     rdi, literal.1074 ; "    ; ptr[0] <- byte a"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1029 ; "    mov     rax, qword [rbp - loc_2]"
+    mov     rdi, literal.1075 ; "    mov     rax, qword [rbp - loc_2]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1030 ; "    mov     rdi, qword [rbp - loc_1]"
+    mov     rdi, literal.1076 ; "    mov     rdi, qword [rbp - loc_1]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90671,11 +91031,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1031 ; "    add     rsp, 24                    ; deallocate local variables"
+    mov     rdi, literal.1077 ; "    add     rsp, 24                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90687,27 +91047,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1032 ; "; memory copy"
+    mov     rdi, literal.1078 ; "; memory copy"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1033 ; ";   INPUT: (dst, src, len)"
+    mov     rdi, literal.1079 ; ";   INPUT: (dst, src, len)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.990 ; ";   OUTPUT: ()"
+    mov     rdi, literal.1036 ; ";   OUTPUT: ()"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90717,22 +91077,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1025 ; "    sub     rsp, 24                    ; allocate 3 local variables"
+    mov     rdi, literal.1071 ; "    sub     rsp, 24                    ; allocate 3 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90740,7 +91100,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1034 ; "    ; t0 <- len"
+    mov     rdi, literal.1080 ; "    ; t0 <- len"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90748,7 +91108,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.964 ; "    mov     qword [rbp - loc_0], rax"
+    mov     rdi, literal.1010 ; "    mov     qword [rbp - loc_0], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90756,7 +91116,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1035 ; "    ; t1 <- src"
+    mov     rdi, literal.1081 ; "    ; t1 <- src"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90764,7 +91124,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.966 ; "    mov     qword [rbp - loc_1], rax"
+    mov     rdi, literal.1012 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90772,7 +91132,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1036 ; "    ; t2 <- dst"
+    mov     rdi, literal.1082 ; "    ; t2 <- dst"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90780,7 +91140,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.977 ; "    mov     qword [rbp - loc_2], rax"
+    mov     rdi, literal.1023 ; "    mov     qword [rbp - loc_2], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90788,31 +91148,15 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1037 ; "    mov     rdi, qword [rbp - loc_2]"
+    mov     rdi, literal.1083 ; "    mov     rdi, qword [rbp - loc_2]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1038 ; "    mov     rsi, qword [rbp - loc_1]"
+    mov     rdi, literal.1084 ; "    mov     rsi, qword [rbp - loc_1]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1039 ; "    mov     rdx, qword [rbp - loc_0]"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.1040 ; ".next_byte:"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.1041 ; "    cmp     rdx, 0                     ; check if done"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.1042 ; "    jle     .done"
+    mov     rdi, literal.1085 ; "    mov     rdx, qword [rbp - loc_0]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90820,27 +91164,15 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1043 ; "    mov     al, byte [rsi]             ; get byte from self"
+    mov     rdi, literal.1086 ; ".next_byte:"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1044 ; "    mov     byte [rdi], al             ; copy byte to new object"
+    mov     rdi, literal.1087 ; "    cmp     rdx, 0                     ; check if done"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.0 ; ""
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.1045 ; "    inc     rdi                        ; increment destination"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.1046 ; "    inc     rsi                        ; increment source"
-    call    stack_push_addr
-    call    func.378 ; emit
-    call    func.1 ; dup
-    mov     rdi, literal.1047 ; "    dec     rdx                        ; decrement count"
+    mov     rdi, literal.1088 ; "    jle     .done"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90848,11 +91180,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1048 ; "    jmp .next_byte"
+    mov     rdi, literal.1089 ; "    mov     al, byte [rsi]             ; get byte from self"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1049 ; ".done:"
+    mov     rdi, literal.1090 ; "    mov     byte [rdi], al             ; copy byte to new object"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90860,7 +91192,35 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1037 ; "    mov     rdi, qword [rbp - loc_2]"
+    mov     rdi, literal.1091 ; "    inc     rdi                        ; increment destination"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1092 ; "    inc     rsi                        ; increment source"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1093 ; "    dec     rdx                        ; decrement count"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1094 ; "    jmp .next_byte"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1095 ; ".done:"
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.0 ; ""
+    call    stack_push_addr
+    call    func.378 ; emit
+    call    func.1 ; dup
+    mov     rdi, literal.1083 ; "    mov     rdi, qword [rbp - loc_2]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90872,11 +91232,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1031 ; "    add     rsp, 24                    ; deallocate local variables"
+    mov     rdi, literal.1077 ; "    add     rsp, 24                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90894,18 +91254,18 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90913,7 +91273,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1050 ; "    ; deref data"
+    mov     rdi, literal.1096 ; "    ; deref data"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90933,7 +91293,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90951,18 +91311,18 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90970,7 +91330,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1050 ; "    ; deref data"
+    mov     rdi, literal.1096 ; "    ; deref data"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -90990,7 +91350,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91008,18 +91368,18 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91027,7 +91387,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1050 ; "    ; deref data"
+    mov     rdi, literal.1096 ; "    ; deref data"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91047,7 +91407,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91065,18 +91425,18 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91084,7 +91444,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1050 ; "    ; deref data"
+    mov     rdi, literal.1096 ; "    ; deref data"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91104,7 +91464,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91122,18 +91482,18 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91141,7 +91501,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1050 ; "    ; deref data"
+    mov     rdi, literal.1096 ; "    ; deref data"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91161,7 +91521,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91179,18 +91539,18 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91198,7 +91558,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1050 ; "    ; deref data"
+    mov     rdi, literal.1096 ; "    ; deref data"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91218,7 +91578,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91236,18 +91596,18 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91255,11 +91615,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1051 ; "    ; get env vars ptr"
+    mov     rdi, literal.1097 ; "    ; get env vars ptr"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1052 ; "    mov     rdi, qword [stack_env]"
+    mov     rdi, literal.1098 ; "    mov     rdi, qword [stack_env]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91271,7 +91631,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91283,27 +91643,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1053 ; "; syscall1"
+    mov     rdi, literal.1099 ; "; syscall1"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1054 ; ";   INPUT: (a, int)"
+    mov     rdi, literal.1100 ; ";   INPUT: (a, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.948 ; ";   OUTPUT: (int)"
+    mov     rdi, literal.994 ; ";   OUTPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91313,22 +91673,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.974 ; "    sub     rsp, 32                    ; allocate 4 local variables"
+    mov     rdi, literal.1020 ; "    sub     rsp, 32                    ; allocate 4 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91336,7 +91696,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1055 ; "    ; t0 <- int"
+    mov     rdi, literal.1101 ; "    ; t0 <- int"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91344,7 +91704,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.964 ; "    mov     qword [rbp - loc_0], rax"
+    mov     rdi, literal.1010 ; "    mov     qword [rbp - loc_0], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91352,7 +91712,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1056 ; "    ; t1 <- a"
+    mov     rdi, literal.1102 ; "    ; t1 <- a"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91360,7 +91720,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.966 ; "    mov     qword [rbp - loc_1], rax"
+    mov     rdi, literal.1012 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91368,35 +91728,35 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1057 ; "    ; syscall1(t0) t1"
+    mov     rdi, literal.1103 ; "    ; syscall1(t0) t1"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1058 ; "    mov     rax, qword [rbp - loc_0]"
+    mov     rdi, literal.1104 ; "    mov     rax, qword [rbp - loc_0]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1030 ; "    mov     rdi, qword [rbp - loc_1]"
+    mov     rdi, literal.1076 ; "    mov     rdi, qword [rbp - loc_1]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1059 ; "    xor     esi, esi                   ; unused arguments are 0"
+    mov     rdi, literal.1105 ; "    xor     esi, esi                   ; unused arguments are 0"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1060 ; "    xor     edx, edx"
+    mov     rdi, literal.1106 ; "    xor     edx, edx"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1061 ; "    xor     r10d, r10d"
+    mov     rdi, literal.1107 ; "    xor     r10d, r10d"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1062 ; "    xor     r8d, r8d"
+    mov     rdi, literal.1108 ; "    xor     r8d, r8d"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1063 ; "    xor     r9d, r9d"
+    mov     rdi, literal.1109 ; "    xor     r9d, r9d"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91420,11 +91780,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.980 ; "    add     rsp, 32                    ; deallocate local variables"
+    mov     rdi, literal.1026 ; "    add     rsp, 32                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91436,27 +91796,27 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1064 ; "; syscall3"
+    mov     rdi, literal.1110 ; "; syscall3"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.687 ; ";"
+    mov     rdi, literal.688 ; ";"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1065 ; ";   INPUT: (a, b, c, int)"
+    mov     rdi, literal.1111 ; ";   INPUT: (a, b, c, int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.948 ; ";   OUTPUT: (int)"
+    mov     rdi, literal.994 ; ";   OUTPUT: (int)"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91466,22 +91826,22 @@ func.414: ; stack_assembler.emit.keywords
     call    func.1 ; dup
     call    func.88 ; rot'
     call    func.382 ; stack_assembler.func.name
-    mov     rdi, literal.921 ; ": ; "
+    mov     rdi, literal.967 ; ": ; "
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.2 ; swp
     call    func.42 ; string.concat
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.692 ; "    push    rbp                        ; save return address"
+    mov     rdi, literal.693 ; "    push    rbp                        ; save return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.693 ; "    mov     rbp, rsp                   ; set up stack frame"
+    mov     rdi, literal.694 ; "    mov     rbp, rsp                   ; set up stack frame"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.974 ; "    sub     rsp, 32                    ; allocate 4 local variables"
+    mov     rdi, literal.1020 ; "    sub     rsp, 32                    ; allocate 4 local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91489,7 +91849,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1055 ; "    ; t0 <- int"
+    mov     rdi, literal.1101 ; "    ; t0 <- int"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91497,7 +91857,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.964 ; "    mov     qword [rbp - loc_0], rax"
+    mov     rdi, literal.1010 ; "    mov     qword [rbp - loc_0], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91505,7 +91865,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1066 ; "    ; t1 <- c"
+    mov     rdi, literal.1112 ; "    ; t1 <- c"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91513,7 +91873,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.966 ; "    mov     qword [rbp - loc_1], rax"
+    mov     rdi, literal.1012 ; "    mov     qword [rbp - loc_1], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91521,7 +91881,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1067 ; "    ; t2 <- b"
+    mov     rdi, literal.1113 ; "    ; t2 <- b"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91529,7 +91889,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.977 ; "    mov     qword [rbp - loc_2], rax"
+    mov     rdi, literal.1023 ; "    mov     qword [rbp - loc_2], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91537,7 +91897,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1068 ; "    ; t3 <- a"
+    mov     rdi, literal.1114 ; "    ; t3 <- a"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91545,7 +91905,7 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.986 ; "    mov     qword [rbp - loc_3], rax"
+    mov     rdi, literal.1032 ; "    mov     qword [rbp - loc_3], rax"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91553,35 +91913,35 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1069 ; "    ; syscall3(t0) t3 t2 t1"
+    mov     rdi, literal.1115 ; "    ; syscall3(t0) t3 t2 t1"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1058 ; "    mov     rax, qword [rbp - loc_0]"
+    mov     rdi, literal.1104 ; "    mov     rax, qword [rbp - loc_0]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1070 ; "    mov     rdi, qword [rbp - loc_3]"
+    mov     rdi, literal.1116 ; "    mov     rdi, qword [rbp - loc_3]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1071 ; "    mov     rsi, qword [rbp - loc_2]"
+    mov     rdi, literal.1117 ; "    mov     rsi, qword [rbp - loc_2]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1072 ; "    mov     rdx, qword [rbp - loc_1]"
+    mov     rdi, literal.1118 ; "    mov     rdx, qword [rbp - loc_1]"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1073 ; "    xor     r10d, r10d                 ; unused arguments are 0"
+    mov     rdi, literal.1119 ; "    xor     r10d, r10d                 ; unused arguments are 0"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1062 ; "    xor     r8d, r8d"
+    mov     rdi, literal.1108 ; "    xor     r8d, r8d"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.1063 ; "    xor     r9d, r9d"
+    mov     rdi, literal.1109 ; "    xor     r9d, r9d"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91605,11 +91965,11 @@ func.414: ; stack_assembler.emit.keywords
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.980 ; "    add     rsp, 32                    ; deallocate local variables"
+    mov     rdi, literal.1026 ; "    add     rsp, 32                    ; deallocate local variables"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
-    mov     rdi, literal.711 ; "    pop     rbp                        ; restore return address"
+    mov     rdi, literal.702 ; "    pop     rbp                        ; restore return address"
     call    stack_push_addr
     call    func.378 ; emit
     call    func.1 ; dup
@@ -91722,7 +92082,7 @@ func.416: ; stack_ast.dump.pad
     push    rbp
     mov     rbp, rsp
 
-    mov     rdi, literal.1074 ; " "
+    mov     rdi, literal.1120 ; " "
     call    stack_push_addr
     call    func.2 ; swp
     call    func.116 ; string.repeat
@@ -91843,7 +92203,7 @@ func.418: ; stack_ast.dump.cond
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.416 ; stack_ast.dump.pad
-    mov     rdi, literal.1075 ; "IF\n"
+    mov     rdi, literal.1121 ; "IF\n"
     call    stack_push_addr
     call    func.40 ; string.stdout
     mov     rdi, qword [rbp - 8]
@@ -91958,7 +92318,7 @@ func.418: ; stack_ast.dump.cond
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.416 ; stack_ast.dump.pad
-    mov     rdi, literal.1076 ; "ELSE\n"
+    mov     rdi, literal.1122 ; "ELSE\n"
     call    stack_push_addr
     call    func.40 ; string.stdout
     mov     rdi, qword [rbp - 8]
@@ -92088,7 +92448,7 @@ func.418: ; stack_ast.dump.cond
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.416 ; stack_ast.dump.pad
-    mov     rdi, literal.1077 ; "FI\n"
+    mov     rdi, literal.1123 ; "FI\n"
     call    stack_push_addr
     call    func.40 ; string.stdout
     add     rsp, 16
@@ -92122,7 +92482,7 @@ func.420: ; stack_ast.dump.binds
     test    rax, rax
     jz     .pool742
 .loop742:
-    mov     rdi, literal.1074 ; " "
+    mov     rdi, literal.1120 ; " "
     call    stack_push_addr
     call    func.40 ; string.stdout
     call    func.1 ; dup
@@ -92137,7 +92497,7 @@ func.420: ; stack_ast.dump.binds
 .else743:
     jmp    .fi743
 .if743:
-    mov     rdi, literal.1078 ; "./lib/stack/dump.stack"
+    mov     rdi, literal.1124 ; "./lib/stack/dump.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -92530,7 +92890,7 @@ func.422: ; stack_ast.dump.while
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.416 ; stack_ast.dump.pad
-    mov     rdi, literal.1079 ; "WHILE\n"
+    mov     rdi, literal.1125 ; "WHILE\n"
     call    stack_push_addr
     call    func.40 ; string.stdout
     mov     rdi, qword [rbp - 8]
@@ -92645,7 +93005,7 @@ func.422: ; stack_ast.dump.while
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.416 ; stack_ast.dump.pad
-    mov     rdi, literal.1080 ; "LOOP\n"
+    mov     rdi, literal.1126 ; "LOOP\n"
     call    stack_push_addr
     call    func.40 ; string.stdout
     mov     rdi, qword [rbp - 8]
@@ -92775,7 +93135,7 @@ func.422: ; stack_ast.dump.while
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.416 ; stack_ast.dump.pad
-    mov     rdi, literal.1081 ; "POOL\n"
+    mov     rdi, literal.1127 ; "POOL\n"
     call    stack_push_addr
     call    func.40 ; string.stdout
     add     rsp, 16
@@ -92823,7 +93183,7 @@ func.419: ; stack_ast.dump.exprs
 .else745:
     jmp    .fi745
 .if745:
-    mov     rdi, literal.1078 ; "./lib/stack/dump.stack"
+    mov     rdi, literal.1124 ; "./lib/stack/dump.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -92929,7 +93289,7 @@ func.419: ; stack_ast.dump.exprs
     test    rax, rax
     jnz     .if753
 .else753:
-    mov     rdi, literal.1078 ; "./lib/stack/dump.stack"
+    mov     rdi, literal.1124 ; "./lib/stack/dump.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -93170,12 +93530,12 @@ func.423: ; stack_ast.dump.params
 .else755:
     jmp    .fi755
 .if755:
-    mov     rdi, literal.1078 ; "./lib/stack/dump.stack"
+    mov     rdi, literal.1124 ; "./lib/stack/dump.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1082 ; 111
+    mov     rdi, literal.1128 ; 111
     call    stack_push_addr
     call    func.49 ; int.show
     call    func.42 ; string.concat
@@ -93343,12 +93703,12 @@ func.424: ; stack_ast.dump.fields
 .else757:
     jmp    .fi757
 .if757:
-    mov     rdi, literal.1078 ; "./lib/stack/dump.stack"
+    mov     rdi, literal.1124 ; "./lib/stack/dump.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1083 ; 120
+    mov     rdi, literal.1129 ; 120
     call    stack_push_addr
     call    func.49 ; int.show
     call    func.42 ; string.concat
@@ -93726,7 +94086,7 @@ func.76: ; stack_ast.dump
 .else759:
     jmp    .fi759
 .if759:
-    mov     rdi, literal.1078 ; "./lib/stack/dump.stack"
+    mov     rdi, literal.1124 ; "./lib/stack/dump.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -93813,12 +94173,12 @@ func.76: ; stack_ast.dump
     mov     rdi, literal.6 ; "\n"
     call    stack_push_addr
     call    func.40 ; string.stdout
-    mov     rdi, literal.1078 ; "./lib/stack/dump.stack"
+    mov     rdi, literal.1124 ; "./lib/stack/dump.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1084 ; 187
+    mov     rdi, literal.1130 ; 187
     call    stack_push_addr
     call    func.49 ; int.show
     call    func.42 ; string.concat
@@ -93860,7 +94220,7 @@ func.76: ; stack_ast.dump
     sub     rsp, 8
     call    stack_pop_addr
     mov     qword [rbp - 24], rax
-    mov     rdi, literal.1085 ; "extern "
+    mov     rdi, literal.1131 ; "extern "
     call    stack_push_addr
     call    func.40 ; string.stdout
     mov     rdi, qword [rbp - 24]
@@ -93962,7 +94322,7 @@ func.76: ; stack_ast.dump
     call    func.40 ; string.stdout
     mov     rdi, literal.89 ; 4
     call    stack_push_addr
-    mov     rdi, literal.1086 ; "arg"
+    mov     rdi, literal.1132 ; "arg"
     call    stack_push_addr
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
@@ -94070,7 +94430,7 @@ func.76: ; stack_ast.dump
     call    func.423 ; stack_ast.dump.params
     mov     rdi, literal.89 ; 4
     call    stack_push_addr
-    mov     rdi, literal.1087 ; "ret"
+    mov     rdi, literal.1133 ; "ret"
     call    stack_push_addr
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
@@ -94194,7 +94554,7 @@ func.76: ; stack_ast.dump
     mov     rdi, literal.89 ; 4
     call    stack_push_addr
     call    func.416 ; stack_ast.dump.pad
-    mov     rdi, literal.1088 ; "symbol: \""
+    mov     rdi, literal.1134 ; "symbol: \""
     call    stack_push_addr
     call    func.40 ; string.stdout
     mov     rdi, qword [rbp - 24]
@@ -94417,7 +94777,7 @@ func.76: ; stack_ast.dump
     call    func.22 ; ptr.+
     call    func.57 ; string.*
     call    func.40 ; string.stdout
-    mov     rdi, literal.1089 ; "\"\n\n"
+    mov     rdi, literal.1135 ; "\"\n\n"
     call    stack_push_addr
     call    func.40 ; string.stdout
     add     rsp, 8
@@ -94439,7 +94799,7 @@ func.76: ; stack_ast.dump
     sub     rsp, 8
     call    stack_pop_addr
     mov     qword [rbp - 24], rax
-    mov     rdi, literal.1090 ; "@import \""
+    mov     rdi, literal.1136 ; "@import \""
     call    stack_push_addr
     call    func.40 ; string.stdout
     mov     rdi, qword [rbp - 24]
@@ -94536,7 +94896,7 @@ func.76: ; stack_ast.dump
     call    func.22 ; ptr.+
     call    func.57 ; string.*
     call    func.40 ; string.stdout
-    mov     rdi, literal.1089 ; "\"\n\n"
+    mov     rdi, literal.1135 ; "\"\n\n"
     call    stack_push_addr
     call    func.40 ; string.stdout
     add     rsp, 8
@@ -94558,7 +94918,7 @@ func.76: ; stack_ast.dump
     sub     rsp, 8
     call    stack_pop_addr
     mov     qword [rbp - 24], rax
-    mov     rdi, literal.1091 ; "const "
+    mov     rdi, literal.1137 ; "const "
     call    stack_push_addr
     call    func.40 ; string.stdout
     mov     rdi, qword [rbp - 24]
@@ -94888,7 +95248,7 @@ func.76: ; stack_ast.dump
     call    func.40 ; string.stdout
     mov     rdi, literal.89 ; 4
     call    stack_push_addr
-    mov     rdi, literal.1086 ; "arg"
+    mov     rdi, literal.1132 ; "arg"
     call    stack_push_addr
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
@@ -94996,7 +95356,7 @@ func.76: ; stack_ast.dump
     call    func.423 ; stack_ast.dump.params
     mov     rdi, literal.89 ; 4
     call    stack_push_addr
-    mov     rdi, literal.1087 ; "ret"
+    mov     rdi, literal.1133 ; "ret"
     call    stack_push_addr
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
@@ -95120,7 +95480,7 @@ func.76: ; stack_ast.dump
     mov     rdi, literal.89 ; 4
     call    stack_push_addr
     call    func.416 ; stack_ast.dump.pad
-    mov     rdi, literal.1092 ; "body:\n"
+    mov     rdi, literal.1138 ; "body:\n"
     call    stack_push_addr
     call    func.40 ; string.stdout
     mov     rdi, literal.89 ; 4
@@ -95511,7 +95871,7 @@ func.425: ; stack_driver.error
     push    rbp
     mov     rbp, rsp
 
-    mov     rdi, literal.1093 ; "Build error: "
+    mov     rdi, literal.1139 ; "Build error: "
     call    stack_push_addr
     call    func.2 ; swp
     call    func.42 ; string.concat
@@ -95578,7 +95938,7 @@ func.426: ; stack_driver.run
 .else766:
     jmp    .fi766
 .if766:
-    mov     rdi, literal.1094 ; "./lib/stack/driver.stack"
+    mov     rdi, literal.1140 ; "./lib/stack/driver.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -95621,7 +95981,7 @@ func.426: ; stack_driver.run
 .else767:
     jmp    .fi767
 .if767:
-    mov     rdi, literal.1094 ; "./lib/stack/driver.stack"
+    mov     rdi, literal.1140 ; "./lib/stack/driver.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -95685,12 +96045,12 @@ func.426: ; stack_driver.run
     sub     rsp, 8
     call    stack_pop_addr
     mov     qword [rbp - 64], rax
-    mov     rdi, literal.1095 ; "`"
+    mov     rdi, literal.1141 ; "`"
     call    stack_push_addr
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1096 ; "` was killed by signal "
+    mov     rdi, literal.1142 ; "` was killed by signal "
     call    stack_push_addr
     call    func.42 ; string.concat
     mov     rdi, qword [rbp - 64]
@@ -95698,7 +96058,7 @@ func.426: ; stack_driver.run
     call    func.49 ; int.show
     call    func.42 ; string.concat
     call    func.425 ; stack_driver.error
-    mov     rdi, literal.1097 ; 128
+    mov     rdi, literal.1143 ; 128
     call    stack_push_addr
     mov     rdi, qword [rbp - 64]
     call    stack_push_addr
@@ -95724,12 +96084,12 @@ func.426: ; stack_driver.run
 .else770:
     jmp    .fi770
 .if770:
-    mov     rdi, literal.1095 ; "`"
+    mov     rdi, literal.1141 ; "`"
     call    stack_push_addr
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1098 ; "` failed with exit status "
+    mov     rdi, literal.1144 ; "` failed with exit status "
     call    stack_push_addr
     call    func.42 ; string.concat
     mov     rdi, qword [rbp - 64]
@@ -95744,12 +96104,12 @@ func.426: ; stack_driver.run
 .fi769:
     jmp    .fi768
 .if768:
-    mov     rdi, literal.1099 ; "cannot run `"
+    mov     rdi, literal.1145 ; "cannot run `"
     call    stack_push_addr
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1095 ; "`"
+    mov     rdi, literal.1141 ; "`"
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.425 ; stack_driver.error
@@ -95759,12 +96119,12 @@ func.426: ; stack_driver.run
     add     rsp, 16
     jmp    .fi765
 .if765:
-    mov     rdi, literal.1100 ; "cannot find `"
+    mov     rdi, literal.1146 ; "cannot find `"
     call    stack_push_addr
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1101 ; "` in PATH"
+    mov     rdi, literal.1147 ; "` in PATH"
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.425 ; stack_driver.error
@@ -95826,7 +96186,7 @@ func.432: ; stack_driver.inputs.has
 .else772:
     jmp    .fi772
 .if772:
-    mov     rdi, literal.1094 ; "./lib/stack/driver.stack"
+    mov     rdi, literal.1140 ; "./lib/stack/driver.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -95880,11 +96240,11 @@ func.433: ; stack_driver.output.error
     push    rbp
     mov     rbp, rsp
 
-    mov     rdi, literal.1102 ; "I/O error: output `"
+    mov     rdi, literal.1148 ; "I/O error: output `"
     call    stack_push_addr
     call    func.2 ; swp
     call    func.42 ; string.concat
-    mov     rdi, literal.1103 ; "` is an input file\n"
+    mov     rdi, literal.1149 ; "` is an input file\n"
     call    stack_push_addr
     call    func.42 ; string.concat
     mov     rdi, literal.37 ; 2
@@ -96060,7 +96420,7 @@ func.85: ; stack_driver.assembly
     mov     rdi, literal.112 ; 64
     call    stack_push_addr
     call    func.13 ; |
-    mov     rdi, literal.1104 ; 524288
+    mov     rdi, literal.1150 ; 524288
     call    stack_push_addr
     call    func.13 ; |
     mov     rdi, literal.113 ; 420
@@ -96162,7 +96522,7 @@ func.85: ; stack_driver.assembly
     call    func.19 ; =
     mov     rdi, qword [rbp - 64]
     call    stack_push_addr
-    mov     rdi, literal.1105 ; -22
+    mov     rdi, literal.1151 ; -22
     call    stack_push_addr
     call    func.19 ; =
     call    func.55 ; or
@@ -96178,7 +96538,7 @@ func.85: ; stack_driver.assembly
     call    stack_push_addr
     jmp    .fi779
 .if779:
-    mov     rdi, literal.1106 ; "I/O error: cannot truncate output file \""
+    mov     rdi, literal.1152 ; "I/O error: cannot truncate output file \""
     call    stack_push_addr
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
@@ -96216,7 +96576,7 @@ func.85: ; stack_driver.assembly
 .fi778:
     jmp    .fi777
 .if777:
-    mov     rdi, literal.1107 ; "I/O error: cannot stat output file \""
+    mov     rdi, literal.1153 ; "I/O error: cannot stat output file \""
     call    stack_push_addr
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
@@ -96241,7 +96601,7 @@ func.85: ; stack_driver.assembly
     add     rsp, 24
     jmp    .fi776
 .if776:
-    mov     rdi, literal.1108 ; "I/O error: cannot open output file \""
+    mov     rdi, literal.1154 ; "I/O error: cannot open output file \""
     call    stack_push_addr
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
@@ -96392,7 +96752,7 @@ func.85: ; stack_driver.assembly
     test    rax, rax
     jnz     .if782
 .else782:
-    mov     rdi, literal.1109 ; "I/O error: cannot write assembly output\n"
+    mov     rdi, literal.1155 ; "I/O error: cannot write assembly output\n"
     call    stack_push_addr
     mov     rdi, literal.37 ; 2
     call    stack_push_addr
@@ -96441,16 +96801,16 @@ func.438: ; stack_driver.write
     mov     rdi, literal.112 ; 64
     call    stack_push_addr
     call    func.13 ; |
-    mov     rdi, literal.1097 ; 128
+    mov     rdi, literal.1143 ; 128
     call    stack_push_addr
     call    func.13 ; |
-    mov     rdi, literal.1110 ; 131072
+    mov     rdi, literal.1156 ; 131072
     call    stack_push_addr
     call    func.13 ; |
-    mov     rdi, literal.1104 ; 524288
+    mov     rdi, literal.1150 ; 524288
     call    stack_push_addr
     call    func.13 ; |
-    mov     rdi, literal.1111 ; 384
+    mov     rdi, literal.1157 ; 384
     call    stack_push_addr
     call    func.122 ; sys.open
     mov     rdi, qword [rbp - 24]
@@ -96572,12 +96932,12 @@ func.438: ; stack_driver.write
 .else784:
     jmp    .fi784
 .if784:
-    mov     rdi, literal.1112 ; "cannot write `"
+    mov     rdi, literal.1158 ; "cannot write `"
     call    stack_push_addr
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1095 ; "`"
+    mov     rdi, literal.1141 ; "`"
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.425 ; stack_driver.error
@@ -96621,7 +96981,7 @@ func.439: ; stack_driver.args
 .else785:
     jmp    .fi785
 .if785:
-    mov     rdi, literal.1094 ; "./lib/stack/driver.stack"
+    mov     rdi, literal.1140 ; "./lib/stack/driver.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -96665,7 +97025,7 @@ func.439: ; stack_driver.args
 .else786:
     jmp    .fi786
 .if786:
-    mov     rdi, literal.1094 ; "./lib/stack/driver.stack"
+    mov     rdi, literal.1140 ; "./lib/stack/driver.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -96729,7 +97089,7 @@ func.440: ; stack_driver.build.files
     test    rax, rax
     jnz     .if787
 .else787:
-    mov     rdi, literal.1113 ; "/dev/null"
+    mov     rdi, literal.1159 ; "/dev/null"
     call    stack_push_addr
     call    func.435 ; cstr.from
     sub     rsp, 16
@@ -96741,7 +97101,7 @@ func.440: ; stack_driver.build.files
     call    stack_push_addr
     mov     rdi, literal.30 ; 1
     call    stack_push_addr
-    mov     rdi, literal.1104 ; 524288
+    mov     rdi, literal.1150 ; 524288
     call    stack_push_addr
     call    func.13 ; |
     mov     rdi, literal.2 ; 0
@@ -96763,7 +97123,7 @@ func.440: ; stack_driver.build.files
     test    rax, rax
     jnz     .if788
 .else788:
-    mov     rdi, literal.1114 ; "fasm"
+    mov     rdi, literal.1160 ; "fasm"
     call    stack_push_addr
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
@@ -96779,7 +97139,7 @@ func.440: ; stack_driver.build.files
     call    func.5 ; pop
     jmp    .fi788
 .if788:
-    mov     rdi, literal.1115 ; "cannot open `/dev/null`"
+    mov     rdi, literal.1161 ; "cannot open `/dev/null`"
     call    stack_push_addr
     call    func.425 ; stack_driver.error
     mov     rdi, literal.30 ; 1
@@ -96799,9 +97159,9 @@ func.440: ; stack_driver.build.files
     test    rax, rax
     jnz     .if789
 .else789:
-    mov     rdi, literal.1116 ; "-nostartfiles"
+    mov     rdi, literal.1162 ; "-nostartfiles"
     call    stack_push_addr
-    mov     rdi, literal.1117 ; "-no-pie"
+    mov     rdi, literal.1163 ; "-no-pie"
     call    stack_push_addr
     call    func.439 ; stack_driver.args
     sub     rsp, 8
@@ -96820,12 +97180,12 @@ func.440: ; stack_driver.build.files
 .else790:
     jmp    .fi790
 .if790:
-    mov     rdi, literal.1094 ; "./lib/stack/driver.stack"
+    mov     rdi, literal.1140 ; "./lib/stack/driver.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1118 ; 192
+    mov     rdi, literal.1164 ; 192
     call    stack_push_addr
     call    func.49 ; int.show
     call    func.42 ; string.concat
@@ -96863,12 +97223,12 @@ func.440: ; stack_driver.build.files
 .else791:
     jmp    .fi791
 .if791:
-    mov     rdi, literal.1094 ; "./lib/stack/driver.stack"
+    mov     rdi, literal.1140 ; "./lib/stack/driver.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1119 ; 193
+    mov     rdi, literal.1165 ; 193
     call    stack_push_addr
     call    func.49 ; int.show
     call    func.42 ; string.concat
@@ -96909,7 +97269,7 @@ func.440: ; stack_driver.build.files
 .else792:
     jmp    .fi792
 .if792:
-    mov     rdi, literal.1094 ; "./lib/stack/driver.stack"
+    mov     rdi, literal.1140 ; "./lib/stack/driver.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -96940,7 +97300,7 @@ func.440: ; stack_driver.build.files
     call    stack_push_addr
     call    func.44 ; sys.exit
 .fi792:
-    mov     rdi, literal.1120 ; "cc"
+    mov     rdi, literal.1166 ; "cc"
     call    stack_push_addr
     mov     rdi, qword [rbp - 56]
     call    stack_push_addr
@@ -97025,12 +97385,12 @@ func.441: ; stack_driver.cleanup
 .else793:
     jmp    .fi793
 .if793:
-    mov     rdi, literal.1121 ; "cannot remove the temporary directory `"
+    mov     rdi, literal.1167 ; "cannot remove the temporary directory `"
     call    stack_push_addr
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1095 ; "`"
+    mov     rdi, literal.1141 ; "`"
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.425 ; stack_driver.error
@@ -97067,7 +97427,7 @@ func.86: ; stack_driver.build
     test    rax, rax
     jnz     .if794
 .else794:
-    mov     rdi, literal.1122 ; "slc-"
+    mov     rdi, literal.1168 ; "slc-"
     call    stack_push_addr
     call    func.444 ; os.tempdir.create
     sub     rsp, 16
@@ -97084,12 +97444,12 @@ func.86: ; stack_driver.build
 .else795:
     mov     rdi, qword [rbp - 40]
     call    stack_push_addr
-    mov     rdi, literal.1123 ; "/main.asm"
+    mov     rdi, literal.1169 ; "/main.asm"
     call    stack_push_addr
     call    func.42 ; string.concat
     mov     rdi, qword [rbp - 40]
     call    stack_push_addr
-    mov     rdi, literal.1124 ; "/main.o"
+    mov     rdi, literal.1170 ; "/main.o"
     call    stack_push_addr
     call    func.42 ; string.concat
     sub     rsp, 16
@@ -97118,7 +97478,7 @@ func.86: ; stack_driver.build
     add     rsp, 16
     jmp    .fi795
 .if795:
-    mov     rdi, literal.1125 ; "cannot create a temporary directory"
+    mov     rdi, literal.1171 ; "cannot create a temporary directory"
     call    stack_push_addr
     call    func.425 ; stack_driver.error
     mov     rdi, literal.30 ; 1
@@ -97284,7 +97644,7 @@ func.437: ; sys.ftruncate
 
     mov     rdi, literal.2 ; 0
     call    stack_push_addr
-    mov     rdi, literal.1126 ; 77
+    mov     rdi, literal.1172 ; 77
     call    stack_push_addr
     call    func.32 ; syscall3
 
@@ -97430,7 +97790,7 @@ func.454: ; stack_big.get
 .else798:
     jmp    .fi798
 .if798:
-    mov     rdi, literal.1127 ; "./lib/stack/float.stack"
+    mov     rdi, literal.1173 ; "./lib/stack/float.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -97644,7 +98004,7 @@ func.457: ; stack_big.muladd
     call    stack_push_addr
     mov     rdi, qword [rbp - 48]
     call    stack_push_addr
-    mov     rdi, literal.1128 ; 4294967295
+    mov     rdi, literal.1174 ; 4294967295
     call    stack_push_addr
     call    func.12 ; &
     call    func.455 ; stack_big.put
@@ -97721,7 +98081,7 @@ func.458: ; stack_big.mulpow10
 .loop804:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
-    mov     rdi, literal.1129 ; 1000000000
+    mov     rdi, literal.1175 ; 1000000000
     call    stack_push_addr
     mov     rdi, literal.2 ; 0
     call    stack_push_addr
@@ -97853,7 +98213,7 @@ func.459: ; stack_big.shl
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
     call    func.16 ; <<
-    mov     rdi, literal.1128 ; 4294967295
+    mov     rdi, literal.1174 ; 4294967295
     call    stack_push_addr
     call    func.12 ; &
     mov     rdi, qword [rbp - 32]
@@ -98318,7 +98678,7 @@ func.463: ; stack_big.sub
     call    stack_push_addr
     mov     rdi, qword [rbp - 40]
     call    stack_push_addr
-    mov     rdi, literal.1130 ; 4294967296
+    mov     rdi, literal.1176 ; 4294967296
     call    stack_push_addr
     call    func.7 ; +
     call    func.455 ; stack_big.put
@@ -98451,7 +98811,7 @@ func.465: ; stack_big.copy
 .else822:
     jmp    .fi822
 .if822:
-    mov     rdi, literal.1127 ; "./lib/stack/float.stack"
+    mov     rdi, literal.1173 ; "./lib/stack/float.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -98598,7 +98958,7 @@ func.466: ; stack_float.exponent
     mov     qword [rbp - 40], rax
     mov     rdi, qword [rbp - 40]
     call    stack_push_addr
-    mov     rdi, literal.1131 ; 1000000000000000
+    mov     rdi, literal.1177 ; 1000000000000000
     call    stack_push_addr
     call    func.18 ; <
     call    stack_pop
@@ -98624,7 +98984,7 @@ func.466: ; stack_float.exponent
     call    func.8 ; -
     call    func.7 ; +
 .fi825:
-    mov     rdi, literal.1131 ; 1000000000000000
+    mov     rdi, literal.1177 ; 1000000000000000
     call    stack_push_addr
     call    func.104 ; min
     mov     rdi, qword [rbp - 48]
@@ -98780,7 +99140,7 @@ func.468: ; stack_float.digits
 .if830:
     mov     rdi, qword [rbp - 32]
     call    stack_push_addr
-    mov     rdi, literal.1129 ; 1000000000
+    mov     rdi, literal.1175 ; 1000000000
     call    stack_push_addr
     mov     rdi, qword [rbp - 40]
     call    stack_push_addr
@@ -98966,7 +99326,7 @@ func.469: ; stack_float.round
 .else835:
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
-    mov     rdi, literal.1132 ; -1022
+    mov     rdi, literal.1178 ; -1022
     call    stack_push_addr
     call    func.18 ; <
     sub     rsp, 8
@@ -98985,7 +99345,7 @@ func.469: ; stack_float.round
     call    func.8 ; -
     jmp    .fi836
 .if836:
-    mov     rdi, literal.1133 ; 1074
+    mov     rdi, literal.1179 ; 1074
     call    stack_push_addr
 .fi836:
     sub     rsp, 8
@@ -99158,7 +99518,7 @@ func.469: ; stack_float.round
 .else843:
     mov     rdi, qword [rbp - 40]
     call    stack_push_addr
-    mov     rdi, literal.1134 ; 9007199254740992
+    mov     rdi, literal.1180 ; 9007199254740992
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
@@ -99171,7 +99531,7 @@ func.469: ; stack_float.round
     call    stack_push_addr
     jmp    .fi844
 .if844:
-    mov     rdi, literal.1135 ; 4503599627370496
+    mov     rdi, literal.1181 ; 4503599627370496
     call    stack_push_addr
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
@@ -99203,7 +99563,7 @@ func.469: ; stack_float.round
     call    func.16 ; <<
     mov     rdi, qword [rbp - 48]
     call    stack_push_addr
-    mov     rdi, literal.1135 ; 4503599627370496
+    mov     rdi, literal.1181 ; 4503599627370496
     call    stack_push_addr
     call    func.8 ; -
     call    func.13 ; |
@@ -99604,7 +99964,7 @@ func.408: ; stack_float.bits
 .else856:
     mov     rdi, qword [rbp - 48]
     call    stack_push_addr
-    mov     rdi, literal.1136 ; -324
+    mov     rdi, literal.1182 ; -324
     call    stack_push_addr
     call    func.109 ; <=
     call    stack_pop
@@ -99727,7 +100087,7 @@ func.408: ; stack_float.bits
 .if859:
     mov     rdi, qword [rbp - 16]
     call    stack_push_addr
-    mov     rdi, literal.1137 ; -9223372036854775808
+    mov     rdi, literal.1183 ; -9223372036854775808
     call    stack_push_addr
     call    func.13 ; |
 .fi859:
@@ -99784,7 +100144,7 @@ func.171: ; stack_float.status
     call    func.109 ; <=
     mov     rdi, qword [rbp - 48]
     call    stack_push_addr
-    mov     rdi, literal.1138 ; -322
+    mov     rdi, literal.1184 ; -322
     call    stack_push_addr
     call    func.112 ; >=
     call    func.60 ; and
@@ -99821,7 +100181,7 @@ func.409: ; stack_float.hex
     sub     rsp, 8
     call    stack_pop_addr
     mov     qword [rbp - 8], rax
-    mov     rdi, literal.1139 ; "0x"
+    mov     rdi, literal.1185 ; "0x"
     call    stack_push_addr
     mov     rdi, literal.132 ; 60
     call    stack_push_addr
@@ -99914,36 +100274,36 @@ func.472: ; stack_assembler.extern.register
     jnz     .if867
 .else867:
     call    func.5 ; pop
-    mov     rdi, literal.1140 ; "r9"
+    mov     rdi, literal.1186 ; "r9"
     call    stack_push_addr
     jmp    .fi867
 .if867:
     call    func.5 ; pop
-    mov     rdi, literal.1141 ; "r8"
+    mov     rdi, literal.1187 ; "r8"
     call    stack_push_addr
 .fi867:
     jmp    .fi866
 .if866:
     call    func.5 ; pop
-    mov     rdi, literal.1142 ; "rcx"
+    mov     rdi, literal.1188 ; "rcx"
     call    stack_push_addr
 .fi866:
     jmp    .fi865
 .if865:
     call    func.5 ; pop
-    mov     rdi, literal.1143 ; "rdx"
+    mov     rdi, literal.1189 ; "rdx"
     call    stack_push_addr
 .fi865:
     jmp    .fi864
 .if864:
     call    func.5 ; pop
-    mov     rdi, literal.1144 ; "rsi"
+    mov     rdi, literal.1190 ; "rsi"
     call    stack_push_addr
 .fi864:
     jmp    .fi863
 .if863:
     call    func.5 ; pop
-    mov     rdi, literal.1145 ; "rdi"
+    mov     rdi, literal.1191 ; "rdi"
     call    stack_push_addr
 .fi863:
 
@@ -100051,7 +100411,7 @@ func.473: ; stack_assembler.extern.alias
 .else870:
     jmp    .fi870
 .if870:
-    mov     rdi, literal.1146 ; "./lib/stack/ffi.stack"
+    mov     rdi, literal.1192 ; "./lib/stack/ffi.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -100129,7 +100489,7 @@ func.473: ; stack_assembler.extern.alias
 .else872:
     jmp    .fi872
 .if872:
-    mov     rdi, literal.1146 ; "./lib/stack/ffi.stack"
+    mov     rdi, literal.1192 ; "./lib/stack/ffi.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -100163,7 +100523,7 @@ func.473: ; stack_assembler.extern.alias
 .fi871:
     call    func.2 ; swp
     call    func.49 ; int.show
-    mov     rdi, literal.1147 ; "ffi."
+    mov     rdi, literal.1193 ; "ffi."
     call    stack_push_addr
     call    func.2 ; swp
     call    func.42 ; string.concat
@@ -100185,7 +100545,7 @@ func.474: ; stack_assembler.extern.float
 .else873:
     jmp    .fi873
 .if873:
-    mov     rdi, literal.1146 ; "./lib/stack/ffi.stack"
+    mov     rdi, literal.1192 ; "./lib/stack/ffi.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -101064,12 +101424,12 @@ func.404: ; stack_assembler.emit.extern
 .if880:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
-    mov     rdi, literal.1148 ; "extrn '"
+    mov     rdi, literal.1194 ; "extrn '"
     call    stack_push_addr
     mov     rdi, qword [rbp - 32]
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1149 ; "' as "
+    mov     rdi, literal.1195 ; "' as "
     call    stack_push_addr
     call    func.42 ; string.concat
     mov     rdi, qword [rbp - 80]
@@ -101188,7 +101548,7 @@ func.404: ; stack_assembler.emit.extern
     call    func.378 ; emit
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
-    mov     rdi, literal.1150 ; "    and     rsp, -16"
+    mov     rdi, literal.1196 ; "    and     rsp, -16"
     call    stack_push_addr
     call    func.378 ; emit
     mov     rdi, qword [rbp - 40]
@@ -101248,7 +101608,7 @@ func.404: ; stack_assembler.emit.extern
     call    func.378 ; emit
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
-    mov     rdi, literal.1151 ; "    mov     qword [rsp + "
+    mov     rdi, literal.1197 ; "    mov     qword [rsp + "
     call    stack_push_addr
     mov     rdi, qword [rbp - 72]
     call    stack_push_addr
@@ -101316,7 +101676,7 @@ func.404: ; stack_assembler.emit.extern
 .if885:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
-    mov     rdi, literal.1152 ; "    mov     rax, qword [rsp + "
+    mov     rdi, literal.1198 ; "    mov     rax, qword [rsp + "
     call    stack_push_addr
     mov     rdi, qword [rbp - 72]
     call    stack_push_addr
@@ -101334,7 +101694,7 @@ func.404: ; stack_assembler.emit.extern
     call    func.378 ; emit
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
-    mov     rdi, literal.1151 ; "    mov     qword [rsp + "
+    mov     rdi, literal.1197 ; "    mov     qword [rsp + "
     call    stack_push_addr
     mov     rdi, qword [rbp - 112]
     call    stack_push_addr
@@ -101405,13 +101765,13 @@ func.404: ; stack_assembler.emit.extern
 .if888:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
-    mov     rdi, literal.1153 ; "    movq    xmm"
+    mov     rdi, literal.1199 ; "    movq    xmm"
     call    stack_push_addr
     mov     rdi, qword [rbp - 112]
     call    stack_push_addr
     call    func.49 ; int.show
     call    func.42 ; string.concat
-    mov     rdi, literal.1154 ; ", qword [rsp + "
+    mov     rdi, literal.1200 ; ", qword [rsp + "
     call    stack_push_addr
     call    func.42 ; string.concat
     mov     rdi, qword [rbp - 72]
@@ -101433,13 +101793,13 @@ func.404: ; stack_assembler.emit.extern
 .if887:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
-    mov     rdi, literal.1155 ; "    mov     "
+    mov     rdi, literal.1201 ; "    mov     "
     call    stack_push_addr
     mov     rdi, qword [rbp - 112]
     call    stack_push_addr
     call    func.472 ; stack_assembler.extern.register
     call    func.42 ; string.concat
-    mov     rdi, literal.1154 ; ", qword [rsp + "
+    mov     rdi, literal.1200 ; ", qword [rsp + "
     call    stack_push_addr
     call    func.42 ; string.concat
     mov     rdi, qword [rbp - 72]
@@ -101771,7 +102131,7 @@ func.404: ; stack_assembler.emit.extern
 .if891:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
-    mov     rdi, literal.925 ; "    movq    rdi, xmm0"
+    mov     rdi, literal.971 ; "    movq    rdi, xmm0"
     call    stack_push_addr
     call    func.378 ; emit
 .fi891:
@@ -101783,7 +102143,7 @@ func.404: ; stack_assembler.emit.extern
 .fi890:
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
-    mov     rdi, literal.1156 ; "    mov     rsp, rbp"
+    mov     rdi, literal.1202 ; "    mov     rsp, rbp"
     call    stack_push_addr
     call    func.378 ; emit
     mov     rdi, qword [rbp - 8]
@@ -101928,7 +102288,7 @@ func.479: ; stack_assembler.extern.error
     call    func.25 ; int.*
     call    func.160 ; stack_lexer.location
     call    func.43 ; string.stderr
-    mov     rdi, literal.1157 ; ", Assembler error: "
+    mov     rdi, literal.1203 ; ", Assembler error: "
     call    stack_push_addr
     call    func.43 ; string.stderr
     mov     rdi, qword [rbp - 16]
@@ -102082,7 +102442,7 @@ func.84: ; stack_assembler.check.externs
 .else895:
     jmp    .fi895
 .if895:
-    mov     rdi, literal.1146 ; "./lib/stack/ffi.stack"
+    mov     rdi, literal.1192 ; "./lib/stack/ffi.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
@@ -102632,19 +102992,19 @@ func.84: ; stack_assembler.check.externs
     call    func.7 ; +
     call    func.22 ; ptr.+
     call    func.192 ; stack_ast_node.*
-    mov     rdi, literal.1085 ; "extern "
+    mov     rdi, literal.1131 ; "extern "
     call    stack_push_addr
     mov     rdi, qword [rbp - 48]
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1158 ; " symbol has invalid byte "
+    mov     rdi, literal.1204 ; " symbol has invalid byte "
     call    stack_push_addr
     call    func.42 ; string.concat
     mov     rdi, qword [rbp - 64]
     call    stack_push_addr
     call    func.387 ; stack_assembler.hex
     call    func.42 ; string.concat
-    mov     rdi, literal.1159 ; ", expected printable ASCII without spaces or quotes\n"
+    mov     rdi, literal.1205 ; ", expected printable ASCII without spaces or quotes\n"
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.479 ; stack_assembler.extern.error
@@ -102788,12 +103148,12 @@ func.84: ; stack_assembler.check.externs
     call    func.7 ; +
     call    func.22 ; ptr.+
     call    func.192 ; stack_ast_node.*
-    mov     rdi, literal.1085 ; "extern "
+    mov     rdi, literal.1131 ; "extern "
     call    stack_push_addr
     mov     rdi, qword [rbp - 48]
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1160 ; " has an empty symbol\n"
+    mov     rdi, literal.1206 ; " has an empty symbol\n"
     call    stack_push_addr
     call    func.42 ; string.concat
     call    func.479 ; stack_assembler.extern.error
@@ -102975,12 +103335,12 @@ func.481: ; cstr.array
 .else901:
     jmp    .fi901
 .if901:
-    mov     rdi, literal.1161 ; "./lib/process.stack"
+    mov     rdi, literal.1207 ; "./lib/process.stack"
     call    stack_push_addr
     mov     rdi, literal.32 ; ":"
     call    stack_push_addr
     call    func.42 ; string.concat
-    mov     rdi, literal.1162 ; 25
+    mov     rdi, literal.1208 ; 25
     call    stack_push_addr
     call    func.49 ; int.show
     call    func.42 ; string.concat
@@ -103142,10 +103502,10 @@ func.483: ; process.executable
     mov     rdi, literal.2 ; 0
     call    stack_push_addr
     call    func.7 ; +
-    mov     rdi, literal.1163 ; 61440
+    mov     rdi, literal.1209 ; 61440
     call    stack_push_addr
     call    func.12 ; &
-    mov     rdi, literal.1164 ; 32768
+    mov     rdi, literal.1210 ; 32768
     call    stack_push_addr
     call    func.19 ; =
     mov     rdi, qword [rbp - 8]
@@ -103189,7 +103549,7 @@ func.427: ; process.which
     test    rax, rax
     jnz     .if905
 .else905:
-    mov     rdi, literal.1165 ; "PATH"
+    mov     rdi, literal.1211 ; "PATH"
     call    stack_push_addr
     call    func.149 ; os.env.get
     call    func.48 ; not
@@ -103200,7 +103560,7 @@ func.427: ; process.which
     jmp    .fi906
 .if906:
     call    func.5 ; pop
-    mov     rdi, literal.1166 ; "/bin:/usr/bin"
+    mov     rdi, literal.1212 ; "/bin:/usr/bin"
     call    stack_push_addr
 .fi906:
     mov     rdi, literal.0 ; ""
@@ -103358,7 +103718,7 @@ func.484: ; process.wait
     call    func.450 ; sys.wait4
 .while910:
     call    func.1 ; dup
-    mov     rdi, literal.1167 ; -4
+    mov     rdi, literal.1213 ; -4
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
@@ -103501,7 +103861,7 @@ func.428: ; process.run
     call    func.30 ; os.env
     call    func.448 ; sys.execve
     call    func.5 ; pop
-    mov     rdi, literal.1168 ; "cannot execute `"
+    mov     rdi, literal.1214 ; "cannot execute `"
     call    stack_push_addr
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
@@ -103511,7 +103871,7 @@ func.428: ; process.run
     call    func.42 ; string.concat
     jmp    .fi915
 .if915:
-    mov     rdi, literal.1169 ; "cannot redirect the output of `"
+    mov     rdi, literal.1215 ; "cannot redirect the output of `"
     call    stack_push_addr
     mov     rdi, qword [rbp - 8]
     call    stack_push_addr
@@ -103664,7 +104024,7 @@ func.485: ; os.random.hex
     mov     qword [rbp - 40], rax
     mov     rdi, qword [rbp - 24]
     call    stack_push_addr
-    mov     rdi, literal.1170 ; "0123456789abcdef"
+    mov     rdi, literal.1216 ; "0123456789abcdef"
     call    stack_push_addr
     mov     rdi, qword [rbp - 40]
     call    stack_push_addr
@@ -103675,7 +104035,7 @@ func.485: ; os.random.hex
     call    stack_push_addr
     call    func.115 ; string.substr
     call    func.42 ; string.concat
-    mov     rdi, literal.1170 ; "0123456789abcdef"
+    mov     rdi, literal.1216 ; "0123456789abcdef"
     call    stack_push_addr
     mov     rdi, qword [rbp - 40]
     call    stack_push_addr
@@ -103715,7 +104075,7 @@ func.444: ; os.tempdir.create
     sub     rsp, 8
     call    stack_pop_addr
     mov     qword [rbp - 8], rax
-    mov     rdi, literal.1171 ; "TMPDIR"
+    mov     rdi, literal.1217 ; "TMPDIR"
     call    stack_push_addr
     call    func.149 ; os.env.get
     sub     rsp, 16
@@ -103735,7 +104095,7 @@ func.444: ; os.tempdir.create
     test    rax, rax
     jnz     .if919
 .else919:
-    mov     rdi, literal.1172 ; "/tmp"
+    mov     rdi, literal.1218 ; "/tmp"
     call    stack_push_addr
     jmp    .fi919
 .if919:
@@ -103848,7 +104208,7 @@ func.444: ; os.tempdir.create
 .else922:
     mov     rdi, qword [rbp - 80]
     call    stack_push_addr
-    mov     rdi, literal.1173 ; -17
+    mov     rdi, literal.1219 ; -17
     call    stack_push_addr
     call    func.19 ; =
     call    stack_pop
@@ -105479,9 +105839,9 @@ string.668 db 115,116,97,99,107,95,112,111,115,32,100,113,32,48,0,0
 literal.669 dq 14
           dq string.669
 string.669 db 115,116,97,99,107,95,101,110,100,32,100,113,32,48,0,0
-literal.670 dq 14
+literal.670 dq 17
           dq string.670
-string.670 db 104,101,97,112,95,98,97,115,101,32,100,113,32,48,0,0
+string.670 db 104,101,97,112,95,114,101,103,105,111,110,115,32,100,113,32,48,0,0,0,0,0,0,0
 literal.671 dq 13
           dq string.671
 string.671 db 104,101,97,112,95,116,111,112,32,100,113,32,48,0,0,0
@@ -105530,1412 +105890,1550 @@ string.685 db 67,69,76,76,95,67,72,85,78,75,95,83,73,90,69,32,61,32,48,120,49,48
 literal.686 dq 25
           dq string.686
 string.686 db 72,69,65,80,95,71,82,79,87,95,83,73,90,69,32,61,32,48,120,49,48,48,48,48,48,0,0,0,0,0,0,0
-literal.687 dq 1
+literal.687 dq 23
           dq string.687
-string.687 db 59,0,0,0,0,0,0,0
-literal.688 dq 16
+string.687 db 72,69,65,80,95,82,69,71,73,79,78,95,72,69,65,68,69,82,32,61,32,49,54,0
+literal.688 dq 1
           dq string.688
-string.688 db 59,32,97,108,108,111,99,97,116,111,114,95,105,110,105,116,0,0,0,0,0,0,0,0
-literal.689 dq 18
+string.688 db 59,0,0,0,0,0,0,0
+literal.689 dq 16
           dq string.689
-string.689 db 59,32,32,32,73,78,80,85,84,58,32,110,111,116,104,105,110,103,0,0,0,0,0,0
-literal.690 dq 19
+string.689 db 59,32,97,108,108,111,99,97,116,111,114,95,105,110,105,116,0,0,0,0,0,0,0,0
+literal.690 dq 18
           dq string.690
-string.690 db 59,32,32,32,79,85,84,80,85,84,58,32,110,111,116,104,105,110,103,0,0,0,0,0
-literal.691 dq 15
+string.690 db 59,32,32,32,73,78,80,85,84,58,32,110,111,116,104,105,110,103,0,0,0,0,0,0
+literal.691 dq 19
           dq string.691
-string.691 db 97,108,108,111,99,97,116,111,114,95,105,110,105,116,58,0
-literal.692 dq 60
+string.691 db 59,32,32,32,79,85,84,80,85,84,58,32,110,111,116,104,105,110,103,0,0,0,0,0
+literal.692 dq 15
           dq string.692
-string.692 db 32,32,32,32,112,117,115,104,32,32,32,32,114,98,112,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,115,97,118,101,32,114,101,116,117,114,110,32,97,100,100,114,101,115,115,0,0,0,0
-literal.693 dq 59
+string.692 db 97,108,108,111,99,97,116,111,114,95,105,110,105,116,58,0
+literal.693 dq 60
           dq string.693
-string.693 db 32,32,32,32,109,111,118,32,32,32,32,32,114,98,112,44,32,114,115,112,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,115,101,116,32,117,112,32,115,116,97,99,107,32,102,114,97,109,101,0,0,0,0,0
-literal.694 dq 25
+string.693 db 32,32,32,32,112,117,115,104,32,32,32,32,114,98,112,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,115,97,118,101,32,114,101,116,117,114,110,32,97,100,100,114,101,115,115,0,0,0,0
+literal.694 dq 59
           dq string.694
-string.694 db 32,32,32,32,59,32,105,110,105,116,105,97,108,105,122,101,32,116,104,101,32,104,101,97,112,0,0,0,0,0,0,0
-literal.695 dq 44
+string.694 db 32,32,32,32,109,111,118,32,32,32,32,32,114,98,112,44,32,114,115,112,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,115,101,116,32,117,112,32,115,116,97,99,107,32,102,114,97,109,101,0,0,0,0,0
+literal.695 dq 72
           dq string.695
-string.695 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,49,50,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,98,114,107,0,0,0,0
-literal.696 dq 54
+string.695 db 32,32,32,32,59,32,97,108,108,111,99,97,116,101,32,116,104,101,32,115,116,97,99,107,32,54,52,75,46,32,67,101,108,108,32,99,104,117,110,107,115,32,97,110,100,32,104,101,97,112,32,114,101,103,105,111,110,115,32,103,101,116,32,116,104,101,105,114,32,111,119,110,0,0,0,0,0,0,0,0
+literal.696 dq 36
           dq string.696
-string.696 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,48,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,105,110,99,114,101,109,101,110,116,32,61,32,48,0,0
-literal.697 dq 65
+string.696 db 32,32,32,32,59,32,109,97,112,112,105,110,103,115,32,119,104,101,110,32,116,104,101,121,32,97,114,101,32,110,101,101,100,101,100,46,0,0,0,0
+literal.697 dq 27
           dq string.697
-string.697 db 32,32,32,32,109,111,118,32,32,32,32,32,91,104,101,97,112,95,101,110,100,93,44,32,114,97,120,32,32,32,32,32,32,32,32,32,32,32,32,59,32,115,97,118,101,32,116,104,101,32,101,110,100,32,111,102,32,116,104,101,32,104,101,97,112,0,0,0,0,0,0,0
-literal.698 dq 18
+string.697 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,83,84,65,67,75,95,83,73,90,69,0,0,0,0,0
+literal.698 dq 20
           dq string.698
-string.698 db 32,32,32,32,97,100,100,32,32,32,32,32,114,97,120,44,32,55,0,0,0,0,0,0
-literal.699 dq 19
+string.698 db 32,32,32,32,99,97,108,108,32,32,32,32,109,97,112,95,116,97,107,101,0,0,0,0
+literal.699 dq 79
           dq string.699
-string.699 db 32,32,32,32,97,110,100,32,32,32,32,32,114,97,120,44,32,45,56,0,0,0,0,0
-literal.700 dq 66
+string.699 db 32,32,32,32,109,111,118,32,32,32,32,32,91,115,116,97,99,107,95,112,111,115,93,44,32,114,97,120,32,32,32,32,32,32,32,32,32,32,32,59,32,115,97,118,101,32,116,104,101,32,99,117,114,114,101,110,116,32,112,111,115,105,116,105,111,110,32,111,102,32,116,104,101,32,115,116,97,99,107,0
+literal.700 dq 27
           dq string.700
-string.700 db 32,32,32,32,109,111,118,32,32,32,32,32,91,104,101,97,112,95,116,111,112,93,44,32,114,97,120,32,32,32,32,32,32,32,32,32,32,32,32,59,32,97,108,105,103,110,32,116,104,101,32,116,111,112,32,111,102,32,116,104,101,32,104,101,97,112,0,0,0,0,0,0
-literal.701 dq 28
+string.700 db 32,32,32,32,97,100,100,32,32,32,32,32,114,97,120,44,32,83,84,65,67,75,95,83,73,90,69,0,0,0,0,0
+literal.701 dq 66
           dq string.701
-string.701 db 32,32,32,32,59,32,97,108,108,111,99,97,116,101,32,116,104,101,32,115,116,97,99,107,32,54,52,75,0,0,0,0
-literal.702 dq 27
+string.701 db 32,32,32,32,109,111,118,32,32,32,32,32,91,115,116,97,99,107,95,101,110,100,93,44,32,114,97,120,32,32,32,32,32,32,32,32,32,32,32,59,32,115,97,118,101,32,116,104,101,32,101,110,100,32,111,102,32,116,104,101,32,115,116,97,99,107,0,0,0,0,0,0
+literal.702 dq 63
           dq string.702
-string.702 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,83,84,65,67,75,95,83,73,90,69,0,0,0,0,0
-literal.703 dq 21
+string.702 db 32,32,32,32,112,111,112,32,32,32,32,32,114,98,112,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,114,101,115,116,111,114,101,32,114,101,116,117,114,110,32,97,100,100,114,101,115,115,0
+literal.703 dq 17
           dq string.703
-string.703 db 32,32,32,32,99,97,108,108,32,32,32,32,104,101,97,112,95,116,97,107,101,0,0,0
-literal.704 dq 79
+string.703 db 59,32,115,116,97,99,107,32,112,117,115,104,32,97,100,100,114,0,0,0,0,0,0,0
+literal.704 dq 68
           dq string.704
-string.704 db 32,32,32,32,109,111,118,32,32,32,32,32,91,115,116,97,99,107,95,112,111,115,93,44,32,114,97,120,32,32,32,32,32,32,32,32,32,32,32,59,32,115,97,118,101,32,116,104,101,32,99,117,114,114,101,110,116,32,112,111,115,105,116,105,111,110,32,111,102,32,116,104,101,32,115,116,97,99,107,0
-literal.705 dq 27
+string.704 db 59,32,32,32,73,78,80,85,84,58,32,114,100,105,32,99,111,110,116,97,105,110,115,32,116,104,101,32,105,110,116,54,52,32,40,112,111,105,110,116,101,114,41,32,116,104,97,116,32,119,101,32,97,100,100,32,116,111,32,116,104,101,32,115,116,97,99,107,0,0,0,0
+literal.705 dq 16
           dq string.705
-string.705 db 32,32,32,32,97,100,100,32,32,32,32,32,114,97,120,44,32,83,84,65,67,75,95,83,73,90,69,0,0,0,0,0
-literal.706 dq 66
+string.705 db 115,116,97,99,107,95,112,117,115,104,95,97,100,100,114,58,0,0,0,0,0,0,0,0
+literal.706 dq 34
           dq string.706
-string.706 db 32,32,32,32,109,111,118,32,32,32,32,32,91,115,116,97,99,107,95,101,110,100,93,44,32,114,97,120,32,32,32,32,32,32,32,32,32,32,32,59,32,115,97,118,101,32,116,104,101,32,101,110,100,32,111,102,32,116,104,101,32,115,116,97,99,107,0,0,0,0,0,0
-literal.707 dq 49
+string.706 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,113,119,111,114,100,32,91,115,116,97,99,107,95,112,111,115,93,0,0,0,0,0,0
+literal.707 dq 28
           dq string.707
-string.707 db 32,32,32,32,59,32,98,108,111,99,107,115,32,97,110,100,32,99,101,108,108,32,99,104,117,110,107,115,32,99,111,109,101,32,97,102,116,101,114,32,116,104,101,32,115,116,97,99,107,0,0,0,0,0,0,0
-literal.708 dq 28
+string.707 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,105,93,44,32,114,100,105,0,0,0,0
+literal.708 dq 32
           dq string.708
-string.708 db 32,32,32,32,109,111,118,32,32,32,32,32,91,104,101,97,112,95,98,97,115,101,93,44,32,114,97,120,0,0,0,0
-literal.709 dq 27
+string.708 db 32,32,32,32,97,100,100,32,32,32,32,32,113,119,111,114,100,32,91,115,116,97,99,107,95,112,111,115,93,44,32,56,0,0,0,0,0,0,0,0
+literal.709 dq 12
           dq string.709
-string.709 db 32,32,32,32,109,111,118,32,32,32,32,32,91,99,101,108,108,95,112,111,115,93,44,32,114,97,120,0,0,0,0,0
-literal.710 dq 27
+string.709 db 59,32,115,116,97,99,107,32,112,117,115,104,0,0,0,0
+literal.710 dq 11
           dq string.710
-string.710 db 32,32,32,32,109,111,118,32,32,32,32,32,91,99,101,108,108,95,101,110,100,93,44,32,114,97,120,0,0,0,0,0
-literal.711 dq 63
+string.710 db 115,116,97,99,107,95,112,117,115,104,58,0,0,0,0,0
+literal.711 dq 33
           dq string.711
-string.711 db 32,32,32,32,112,111,112,32,32,32,32,32,114,98,112,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,114,101,115,116,111,114,101,32,114,101,116,117,114,110,32,97,100,100,114,101,115,115,0
-literal.712 dq 17
+string.711 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,99,101,108,108,95,112,111,115,93,0,0,0,0,0,0,0
+literal.712 dq 33
           dq string.712
-string.712 db 59,32,115,116,97,99,107,32,112,117,115,104,32,97,100,100,114,0,0,0,0,0,0,0
-literal.713 dq 68
+string.712 db 32,32,32,32,99,109,112,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,99,101,108,108,95,101,110,100,93,0,0,0,0,0,0,0
+literal.713 dq 22
           dq string.713
-string.713 db 59,32,32,32,73,78,80,85,84,58,32,114,100,105,32,99,111,110,116,97,105,110,115,32,116,104,101,32,105,110,116,54,52,32,40,112,111,105,110,116,101,114,41,32,116,104,97,116,32,119,101,32,97,100,100,32,116,111,32,116,104,101,32,115,116,97,99,107,0,0,0,0
-literal.714 dq 16
+string.713 db 32,32,32,32,106,98,32,32,32,32,32,32,46,112,117,115,104,95,99,101,108,108,0,0
+literal.714 dq 15
           dq string.714
-string.714 db 115,116,97,99,107,95,112,117,115,104,95,97,100,100,114,58,0,0,0,0,0,0,0,0
-literal.715 dq 34
+string.714 db 32,32,32,32,112,117,115,104,32,32,32,32,114,100,105,0
+literal.715 dq 32
           dq string.715
-string.715 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,113,119,111,114,100,32,91,115,116,97,99,107,95,112,111,115,93,0,0,0,0,0,0
-literal.716 dq 28
+string.715 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,67,69,76,76,95,67,72,85,78,75,95,83,73,90,69,0,0,0,0,0,0,0,0
+literal.716 dq 63
           dq string.716
-string.716 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,105,93,44,32,114,100,105,0,0,0,0
-literal.717 dq 32
+string.716 db 32,32,32,32,99,97,108,108,32,32,32,32,109,97,112,95,116,97,107,101,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,115,116,97,114,116,32,97,32,110,101,119,32,99,101,108,108,32,99,104,117,110,107,0
+literal.717 dq 15
           dq string.717
-string.717 db 32,32,32,32,97,100,100,32,32,32,32,32,113,119,111,114,100,32,91,115,116,97,99,107,95,112,111,115,93,44,32,56,0,0,0,0,0,0,0,0
-literal.718 dq 12
+string.717 db 32,32,32,32,112,111,112,32,32,32,32,32,114,100,105,0
+literal.718 dq 40
           dq string.718
-string.718 db 59,32,115,116,97,99,107,32,112,117,115,104,0,0,0,0
-literal.719 dq 11
+string.718 db 32,32,32,32,108,101,97,32,32,32,32,32,114,115,105,44,32,91,114,97,120,32,43,32,67,69,76,76,95,67,72,85,78,75,95,83,73,90,69,93,0,0,0,0,0,0,0,0
+literal.719 dq 33
           dq string.719
-string.719 db 115,116,97,99,107,95,112,117,115,104,58,0,0,0,0,0
-literal.720 dq 33
+string.719 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,99,101,108,108,95,101,110,100,93,44,32,114,115,105,0,0,0,0,0,0,0
+literal.720 dq 11
           dq string.720
-string.720 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,99,101,108,108,95,112,111,115,93,0,0,0,0,0,0,0
-literal.721 dq 33
+string.720 db 46,112,117,115,104,95,99,101,108,108,58,0,0,0,0,0
+literal.721 dq 28
           dq string.721
-string.721 db 32,32,32,32,99,109,112,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,99,101,108,108,95,101,110,100,93,0,0,0,0,0,0,0
-literal.722 dq 22
+string.721 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,97,120,93,44,32,114,100,105,0,0,0,0
+literal.722 dq 26
           dq string.722
-string.722 db 32,32,32,32,106,98,32,32,32,32,32,32,46,112,117,115,104,95,99,101,108,108,0,0
-literal.723 dq 15
+string.722 db 32,32,32,32,108,101,97,32,32,32,32,32,114,115,105,44,32,91,114,97,120,32,43,32,56,93,0,0,0,0,0,0
+literal.723 dq 33
           dq string.723
-string.723 db 32,32,32,32,112,117,115,104,32,32,32,32,114,100,105,0
-literal.724 dq 32
+string.723 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,99,101,108,108,95,112,111,115,93,44,32,114,115,105,0,0,0,0,0,0,0
+literal.724 dq 28
           dq string.724
-string.724 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,67,69,76,76,95,67,72,85,78,75,95,83,73,90,69,0,0,0,0,0,0,0,0
-literal.725 dq 63
+string.724 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,105,93,44,32,114,97,120,0,0,0,0
+literal.725 dq 17
           dq string.725
-string.725 db 32,32,32,32,99,97,108,108,32,32,32,32,104,101,97,112,95,116,97,107,101,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,115,116,97,114,116,32,97,32,110,101,119,32,99,101,108,108,32,99,104,117,110,107,0
-literal.726 dq 15
+string.725 db 59,32,115,116,97,99,107,32,112,101,101,107,32,97,100,100,114,0,0,0,0,0,0,0
+literal.726 dq 71
           dq string.726
-string.726 db 32,32,32,32,112,111,112,32,32,32,32,32,114,100,105,0
-literal.727 dq 40
+string.726 db 59,32,32,32,79,85,84,80,85,84,58,32,114,97,120,32,99,111,110,116,97,105,110,115,32,116,104,101,32,105,110,116,54,52,32,40,112,111,105,110,116,101,114,41,32,116,104,97,116,32,119,101,32,112,111,112,32,102,114,111,109,32,116,104,101,32,115,116,97,99,107,0
+literal.727 dq 16
           dq string.727
-string.727 db 32,32,32,32,108,101,97,32,32,32,32,32,114,115,105,44,32,91,114,97,120,32,43,32,67,69,76,76,95,67,72,85,78,75,95,83,73,90,69,93,0,0,0,0,0,0,0,0
-literal.728 dq 33
+string.727 db 115,116,97,99,107,95,112,101,101,107,95,97,100,100,114,58,0,0,0,0,0,0,0,0
+literal.728 dq 34
           dq string.728
-string.728 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,99,101,108,108,95,101,110,100,93,44,32,114,115,105,0,0,0,0,0,0,0
-literal.729 dq 11
+string.728 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,115,116,97,99,107,95,112,111,115,93,0,0,0,0,0,0
+literal.729 dq 32
           dq string.729
-string.729 db 46,112,117,115,104,95,99,101,108,108,58,0,0,0,0,0
-literal.730 dq 28
+string.729 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,114,97,120,32,45,32,56,93,0,0,0,0,0,0,0,0
+literal.730 dq 12
           dq string.730
-string.730 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,97,120,93,44,32,114,100,105,0,0,0,0
-literal.731 dq 26
+string.730 db 59,32,115,116,97,99,107,32,112,101,101,107,0,0,0,0
+literal.731 dq 11
           dq string.731
-string.731 db 32,32,32,32,108,101,97,32,32,32,32,32,114,115,105,44,32,91,114,97,120,32,43,32,56,93,0,0,0,0,0,0
-literal.732 dq 33
+string.731 db 115,116,97,99,107,95,112,101,101,107,58,0,0,0,0,0
+literal.732 dq 28
           dq string.732
-string.732 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,99,101,108,108,95,112,111,115,93,44,32,114,115,105,0,0,0,0,0,0,0
-literal.733 dq 28
+string.732 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,114,97,120,93,0,0,0,0
+literal.733 dq 16
           dq string.733
-string.733 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,105,93,44,32,114,97,120,0,0,0,0
-literal.734 dq 17
+string.733 db 59,32,115,116,97,99,107,32,112,111,112,32,97,100,100,114,0,0,0,0,0,0,0,0
+literal.734 dq 15
           dq string.734
-string.734 db 59,32,115,116,97,99,107,32,112,101,101,107,32,97,100,100,114,0,0,0,0,0,0,0
-literal.735 dq 71
+string.734 db 115,116,97,99,107,95,112,111,112,95,97,100,100,114,58,0
+literal.735 dq 32
           dq string.735
-string.735 db 59,32,32,32,79,85,84,80,85,84,58,32,114,97,120,32,99,111,110,116,97,105,110,115,32,116,104,101,32,105,110,116,54,52,32,40,112,111,105,110,116,101,114,41,32,116,104,97,116,32,119,101,32,112,111,112,32,102,114,111,109,32,116,104,101,32,115,116,97,99,107,0
-literal.736 dq 16
+string.735 db 32,32,32,32,115,117,98,32,32,32,32,32,113,119,111,114,100,32,91,115,116,97,99,107,95,112,111,115,93,44,32,56,0,0,0,0,0,0,0,0
+literal.736 dq 11
           dq string.736
-string.736 db 115,116,97,99,107,95,112,101,101,107,95,97,100,100,114,58,0,0,0,0,0,0,0,0
-literal.737 dq 34
+string.736 db 59,32,115,116,97,99,107,32,112,111,112,0,0,0,0,0
+literal.737 dq 10
           dq string.737
-string.737 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,115,116,97,99,107,95,112,111,115,93,0,0,0,0,0,0
-literal.738 dq 32
+string.737 db 115,116,97,99,107,95,112,111,112,58,0,0,0,0,0,0
+literal.738 dq 12
           dq string.738
-string.738 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,114,97,120,32,45,32,56,93,0,0,0,0,0,0,0,0
-literal.739 dq 12
+string.738 db 59,32,115,116,97,99,107,32,112,105,99,107,0,0,0,0
+literal.739 dq 33
           dq string.739
-string.739 db 59,32,115,116,97,99,107,32,112,101,101,107,0,0,0,0
-literal.740 dq 11
+string.739 db 59,32,32,32,73,78,80,85,84,58,32,114,100,105,32,99,111,110,116,97,105,110,115,32,116,104,101,32,105,110,100,101,120,0,0,0,0,0,0,0
+literal.740 dq 72
           dq string.740
-string.740 db 115,116,97,99,107,95,112,101,101,107,58,0,0,0,0,0
-literal.741 dq 28
+string.740 db 59,32,32,32,79,85,84,80,85,84,58,32,114,97,120,32,99,111,110,116,97,105,110,115,32,116,104,101,32,105,110,116,54,52,32,40,112,111,105,110,116,101,114,41,32,116,104,97,116,32,119,101,32,112,105,99,107,32,102,114,111,109,32,116,104,101,32,115,116,97,99,107,0,0,0,0,0,0,0,0
+literal.741 dq 16
           dq string.741
-string.741 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,114,97,120,93,0,0,0,0
-literal.742 dq 16
+string.741 db 115,116,97,99,107,95,112,105,99,107,95,97,100,100,114,58,0,0,0,0,0,0,0,0
+literal.742 dq 42
           dq string.742
-string.742 db 59,32,115,116,97,99,107,32,112,111,112,32,97,100,100,114,0,0,0,0,0,0,0,0
-literal.743 dq 15
+string.742 db 32,32,32,32,115,104,108,32,32,32,32,32,114,100,105,44,32,51,32,59,32,109,117,108,116,105,112,108,121,32,105,110,100,101,120,32,119,105,116,104,32,56,0,0,0,0,0,0
+literal.743 dq 52
           dq string.743
-string.743 db 115,116,97,99,107,95,112,111,112,95,97,100,100,114,58,0
-literal.744 dq 32
+string.743 db 32,32,32,32,115,117,98,32,32,32,32,32,114,97,120,44,32,114,100,105,32,59,32,111,102,102,115,101,116,32,115,116,97,99,107,95,112,111,115,32,119,105,116,104,32,105,110,100,101,120,42,56,0,0,0,0
+literal.744 dq 10
           dq string.744
-string.744 db 32,32,32,32,115,117,98,32,32,32,32,32,113,119,111,114,100,32,91,115,116,97,99,107,95,112,111,115,93,44,32,56,0,0,0,0,0,0,0,0
-literal.745 dq 11
+string.744 db 59,32,109,97,112,32,116,97,107,101,0,0,0,0,0,0
+literal.745 dq 41
           dq string.745
-string.745 db 59,32,115,116,97,99,107,32,112,111,112,0,0,0,0,0
-literal.746 dq 10
+string.745 db 59,32,32,32,73,78,80,85,84,58,32,114,100,105,32,99,111,110,116,97,105,110,115,32,116,104,101,32,115,105,122,101,32,105,110,32,98,121,116,101,115,0,0,0,0,0,0,0
+literal.746 dq 72
           dq string.746
-string.746 db 115,116,97,99,107,95,112,111,112,58,0,0,0,0,0,0
-literal.747 dq 12
+string.746 db 59,32,32,32,79,85,84,80,85,84,58,32,114,97,120,32,112,111,105,110,116,115,32,116,111,32,110,101,119,32,122,101,114,111,32,109,101,109,111,114,121,32,102,114,111,109,32,97,110,32,97,110,111,110,121,109,111,117,115,32,112,114,105,118,97,116,101,32,109,109,97,112,0,0,0,0,0,0,0,0
+literal.747 dq 73
           dq string.747
-string.747 db 59,32,115,116,97,99,107,32,112,105,99,107,0,0,0,0
-literal.748 dq 33
+string.747 db 59,32,32,32,65,108,108,32,111,116,104,101,114,32,114,101,103,105,115,116,101,114,115,32,107,101,101,112,32,116,104,101,105,114,32,118,97,108,117,101,115,46,32,84,104,101,32,109,97,112,112,105,110,103,32,105,115,32,110,101,118,101,114,32,117,110,109,97,112,112,101,100,46,0,0,0,0,0,0,0
+literal.748 dq 9
           dq string.748
-string.748 db 59,32,32,32,73,78,80,85,84,58,32,114,100,105,32,99,111,110,116,97,105,110,115,32,116,104,101,32,105,110,100,101,120,0,0,0,0,0,0,0
-literal.749 dq 72
+string.748 db 109,97,112,95,116,97,107,101,58,0,0,0,0,0,0,0
+literal.749 dq 15
           dq string.749
-string.749 db 59,32,32,32,79,85,84,80,85,84,58,32,114,97,120,32,99,111,110,116,97,105,110,115,32,116,104,101,32,105,110,116,54,52,32,40,112,111,105,110,116,101,114,41,32,116,104,97,116,32,119,101,32,112,105,99,107,32,102,114,111,109,32,116,104,101,32,115,116,97,99,107,0,0,0,0,0,0,0,0
-literal.750 dq 16
+string.749 db 32,32,32,32,112,117,115,104,32,32,32,32,114,99,120,0
+literal.750 dq 15
           dq string.750
-string.750 db 115,116,97,99,107,95,112,105,99,107,95,97,100,100,114,58,0,0,0,0,0,0,0,0
-literal.751 dq 42
+string.750 db 32,32,32,32,112,117,115,104,32,32,32,32,114,100,120,0
+literal.751 dq 15
           dq string.751
-string.751 db 32,32,32,32,115,104,108,32,32,32,32,32,114,100,105,44,32,51,32,59,32,109,117,108,116,105,112,108,121,32,105,110,100,101,120,32,119,105,116,104,32,56,0,0,0,0,0,0
-literal.752 dq 52
+string.751 db 32,32,32,32,112,117,115,104,32,32,32,32,114,115,105,0
+literal.752 dq 14
           dq string.752
-string.752 db 32,32,32,32,115,117,98,32,32,32,32,32,114,97,120,44,32,114,100,105,32,59,32,111,102,102,115,101,116,32,115,116,97,99,107,95,112,111,115,32,119,105,116,104,32,105,110,100,101,120,42,56,0,0,0,0
-literal.753 dq 11
+string.752 db 32,32,32,32,112,117,115,104,32,32,32,32,114,56,0,0
+literal.753 dq 14
           dq string.753
-string.753 db 59,32,104,101,97,112,32,116,97,107,101,0,0,0,0,0
-literal.754 dq 57
+string.753 db 32,32,32,32,112,117,115,104,32,32,32,32,114,57,0,0
+literal.754 dq 15
           dq string.754
-string.754 db 59,32,32,32,73,78,80,85,84,58,32,114,100,105,32,99,111,110,116,97,105,110,115,32,116,104,101,32,115,105,122,101,32,105,110,32,98,121,116,101,115,32,40,109,117,108,116,105,112,108,101,32,111,102,32,56,41,0,0,0,0,0,0,0
-literal.755 dq 59
+string.754 db 32,32,32,32,112,117,115,104,32,32,32,32,114,49,48,0
+literal.755 dq 15
           dq string.755
-string.755 db 59,32,32,32,79,85,84,80,85,84,58,32,114,97,120,32,112,111,105,110,116,115,32,116,111,32,110,101,119,32,109,101,109,111,114,121,32,97,116,32,116,104,101,32,116,111,112,32,111,102,32,116,104,101,32,104,101,97,112,0,0,0,0,0
-literal.756 dq 10
+string.755 db 32,32,32,32,112,117,115,104,32,32,32,32,114,49,49,0
+literal.756 dq 47
           dq string.756
-string.756 db 104,101,97,112,95,116,97,107,101,58,0,0,0,0,0,0
-literal.757 dq 15
+string.756 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,114,100,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,108,101,110,103,116,104,0
+literal.757 dq 71
           dq string.757
-string.757 db 32,32,32,32,112,117,115,104,32,32,32,32,114,99,120,0
-literal.758 dq 15
+string.757 db 32,32,32,32,120,111,114,32,32,32,32,32,101,100,105,44,32,101,100,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,116,104,101,32,107,101,114,110,101,108,32,115,101,108,101,99,116,115,32,116,104,101,32,97,100,100,114,101,115,115,0
+literal.758 dq 63
           dq string.758
-string.758 db 32,32,32,32,112,117,115,104,32,32,32,32,114,100,120,0
-literal.759 dq 15
+string.758 db 32,32,32,32,109,111,118,32,32,32,32,32,101,100,120,44,32,51,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,80,82,79,84,95,82,69,65,68,32,124,32,80,82,79,84,95,87,82,73,84,69,0
+literal.759 dq 68
           dq string.759
-string.759 db 32,32,32,32,112,117,115,104,32,32,32,32,114,49,49,0
-literal.760 dq 33
+string.759 db 32,32,32,32,109,111,118,32,32,32,32,32,114,49,48,100,44,32,48,120,50,50,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,77,65,80,95,80,82,73,86,65,84,69,32,124,32,77,65,80,95,65,78,79,78,89,77,79,85,83,0,0,0,0
+literal.760 dq 48
           dq string.760
-string.760 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,104,101,97,112,95,116,111,112,93,0,0,0,0,0,0,0
-literal.761 dq 60
+string.760 db 32,32,32,32,109,111,118,32,32,32,32,32,114,56,44,32,45,49,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,110,111,32,102,105,108,101,0,0,0,0,0,0,0,0
+literal.761 dq 49
           dq string.761
-string.761 db 32,32,32,32,97,100,100,32,32,32,32,32,114,100,120,44,32,114,100,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,110,101,119,32,116,111,112,32,111,102,32,116,104,101,32,104,101,97,112,0,0,0,0
-literal.762 dq 21
+string.761 db 32,32,32,32,120,111,114,32,32,32,32,32,114,57,100,44,32,114,57,100,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,111,102,102,115,101,116,32,48,0,0,0,0,0,0,0
+literal.762 dq 45
           dq string.762
-string.762 db 32,32,32,32,106,99,32,32,32,32,32,32,97,108,108,111,99,95,111,111,109,0,0,0
-literal.763 dq 33
+string.762 db 32,32,32,32,109,111,118,32,32,32,32,32,101,97,120,44,32,57,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,109,109,97,112,0,0,0
+literal.763 dq 22
           dq string.763
-string.763 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,104,101,97,112,95,101,110,100,93,0,0,0,0,0,0,0
-literal.764 dq 20
+string.763 db 32,32,32,32,99,109,112,32,32,32,32,32,114,97,120,44,32,45,52,48,57,54,0,0
+literal.764 dq 63
           dq string.764
-string.764 db 32,32,32,32,106,98,101,32,32,32,32,32,46,116,97,107,101,95,111,107,0,0,0,0
-literal.765 dq 20
+string.764 db 32,32,32,32,106,97,32,32,32,32,32,32,97,108,108,111,99,95,111,111,109,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,45,52,48,57,53,32,116,111,32,45,49,32,97,114,101,32,101,114,114,111,114,115,0
+literal.765 dq 15
           dq string.765
-string.765 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,114,100,120,0,0,0,0
-literal.766 dq 35
+string.765 db 32,32,32,32,112,111,112,32,32,32,32,32,114,49,49,0
+literal.766 dq 15
           dq string.766
-string.766 db 32,32,32,32,97,100,100,32,32,32,32,32,114,100,105,44,32,72,69,65,80,95,71,82,79,87,95,83,73,90,69,32,45,32,49,0,0,0,0,0
-literal.767 dq 60
+string.766 db 32,32,32,32,112,111,112,32,32,32,32,32,114,49,48,0
+literal.767 dq 14
           dq string.767
-string.767 db 32,32,32,32,97,110,100,32,32,32,32,32,114,100,105,44,32,45,72,69,65,80,95,71,82,79,87,95,83,73,90,69,32,32,32,32,32,32,32,59,32,110,101,119,32,101,110,100,32,111,102,32,116,104,101,32,104,101,97,112,0,0,0,0
-literal.768 dq 75
+string.767 db 32,32,32,32,112,111,112,32,32,32,32,32,114,57,0,0
+literal.768 dq 14
           dq string.768
-string.768 db 32,32,32,32,99,109,112,32,32,32,32,32,114,97,120,44,32,114,100,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,98,114,107,32,114,101,116,117,114,110,115,32,116,104,101,32,111,108,100,32,101,110,100,32,111,110,32,102,97,105,108,117,114,101,0,0,0,0,0
-literal.769 dq 21
+string.768 db 32,32,32,32,112,111,112,32,32,32,32,32,114,56,0,0
+literal.769 dq 15
           dq string.769
-string.769 db 32,32,32,32,106,98,32,32,32,32,32,32,97,108,108,111,99,95,111,111,109,0,0,0
-literal.770 dq 33
+string.769 db 32,32,32,32,112,111,112,32,32,32,32,32,114,115,105,0
+literal.770 dq 15
           dq string.770
-string.770 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,104,101,97,112,95,101,110,100,93,44,32,114,97,120,0,0,0,0,0,0,0
-literal.771 dq 9
+string.770 db 32,32,32,32,112,111,112,32,32,32,32,32,114,100,120,0
+literal.771 dq 15
           dq string.771
-string.771 db 46,116,97,107,101,95,111,107,58,0,0,0,0,0,0,0
-literal.772 dq 33
+string.771 db 32,32,32,32,112,111,112,32,32,32,32,32,114,99,120,0
+literal.772 dq 11
           dq string.772
-string.772 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,104,101,97,112,95,116,111,112,93,0,0,0,0,0,0,0
-literal.773 dq 33
+string.772 db 59,32,104,101,97,112,32,116,97,107,101,0,0,0,0,0
+literal.773 dq 57
           dq string.773
-string.773 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,104,101,97,112,95,116,111,112,93,44,32,114,100,120,0,0,0,0,0,0,0
-literal.774 dq 15
+string.773 db 59,32,32,32,73,78,80,85,84,58,32,114,100,105,32,99,111,110,116,97,105,110,115,32,116,104,101,32,115,105,122,101,32,105,110,32,98,121,116,101,115,32,40,109,117,108,116,105,112,108,101,32,111,102,32,56,41,0,0,0,0,0,0,0
+literal.774 dq 74
           dq string.774
-string.774 db 32,32,32,32,112,111,112,32,32,32,32,32,114,49,49,0
-literal.775 dq 15
+string.774 db 59,32,32,32,79,85,84,80,85,84,58,32,114,97,120,32,112,111,105,110,116,115,32,116,111,32,110,101,119,32,122,101,114,111,32,109,101,109,111,114,121,32,97,116,32,116,104,101,32,116,111,112,32,111,102,32,116,104,101,32,99,117,114,114,101,110,116,32,114,101,103,105,111,110,0,0,0,0,0,0
+literal.775 dq 74
           dq string.775
-string.775 db 32,32,32,32,112,111,112,32,32,32,32,32,114,100,120,0
-literal.776 dq 15
+string.775 db 59,32,32,32,84,104,101,32,104,101,97,112,32,105,115,32,97,32,108,105,115,116,32,111,102,32,114,101,103,105,111,110,115,46,32,65,32,114,101,103,105,111,110,32,115,116,97,114,116,115,32,119,105,116,104,32,97,32,104,101,97,100,101,114,58,32,116,104,101,32,110,101,120,116,0,0,0,0,0,0
+literal.776 dq 73
           dq string.776
-string.776 db 32,32,32,32,112,111,112,32,32,32,32,32,114,99,120,0
-literal.777 dq 10
+string.776 db 59,32,32,32,40,111,108,100,101,114,41,32,114,101,103,105,111,110,32,97,110,100,32,116,104,101,32,101,110,100,32,111,102,32,116,104,101,32,114,101,103,105,111,110,46,32,104,101,97,112,95,114,101,103,105,111,110,115,32,105,115,32,116,104,101,32,99,117,114,114,101,110,116,0,0,0,0,0,0,0
+literal.777 dq 77
           dq string.777
-string.777 db 59,32,97,108,108,111,99,97,116,101,0,0,0,0,0,0
-literal.778 dq 41
+string.777 db 59,32,32,32,114,101,103,105,111,110,59,32,105,116,115,32,98,108,111,99,107,115,32,101,110,100,32,97,116,32,104,101,97,112,95,116,111,112,46,32,87,104,101,110,32,97,32,115,105,122,101,32,100,111,101,115,32,110,111,116,32,102,105,116,44,32,116,104,101,32,114,101,115,116,32,111,102,0,0,0
+literal.778 dq 75
           dq string.778
-string.778 db 59,32,32,32,73,78,80,85,84,58,32,114,100,105,32,99,111,110,116,97,105,110,115,32,116,104,101,32,115,105,122,101,32,105,110,32,98,121,116,101,115,0,0,0,0,0,0,0
-literal.779 dq 59
+string.778 db 59,32,32,32,116,104,101,32,99,117,114,114,101,110,116,32,114,101,103,105,111,110,32,98,101,99,111,109,101,115,32,97,32,102,114,101,101,32,98,108,111,99,107,32,97,110,100,32,97,32,110,101,119,32,114,101,103,105,111,110,32,105,115,32,109,97,112,112,101,100,46,32,84,104,101,0,0,0,0,0
+literal.779 dq 72
           dq string.779
-string.779 db 59,32,32,32,79,85,84,80,85,84,58,32,114,97,120,32,112,111,105,110,116,115,32,116,111,32,116,104,101,32,110,101,119,108,121,32,97,108,108,111,99,97,116,101,100,32,122,101,114,111,101,100,32,109,101,109,111,114,121,0,0,0,0,0
-literal.780 dq 71
+string.779 db 59,32,32,32,104,101,97,100,101,114,32,107,101,101,112,115,32,98,108,111,99,107,115,32,111,102,32,100,105,102,102,101,114,101,110,116,32,114,101,103,105,111,110,115,32,97,112,97,114,116,44,32,115,111,32,116,104,101,121,32,110,101,118,101,114,32,109,101,114,103,101,46,0,0,0,0,0,0,0,0
+literal.780 dq 10
           dq string.780
-string.780 db 59,32,32,32,65,32,98,108,111,99,107,32,104,97,115,32,97,110,32,56,32,98,121,116,101,32,104,101,97,100,101,114,32,119,105,116,104,32,116,104,101,32,98,108,111,99,107,32,115,105,122,101,32,97,110,100,32,98,105,116,32,48,32,115,101,116,32,119,104,101,110,0
-literal.781 dq 75
+string.780 db 104,101,97,112,95,116,97,107,101,58,0,0,0,0,0,0
+literal.781 dq 33
           dq string.781
-string.781 db 59,32,32,32,97,108,108,111,99,97,116,101,100,46,32,65,32,102,114,101,101,32,98,108,111,99,107,32,107,101,101,112,115,32,116,104,101,32,110,101,120,116,32,102,114,101,101,32,98,108,111,99,107,32,105,110,32,105,116,115,32,102,105,114,115,116,32,56,32,98,121,116,101,115,46,0,0,0,0,0
-literal.782 dq 9
+string.781 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,104,101,97,112,95,116,111,112,93,0,0,0,0,0,0,0
+literal.782 dq 62
           dq string.782
-string.782 db 97,108,108,111,99,97,116,101,58,0,0,0,0,0,0,0
-literal.783 dq 15
+string.782 db 32,32,32,32,97,100,100,32,32,32,32,32,114,100,120,44,32,114,100,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,110,101,119,32,116,111,112,32,111,102,32,116,104,101,32,114,101,103,105,111,110,0,0
+literal.783 dq 21
           dq string.783
-string.783 db 32,32,32,32,112,117,115,104,32,32,32,32,114,115,105,0
-literal.784 dq 14
+string.783 db 32,32,32,32,106,99,32,32,32,32,32,32,46,116,97,107,101,95,110,101,119,0,0,0
+literal.784 dq 33
           dq string.784
-string.784 db 32,32,32,32,112,117,115,104,32,32,32,32,114,56,0,0
+string.784 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,104,101,97,112,95,101,110,100,93,0,0,0,0,0,0,0
 literal.785 dq 20
           dq string.785
-string.785 db 32,32,32,32,116,101,115,116,32,32,32,32,114,100,105,44,32,114,100,105,0,0,0,0
-literal.786 dq 26
+string.785 db 32,32,32,32,106,98,101,32,32,32,32,32,46,116,97,107,101,95,111,107,0,0,0,0
+literal.786 dq 10
           dq string.786
-string.786 db 32,32,32,32,106,115,32,32,32,32,32,32,97,108,108,111,99,95,110,101,103,97,116,105,118,101,0,0,0,0,0,0
-literal.787 dq 19
+string.786 db 46,116,97,107,101,95,110,101,119,58,0,0,0,0,0,0
+literal.787 dq 41
           dq string.787
-string.787 db 32,32,32,32,97,100,100,32,32,32,32,32,114,100,105,44,32,49,53,0,0,0,0,0
-literal.788 dq 63
+string.787 db 32,32,32,32,59,32,102,114,101,101,32,116,104,101,32,114,101,115,116,32,111,102,32,116,104,101,32,99,117,114,114,101,110,116,32,114,101,103,105,111,110,0,0,0,0,0,0,0
+literal.788 dq 33
           dq string.788
-string.788 db 32,32,32,32,97,110,100,32,32,32,32,32,114,100,105,44,32,45,56,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,98,108,111,99,107,32,115,105,122,101,32,119,105,116,104,32,104,101,97,100,101,114,0
-literal.789 dq 19
+string.788 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,104,101,97,112,95,116,111,112,93,0,0,0,0,0,0,0
+literal.789 dq 33
           dq string.789
-string.789 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,105,44,32,49,54,0,0,0,0,0
-literal.790 dq 24
+string.789 db 32,32,32,32,109,111,118,32,32,32,32,32,114,99,120,44,32,113,119,111,114,100,32,91,104,101,97,112,95,101,110,100,93,0,0,0,0,0,0,0
+literal.790 dq 33
           dq string.790
-string.790 db 32,32,32,32,106,97,101,32,32,32,32,32,46,97,108,108,111,99,95,115,105,122,101,100,0,0,0,0,0,0,0,0
-literal.791 dq 67
+string.790 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,104,101,97,112,95,116,111,112,93,44,32,114,99,120,0,0,0,0,0,0,0
+literal.791 dq 20
           dq string.791
-string.791 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,49,54,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,97,116,32,108,101,97,115,116,32,56,32,98,121,116,101,115,32,111,102,32,109,101,109,111,114,121,0,0,0,0,0
-literal.792 dq 13
+string.791 db 32,32,32,32,115,117,98,32,32,32,32,32,114,99,120,44,32,114,97,120,0,0,0,0
+literal.792 dq 19
           dq string.792
-string.792 db 46,97,108,108,111,99,95,115,105,122,101,100,58,0,0,0
-literal.793 dq 32
+string.792 db 32,32,32,32,99,109,112,32,32,32,32,32,114,99,120,44,32,49,54,0,0,0,0,0
+literal.793 dq 21
           dq string.793
-string.793 db 32,32,32,32,59,32,102,105,114,115,116,32,102,105,116,32,105,110,32,116,104,101,32,102,114,101,101,32,108,105,115,116,0,0,0,0,0,0,0,0
-literal.794 dq 60
+string.793 db 32,32,32,32,106,98,32,32,32,32,32,32,46,116,97,107,101,95,109,97,112,0,0,0
+literal.794 dq 18
           dq string.794
-string.794 db 32,32,32,32,120,111,114,32,32,32,32,32,101,115,105,44,32,101,115,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,112,114,101,118,105,111,117,115,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0
-literal.795 dq 34
+string.794 db 32,32,32,32,111,114,32,32,32,32,32,32,114,99,120,44,32,49,0,0,0,0,0,0
+literal.795 dq 71
           dq string.795
-string.795 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,102,114,101,101,95,108,105,115,116,93,0,0,0,0,0,0
-literal.796 dq 12
+string.795 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,97,120,93,44,32,114,99,120,32,32,32,32,32,32,32,32,32,32,32,59,32,97,110,32,97,108,108,111,99,97,116,101,100,32,98,108,111,99,107,32,111,102,32,116,104,101,32,114,101,115,116,0
+literal.796 dq 26
           dq string.796
-string.796 db 46,97,108,108,111,99,95,102,105,110,100,58,0,0,0,0
-literal.797 dq 24
+string.796 db 32,32,32,32,108,101,97,32,32,32,32,32,114,100,105,44,32,91,114,97,120,32,43,32,56,93,0,0,0,0,0,0
+literal.797 dq 22
           dq string.797
-string.797 db 32,32,32,32,106,122,32,32,32,32,32,32,46,97,108,108,111,99,95,102,114,101,115,104,0,0,0,0,0,0,0,0
-literal.798 dq 28
+string.797 db 32,32,32,32,99,97,108,108,32,32,32,32,100,101,97,108,108,111,99,97,116,101,0,0
+literal.798 dq 10
           dq string.798
-string.798 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,114,97,120,93,0,0,0,0
+string.798 db 46,116,97,107,101,95,109,97,112,58,0,0,0,0,0,0
 literal.799 dq 20
           dq string.799
-string.799 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,120,44,32,114,100,105,0,0,0,0
-literal.800 dq 24
+string.799 db 32,32,32,32,109,111,118,32,32,32,32,32,114,99,120,44,32,114,100,105,0,0,0,0
+literal.800 dq 56
           dq string.800
-string.800 db 32,32,32,32,106,97,101,32,32,32,32,32,46,97,108,108,111,99,95,102,111,117,110,100,0,0,0,0,0,0,0,0
-literal.801 dq 20
+string.800 db 32,32,32,32,97,100,100,32,32,32,32,32,114,99,120,44,32,72,69,65,80,95,82,69,71,73,79,78,95,72,69,65,68,69,82,32,43,32,72,69,65,80,95,71,82,79,87,95,83,73,90,69,32,45,32,49,0,0,0,0,0,0,0,0
+literal.801 dq 21
           dq string.801
-string.801 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,114,97,120,0,0,0,0
-literal.802 dq 32
+string.801 db 32,32,32,32,106,99,32,32,32,32,32,32,97,108,108,111,99,95,111,111,109,0,0,0
+literal.802 dq 52
           dq string.802
-string.802 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,114,97,120,32,43,32,56,93,0,0,0,0,0,0,0,0
-literal.803 dq 23
+string.802 db 32,32,32,32,97,110,100,32,32,32,32,32,114,99,120,44,32,45,72,69,65,80,95,71,82,79,87,95,83,73,90,69,32,32,32,32,32,32,32,59,32,114,101,103,105,111,110,32,115,105,122,101,0,0,0,0
+literal.803 dq 20
           dq string.803
-string.803 db 32,32,32,32,106,109,112,32,32,32,32,32,46,97,108,108,111,99,95,102,105,110,100,0
-literal.804 dq 13
+string.803 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,114,99,120,0,0,0,0
+literal.804 dq 37
           dq string.804
-string.804 db 46,97,108,108,111,99,95,102,111,117,110,100,58,0,0,0
-literal.805 dq 56
+string.804 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,104,101,97,112,95,114,101,103,105,111,110,115,93,0,0,0
+literal.805 dq 52
           dq string.805
-string.805 db 32,32,32,32,109,111,118,32,32,32,32,32,114,99,120,44,32,113,119,111,114,100,32,91,114,97,120,32,43,32,56,93,32,32,32,32,32,32,32,59,32,110,101,120,116,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0,0,0,0
+string.805 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,97,120,93,44,32,114,100,120,32,32,32,32,32,32,32,32,32,32,32,59,32,110,101,120,116,32,114,101,103,105,111,110,0,0,0,0
 literal.806 dq 20
           dq string.806
-string.806 db 32,32,32,32,115,117,98,32,32,32,32,32,114,100,120,44,32,114,100,105,0,0,0,0
-literal.807 dq 19
+string.806 db 32,32,32,32,97,100,100,32,32,32,32,32,114,99,120,44,32,114,97,120,0,0,0,0
+literal.807 dq 58
           dq string.807
-string.807 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,120,44,32,49,54,0,0,0,0,0
-literal.808 dq 24
+string.807 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,97,120,32,43,32,56,93,44,32,114,99,120,32,32,32,32,32,32,32,59,32,101,110,100,32,111,102,32,116,104,101,32,114,101,103,105,111,110,0,0,0,0,0,0
+literal.808 dq 37
           dq string.808
-string.808 db 32,32,32,32,106,98,32,32,32,32,32,32,46,97,108,108,111,99,95,119,104,111,108,101,0,0,0,0,0,0,0,0
-literal.809 dq 73
+string.808 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,104,101,97,112,95,114,101,103,105,111,110,115,93,44,32,114,97,120,0,0,0
+literal.809 dq 33
           dq string.809
-string.809 db 32,32,32,32,108,101,97,32,32,32,32,32,114,56,44,32,91,114,97,120,32,43,32,114,100,105,93,32,32,32,32,32,32,32,32,32,32,32,32,59,32,115,112,108,105,116,32,116,104,101,32,114,101,115,116,32,105,110,116,111,32,97,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0,0,0
-literal.810 dq 27
+string.809 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,104,101,97,112,95,101,110,100,93,44,32,114,99,120,0,0,0,0,0,0,0
+literal.810 dq 43
           dq string.810
-string.810 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,56,93,44,32,114,100,120,0,0,0,0,0
-literal.811 dq 31
+string.810 db 32,32,32,32,108,101,97,32,32,32,32,32,114,100,120,44,32,91,114,97,120,32,43,32,72,69,65,80,95,82,69,71,73,79,78,95,72,69,65,68,69,82,93,0,0,0,0,0
+literal.811 dq 33
           dq string.811
-string.811 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,56,32,43,32,56,93,44,32,114,99,120,0
-literal.812 dq 19
+string.811 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,104,101,97,112,95,116,111,112,93,44,32,114,100,120,0,0,0,0,0,0,0
+literal.812 dq 20
           dq string.812
-string.812 db 32,32,32,32,109,111,118,32,32,32,32,32,114,99,120,44,32,114,56,0,0,0,0,0
-literal.813 dq 25
+string.812 db 32,32,32,32,97,100,100,32,32,32,32,32,114,100,120,44,32,114,100,105,0,0,0,0
+literal.813 dq 9
           dq string.813
-string.813 db 32,32,32,32,106,109,112,32,32,32,32,32,46,97,108,108,111,99,95,117,110,108,105,110,107,0,0,0,0,0,0,0
-literal.814 dq 13
+string.813 db 46,116,97,107,101,95,111,107,58,0,0,0,0,0,0,0
+literal.814 dq 10
           dq string.814
-string.814 db 46,97,108,108,111,99,95,119,104,111,108,101,58,0,0,0
-literal.815 dq 65
+string.814 db 59,32,97,108,108,111,99,97,116,101,0,0,0,0,0,0
+literal.815 dq 59
           dq string.815
-string.815 db 32,32,32,32,97,100,100,32,32,32,32,32,114,100,105,44,32,114,100,120,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,117,115,101,32,116,104,101,32,119,104,111,108,101,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0,0,0
-literal.816 dq 14
+string.815 db 59,32,32,32,79,85,84,80,85,84,58,32,114,97,120,32,112,111,105,110,116,115,32,116,111,32,116,104,101,32,110,101,119,108,121,32,97,108,108,111,99,97,116,101,100,32,122,101,114,111,101,100,32,109,101,109,111,114,121,0,0,0,0,0
+literal.816 dq 71
           dq string.816
-string.816 db 46,97,108,108,111,99,95,117,110,108,105,110,107,58,0,0
-literal.817 dq 20
+string.816 db 59,32,32,32,65,32,98,108,111,99,107,32,104,97,115,32,97,110,32,56,32,98,121,116,101,32,104,101,97,100,101,114,32,119,105,116,104,32,116,104,101,32,98,108,111,99,107,32,115,105,122,101,32,97,110,100,32,98,105,116,32,48,32,115,101,116,32,119,104,101,110,0
+literal.817 dq 75
           dq string.817
-string.817 db 32,32,32,32,116,101,115,116,32,32,32,32,114,115,105,44,32,114,115,105,0,0,0,0
-literal.818 dq 23
+string.817 db 59,32,32,32,97,108,108,111,99,97,116,101,100,46,32,65,32,102,114,101,101,32,98,108,111,99,107,32,107,101,101,112,115,32,116,104,101,32,110,101,120,116,32,102,114,101,101,32,98,108,111,99,107,32,105,110,32,105,116,115,32,102,105,114,115,116,32,56,32,98,121,116,101,115,46,0,0,0,0,0
+literal.818 dq 9
           dq string.818
-string.818 db 32,32,32,32,106,122,32,32,32,32,32,32,46,97,108,108,111,99,95,104,101,97,100,0
-literal.819 dq 32
+string.818 db 97,108,108,111,99,97,116,101,58,0,0,0,0,0,0,0
+literal.819 dq 20
           dq string.819
-string.819 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,105,32,43,32,56,93,44,32,114,99,120,0,0,0,0,0,0,0,0
-literal.820 dq 24
+string.819 db 32,32,32,32,116,101,115,116,32,32,32,32,114,100,105,44,32,114,100,105,0,0,0,0
+literal.820 dq 26
           dq string.820
-string.820 db 32,32,32,32,106,109,112,32,32,32,32,32,46,97,108,108,111,99,95,99,108,101,97,114,0,0,0,0,0,0,0,0
-literal.821 dq 12
+string.820 db 32,32,32,32,106,115,32,32,32,32,32,32,97,108,108,111,99,95,110,101,103,97,116,105,118,101,0,0,0,0,0,0
+literal.821 dq 19
           dq string.821
-string.821 db 46,97,108,108,111,99,95,104,101,97,100,58,0,0,0,0
-literal.822 dq 34
+string.821 db 32,32,32,32,97,100,100,32,32,32,32,32,114,100,105,44,32,49,53,0,0,0,0,0
+literal.822 dq 63
           dq string.822
-string.822 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,102,114,101,101,95,108,105,115,116,93,44,32,114,99,120,0,0,0,0,0,0
-literal.823 dq 13
+string.822 db 32,32,32,32,97,110,100,32,32,32,32,32,114,100,105,44,32,45,56,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,98,108,111,99,107,32,115,105,122,101,32,119,105,116,104,32,104,101,97,100,101,114,0
+literal.823 dq 19
           dq string.823
-string.823 db 46,97,108,108,111,99,95,99,108,101,97,114,58,0,0,0
-literal.824 dq 26
+string.823 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,105,44,32,49,54,0,0,0,0,0
+literal.824 dq 24
           dq string.824
-string.824 db 32,32,32,32,108,101,97,32,32,32,32,32,114,99,120,44,32,91,114,97,120,32,43,32,56,93,0,0,0,0,0,0
-literal.825 dq 28
+string.824 db 32,32,32,32,106,97,101,32,32,32,32,32,46,97,108,108,111,99,95,115,105,122,101,100,0,0,0,0,0,0,0,0
+literal.825 dq 67
           dq string.825
-string.825 db 32,32,32,32,108,101,97,32,32,32,32,32,114,100,120,44,32,91,114,97,120,32,43,32,114,100,105,93,0,0,0,0
-literal.826 dq 18
+string.825 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,49,54,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,97,116,32,108,101,97,115,116,32,56,32,98,121,116,101,115,32,111,102,32,109,101,109,111,114,121,0,0,0,0,0
+literal.826 dq 13
           dq string.826
-string.826 db 46,97,108,108,111,99,95,99,108,101,97,114,95,110,101,120,116,58,0,0,0,0,0,0
-literal.827 dq 26
+string.826 db 46,97,108,108,111,99,95,115,105,122,101,100,58,0,0,0
+literal.827 dq 32
           dq string.827
-string.827 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,99,120,93,44,32,48,0,0,0,0,0,0
-literal.828 dq 18
+string.827 db 32,32,32,32,59,32,102,105,114,115,116,32,102,105,116,32,105,110,32,116,104,101,32,102,114,101,101,32,108,105,115,116,0,0,0,0,0,0,0,0
+literal.828 dq 60
           dq string.828
-string.828 db 32,32,32,32,97,100,100,32,32,32,32,32,114,99,120,44,32,56,0,0,0,0,0,0
-literal.829 dq 20
+string.828 db 32,32,32,32,120,111,114,32,32,32,32,32,101,115,105,44,32,101,115,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,112,114,101,118,105,111,117,115,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0
+literal.829 dq 34
           dq string.829
-string.829 db 32,32,32,32,99,109,112,32,32,32,32,32,114,99,120,44,32,114,100,120,0,0,0,0
-literal.830 dq 29
+string.829 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,102,114,101,101,95,108,105,115,116,93,0,0,0,0,0,0
+literal.830 dq 12
           dq string.830
-string.830 db 32,32,32,32,106,98,32,32,32,32,32,32,46,97,108,108,111,99,95,99,108,101,97,114,95,110,101,120,116,0,0,0
-literal.831 dq 21
+string.830 db 46,97,108,108,111,99,95,102,105,110,100,58,0,0,0,0
+literal.831 dq 24
           dq string.831
-string.831 db 32,32,32,32,106,109,112,32,32,32,32,32,46,97,108,108,111,99,95,111,107,0,0,0
-literal.832 dq 13
+string.831 db 32,32,32,32,106,122,32,32,32,32,32,32,46,97,108,108,111,99,95,102,114,101,115,104,0,0,0,0,0,0,0,0
+literal.832 dq 28
           dq string.832
-string.832 db 46,97,108,108,111,99,95,102,114,101,115,104,58,0,0,0
-literal.833 dq 67
+string.832 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,114,97,120,93,0,0,0,0
+literal.833 dq 20
           dq string.833
-string.833 db 32,32,32,32,99,97,108,108,32,32,32,32,104,101,97,112,95,116,97,107,101,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,110,101,119,32,109,101,109,111,114,121,32,105,115,32,97,108,114,101,97,100,121,32,122,101,114,111,0,0,0,0,0
-literal.834 dq 10
+string.833 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,120,44,32,114,100,105,0,0,0,0
+literal.834 dq 24
           dq string.834
-string.834 db 46,97,108,108,111,99,95,111,107,58,0,0,0,0,0,0
-literal.835 dq 18
+string.834 db 32,32,32,32,106,97,101,32,32,32,32,32,46,97,108,108,111,99,95,102,111,117,110,100,0,0,0,0,0,0,0,0
+literal.835 dq 20
           dq string.835
-string.835 db 32,32,32,32,111,114,32,32,32,32,32,32,114,100,105,44,32,49,0,0,0,0,0,0
-literal.836 dq 18
+string.835 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,114,97,120,0,0,0,0
+literal.836 dq 32
           dq string.836
-string.836 db 32,32,32,32,97,100,100,32,32,32,32,32,114,97,120,44,32,56,0,0,0,0,0,0
-literal.837 dq 14
+string.836 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,114,97,120,32,43,32,56,93,0,0,0,0,0,0,0,0
+literal.837 dq 23
           dq string.837
-string.837 db 32,32,32,32,112,111,112,32,32,32,32,32,114,56,0,0
-literal.838 dq 15
+string.837 db 32,32,32,32,106,109,112,32,32,32,32,32,46,97,108,108,111,99,95,102,105,110,100,0
+literal.838 dq 13
           dq string.838
-string.838 db 32,32,32,32,112,111,112,32,32,32,32,32,114,115,105,0
-literal.839 dq 12
+string.838 db 46,97,108,108,111,99,95,102,111,117,110,100,58,0,0,0
+literal.839 dq 56
           dq string.839
-string.839 db 59,32,100,101,97,108,108,111,99,97,116,101,0,0,0,0
-literal.840 dq 54
+string.839 db 32,32,32,32,109,111,118,32,32,32,32,32,114,99,120,44,32,113,119,111,114,100,32,91,114,97,120,32,43,32,56,93,32,32,32,32,32,32,32,59,32,110,101,120,116,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0,0,0,0
+literal.840 dq 20
           dq string.840
-string.840 db 59,32,32,32,73,78,80,85,84,58,32,114,100,105,32,112,111,105,110,116,115,32,116,111,32,109,101,109,111,114,121,32,102,114,111,109,32,97,108,108,111,99,97,116,101,44,32,111,114,32,105,115,32,48,0,0
-literal.841 dq 72
+string.840 db 32,32,32,32,115,117,98,32,32,32,32,32,114,100,120,44,32,114,100,105,0,0,0,0
+literal.841 dq 19
           dq string.841
-string.841 db 59,32,32,32,84,104,101,32,102,114,101,101,32,108,105,115,116,32,105,115,32,115,111,114,116,101,100,32,98,121,32,97,100,100,114,101,115,115,46,32,65,100,106,97,99,101,110,116,32,102,114,101,101,32,98,108,111,99,107,115,32,97,114,101,32,109,101,114,103,101,100,46,0,0,0,0,0,0,0,0
-literal.842 dq 11
+string.841 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,120,44,32,49,54,0,0,0,0,0
+literal.842 dq 24
           dq string.842
-string.842 db 100,101,97,108,108,111,99,97,116,101,58,0,0,0,0,0
-literal.843 dq 15
+string.842 db 32,32,32,32,106,98,32,32,32,32,32,32,46,97,108,108,111,99,95,119,104,111,108,101,0,0,0,0,0,0,0,0
+literal.843 dq 73
           dq string.843
-string.843 db 32,32,32,32,112,117,115,104,32,32,32,32,114,97,120,0
-literal.844 dq 22
+string.843 db 32,32,32,32,108,101,97,32,32,32,32,32,114,56,44,32,91,114,97,120,32,43,32,114,100,105,93,32,32,32,32,32,32,32,32,32,32,32,32,59,32,115,112,108,105,116,32,116,104,101,32,114,101,115,116,32,105,110,116,111,32,97,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0,0,0
+literal.844 dq 27
           dq string.844
-string.844 db 32,32,32,32,106,122,32,32,32,32,32,32,46,102,114,101,101,95,100,111,110,101,0,0
-literal.845 dq 18
+string.844 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,56,93,44,32,114,100,120,0,0,0,0,0
+literal.845 dq 31
           dq string.845
-string.845 db 32,32,32,32,116,101,115,116,32,32,32,32,114,100,105,44,32,55,0,0,0,0,0,0
-literal.846 dq 30
+string.845 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,56,32,43,32,56,93,44,32,114,99,120,0
+literal.846 dq 19
           dq string.846
-string.846 db 32,32,32,32,106,110,122,32,32,32,32,32,97,108,108,111,99,95,105,110,118,97,108,105,100,95,102,114,101,101,0,0
-literal.847 dq 53
+string.846 db 32,32,32,32,109,111,118,32,32,32,32,32,114,99,120,44,32,114,56,0,0,0,0,0
+literal.847 dq 25
           dq string.847
-string.847 db 32,32,32,32,115,117,98,32,32,32,32,32,114,100,105,44,32,56,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,98,108,111,99,107,32,104,101,97,100,101,114,0,0,0
-literal.848 dq 34
+string.847 db 32,32,32,32,106,109,112,32,32,32,32,32,46,97,108,108,111,99,95,117,110,108,105,110,107,0,0,0,0,0,0,0
+literal.848 dq 13
           dq string.848
-string.848 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,105,44,32,113,119,111,114,100,32,91,104,101,97,112,95,98,97,115,101,93,0,0,0,0,0,0
-literal.849 dq 30
+string.848 db 46,97,108,108,111,99,95,119,104,111,108,101,58,0,0,0
+literal.849 dq 65
           dq string.849
-string.849 db 32,32,32,32,106,98,32,32,32,32,32,32,97,108,108,111,99,95,105,110,118,97,108,105,100,95,102,114,101,101,0,0
-literal.850 dq 77
+string.849 db 32,32,32,32,97,100,100,32,32,32,32,32,114,100,105,44,32,114,100,120,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,117,115,101,32,116,104,101,32,119,104,111,108,101,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0,0,0
+literal.850 dq 14
           dq string.850
-string.850 db 32,32,32,32,115,117,98,32,32,32,32,32,114,97,120,44,32,114,100,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,98,121,116,101,115,32,102,114,111,109,32,116,104,101,32,98,108,111,99,107,32,116,111,32,116,104,101,32,104,101,97,112,32,116,111,112,0,0,0
-literal.851 dq 19
+string.850 db 46,97,108,108,111,99,95,117,110,108,105,110,107,58,0,0
+literal.851 dq 20
           dq string.851
-string.851 db 32,32,32,32,99,109,112,32,32,32,32,32,114,97,120,44,32,49,54,0,0,0,0,0
-literal.852 dq 28
+string.851 db 32,32,32,32,116,101,115,116,32,32,32,32,114,115,105,44,32,114,115,105,0,0,0,0
+literal.852 dq 23
           dq string.852
-string.852 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,114,100,105,93,0,0,0,0
-literal.853 dq 20
+string.852 db 32,32,32,32,106,122,32,32,32,32,32,32,46,97,108,108,111,99,95,104,101,97,100,0
+literal.853 dq 32
           dq string.853
-string.853 db 32,32,32,32,109,111,118,32,32,32,32,32,114,99,120,44,32,114,100,120,0,0,0,0
-literal.854 dq 51
+string.853 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,105,32,43,32,56,93,44,32,114,99,120,0,0,0,0,0,0,0,0
+literal.854 dq 24
           dq string.854
-string.854 db 32,32,32,32,97,110,100,32,32,32,32,32,114,99,120,44,32,45,56,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,98,108,111,99,107,32,115,105,122,101,0,0,0,0,0
-literal.855 dq 19
+string.854 db 32,32,32,32,106,109,112,32,32,32,32,32,46,97,108,108,111,99,95,99,108,101,97,114,0,0,0,0,0,0,0,0
+literal.855 dq 12
           dq string.855
-string.855 db 32,32,32,32,99,109,112,32,32,32,32,32,114,99,120,44,32,49,54,0,0,0,0,0
-literal.856 dq 20
+string.855 db 46,97,108,108,111,99,95,104,101,97,100,58,0,0,0,0
+literal.856 dq 34
           dq string.856
-string.856 db 32,32,32,32,99,109,112,32,32,32,32,32,114,99,120,44,32,114,97,120,0,0,0,0
-literal.857 dq 30
+string.856 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,102,114,101,101,95,108,105,115,116,93,44,32,114,99,120,0,0,0,0,0,0
+literal.857 dq 13
           dq string.857
-string.857 db 32,32,32,32,106,97,32,32,32,32,32,32,97,108,108,111,99,95,105,110,118,97,108,105,100,95,102,114,101,101,0,0
-literal.858 dq 18
+string.857 db 46,97,108,108,111,99,95,99,108,101,97,114,58,0,0,0
+literal.858 dq 26
           dq string.858
-string.858 db 32,32,32,32,116,101,115,116,32,32,32,32,114,100,120,44,32,54,0,0,0,0,0,0
-literal.859 dq 18
+string.858 db 32,32,32,32,108,101,97,32,32,32,32,32,114,99,120,44,32,91,114,97,120,32,43,32,56,93,0,0,0,0,0,0
+literal.859 dq 28
           dq string.859
-string.859 db 32,32,32,32,116,101,115,116,32,32,32,32,114,100,120,44,32,49,0,0,0,0,0,0
-literal.860 dq 29
+string.859 db 32,32,32,32,108,101,97,32,32,32,32,32,114,100,120,44,32,91,114,97,120,32,43,32,114,100,105,93,0,0,0,0
+literal.860 dq 18
           dq string.860
-string.860 db 32,32,32,32,106,122,32,32,32,32,32,32,97,108,108,111,99,95,100,111,117,98,108,101,95,102,114,101,101,0,0,0
-literal.861 dq 53
+string.860 db 46,97,108,108,111,99,95,99,108,101,97,114,95,110,101,120,116,58,0,0,0,0,0,0
+literal.861 dq 26
           dq string.861
-string.861 db 32,32,32,32,59,32,102,105,110,100,32,116,104,101,32,102,114,101,101,32,98,108,111,99,107,115,32,98,101,102,111,114,101,32,97,110,100,32,97,102,116,101,114,32,116,104,101,32,98,108,111,99,107,0,0,0
-literal.862 dq 56
+string.861 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,99,120,93,44,32,48,0,0,0,0,0,0
+literal.862 dq 18
           dq string.862
-string.862 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,102,114,101,101,95,108,105,115,116,93,32,32,32,32,32,59,32,110,101,120,116,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0,0,0,0
-literal.863 dq 11
+string.862 db 32,32,32,32,97,100,100,32,32,32,32,32,114,99,120,44,32,56,0,0,0,0,0,0
+literal.863 dq 20
           dq string.863
-string.863 db 46,102,114,101,101,95,102,105,110,100,58,0,0,0,0,0
-literal.864 dq 23
+string.863 db 32,32,32,32,99,109,112,32,32,32,32,32,114,99,120,44,32,114,100,120,0,0,0,0
+literal.864 dq 29
           dq string.864
-string.864 db 32,32,32,32,106,122,32,32,32,32,32,32,46,102,114,101,101,95,99,104,101,99,107,0
-literal.865 dq 20
+string.864 db 32,32,32,32,106,98,32,32,32,32,32,32,46,97,108,108,111,99,95,99,108,101,97,114,95,110,101,120,116,0,0,0
+literal.865 dq 21
           dq string.865
-string.865 db 32,32,32,32,99,109,112,32,32,32,32,32,114,97,120,44,32,114,100,105,0,0,0,0
-literal.866 dq 23
+string.865 db 32,32,32,32,106,109,112,32,32,32,32,32,46,97,108,108,111,99,95,111,107,0,0,0
+literal.866 dq 13
           dq string.866
-string.866 db 32,32,32,32,106,97,101,32,32,32,32,32,46,102,114,101,101,95,99,104,101,99,107,0
-literal.867 dq 22
+string.866 db 46,97,108,108,111,99,95,102,114,101,115,104,58,0,0,0
+literal.867 dq 67
           dq string.867
-string.867 db 32,32,32,32,106,109,112,32,32,32,32,32,46,102,114,101,101,95,102,105,110,100,0,0
-literal.868 dq 12
+string.867 db 32,32,32,32,99,97,108,108,32,32,32,32,104,101,97,112,95,116,97,107,101,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,110,101,119,32,109,101,109,111,114,121,32,105,115,32,97,108,114,101,97,100,121,32,122,101,114,111,0,0,0,0,0
+literal.868 dq 10
           dq string.868
-string.868 db 46,102,114,101,101,95,99,104,101,99,107,58,0,0,0,0
-literal.869 dq 28
+string.868 db 46,97,108,108,111,99,95,111,107,58,0,0,0,0,0,0
+literal.869 dq 18
           dq string.869
-string.869 db 32,32,32,32,106,122,32,32,32,32,32,32,46,102,114,101,101,95,99,104,101,99,107,95,110,101,120,116,0,0,0,0
-literal.870 dq 28
+string.869 db 32,32,32,32,111,114,32,32,32,32,32,32,114,100,105,44,32,49,0,0,0,0,0,0
+literal.870 dq 18
           dq string.870
-string.870 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,114,115,105,93,0,0,0,0
-literal.871 dq 20
+string.870 db 32,32,32,32,97,100,100,32,32,32,32,32,114,97,120,44,32,56,0,0,0,0,0,0
+literal.871 dq 12
           dq string.871
-string.871 db 32,32,32,32,97,100,100,32,32,32,32,32,114,100,120,44,32,114,115,105,0,0,0,0
-literal.872 dq 73
+string.871 db 59,32,100,101,97,108,108,111,99,97,116,101,0,0,0,0
+literal.872 dq 54
           dq string.872
-string.872 db 32,32,32,32,106,97,32,32,32,32,32,32,97,108,108,111,99,95,100,111,117,98,108,101,95,102,114,101,101,32,32,32,32,32,32,32,32,32,32,59,32,116,104,101,32,98,108,111,99,107,32,105,115,32,105,110,115,105,100,101,32,97,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0,0,0
-literal.873 dq 17
+string.872 db 59,32,32,32,73,78,80,85,84,58,32,114,100,105,32,112,111,105,110,116,115,32,116,111,32,109,101,109,111,114,121,32,102,114,111,109,32,97,108,108,111,99,97,116,101,44,32,111,114,32,105,115,32,48,0,0
+literal.873 dq 72
           dq string.873
-string.873 db 46,102,114,101,101,95,99,104,101,99,107,95,110,101,120,116,58,0,0,0,0,0,0,0
-literal.874 dq 28
+string.873 db 59,32,32,32,84,104,101,32,102,114,101,101,32,108,105,115,116,32,105,115,32,115,111,114,116,101,100,32,98,121,32,97,100,100,114,101,115,115,46,32,65,100,106,97,99,101,110,116,32,102,114,101,101,32,98,108,111,99,107,115,32,97,114,101,32,109,101,114,103,101,100,46,0,0,0,0,0,0,0,0
+literal.874 dq 11
           dq string.874
-string.874 db 32,32,32,32,106,122,32,32,32,32,32,32,46,102,114,101,101,95,109,101,114,103,101,95,112,114,101,118,0,0,0,0
-literal.875 dq 28
+string.874 db 100,101,97,108,108,111,99,97,116,101,58,0,0,0,0,0
+literal.875 dq 15
           dq string.875
-string.875 db 32,32,32,32,108,101,97,32,32,32,32,32,114,100,120,44,32,91,114,100,105,32,43,32,114,99,120,93,0,0,0,0
-literal.876 dq 20
+string.875 db 32,32,32,32,112,117,115,104,32,32,32,32,114,97,120,0
+literal.876 dq 22
           dq string.876
-string.876 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,120,44,32,114,97,120,0,0,0,0
-literal.877 dq 72
+string.876 db 32,32,32,32,106,122,32,32,32,32,32,32,46,102,114,101,101,95,100,111,110,101,0,0
+literal.877 dq 18
           dq string.877
-string.877 db 32,32,32,32,106,97,32,32,32,32,32,32,97,108,108,111,99,95,105,110,118,97,108,105,100,95,102,114,101,101,32,32,32,32,32,32,32,32,32,59,32,116,104,101,32,98,108,111,99,107,32,111,118,101,114,108,97,112,115,32,97,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0,0,0,0
-literal.878 dq 28
+string.877 db 32,32,32,32,116,101,115,116,32,32,32,32,114,100,105,44,32,55,0,0,0,0,0,0
+literal.878 dq 30
           dq string.878
-string.878 db 32,32,32,32,106,98,32,32,32,32,32,32,46,102,114,101,101,95,109,101,114,103,101,95,112,114,101,118,0,0,0,0
-literal.879 dq 71
+string.878 db 32,32,32,32,106,110,122,32,32,32,32,32,97,108,108,111,99,95,105,110,118,97,108,105,100,95,102,114,101,101,0,0
+literal.879 dq 53
           dq string.879
-string.879 db 32,32,32,32,97,100,100,32,32,32,32,32,114,99,120,44,32,113,119,111,114,100,32,91,114,97,120,93,32,32,32,32,32,32,32,32,32,32,32,59,32,109,101,114,103,101,32,119,105,116,104,32,116,104,101,32,110,101,120,116,32,102,114,101,101,32,98,108,111,99,107,0
-literal.880 dq 17
+string.879 db 32,32,32,32,115,117,98,32,32,32,32,32,114,100,105,44,32,56,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,98,108,111,99,107,32,104,101,97,100,101,114,0,0,0
+literal.880 dq 72
           dq string.880
-string.880 db 46,102,114,101,101,95,109,101,114,103,101,95,112,114,101,118,58,0,0,0,0,0,0,0
-literal.881 dq 22
+string.880 db 32,32,32,32,59,32,102,105,110,100,32,116,104,101,32,114,101,103,105,111,110,32,111,102,32,116,104,101,32,98,108,111,99,107,46,32,82,101,97,100,32,111,110,108,121,32,114,101,103,105,111,110,32,104,101,97,100,101,114,115,32,117,110,116,105,108,32,116,104,101,110,46,0,0,0,0,0,0,0,0
+literal.881 dq 37
           dq string.881
-string.881 db 32,32,32,32,106,122,32,32,32,32,32,32,46,102,114,101,101,95,104,101,97,100,0,0
-literal.882 dq 27
+string.881 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,104,101,97,112,95,114,101,103,105,111,110,115,93,0,0,0
+literal.882 dq 30
           dq string.882
-string.882 db 32,32,32,32,108,101,97,32,32,32,32,32,114,56,44,32,91,114,115,105,32,43,32,114,100,120,93,0,0,0,0,0
-literal.883 dq 19
+string.882 db 32,32,32,32,106,122,32,32,32,32,32,32,97,108,108,111,99,95,105,110,118,97,108,105,100,95,102,114,101,101,0,0
+literal.883 dq 78
           dq string.883
-string.883 db 32,32,32,32,99,109,112,32,32,32,32,32,114,56,44,32,114,100,105,0,0,0,0,0
-literal.884 dq 23
+string.883 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,104,101,97,112,95,116,111,112,93,32,32,32,32,32,32,59,32,98,108,111,99,107,115,32,111,102,32,116,104,101,32,99,117,114,114,101,110,116,32,114,101,103,105,111,110,32,101,110,100,32,104,101,114,101,0,0
+literal.884 dq 13
           dq string.884
-string.884 db 32,32,32,32,106,110,101,32,32,32,32,32,46,102,114,101,101,95,97,102,116,101,114,0
-literal.885 dq 75
+string.884 db 46,102,114,101,101,95,114,101,103,105,111,110,58,0,0,0
+literal.885 dq 43
           dq string.885
-string.885 db 32,32,32,32,97,100,100,32,32,32,32,32,114,100,120,44,32,114,99,120,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,109,101,114,103,101,32,119,105,116,104,32,116,104,101,32,112,114,101,118,105,111,117,115,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0
-literal.886 dq 28
+string.885 db 32,32,32,32,108,101,97,32,32,32,32,32,114,99,120,44,32,91,114,97,120,32,43,32,72,69,65,80,95,82,69,71,73,79,78,95,72,69,65,68,69,82,93,0,0,0,0,0
+literal.886 dq 20
           dq string.886
-string.886 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,105,93,44,32,114,100,120,0,0,0,0
-literal.887 dq 32
+string.886 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,105,44,32,114,99,120,0,0,0,0
+literal.887 dq 29
           dq string.887
-string.887 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,105,32,43,32,56,93,44,32,114,97,120,0,0,0,0,0,0,0,0
-literal.888 dq 22
+string.887 db 32,32,32,32,106,98,32,32,32,32,32,32,46,102,114,101,101,95,114,101,103,105,111,110,95,110,101,120,116,0,0,0
+literal.888 dq 20
           dq string.888
-string.888 db 32,32,32,32,106,109,112,32,32,32,32,32,46,102,114,101,101,95,100,111,110,101,0,0
-literal.889 dq 12
+string.888 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,105,44,32,114,100,120,0,0,0,0
+literal.889 dq 30
           dq string.889
-string.889 db 46,102,114,101,101,95,97,102,116,101,114,58,0,0,0,0
-literal.890 dq 32
+string.889 db 32,32,32,32,106,98,32,32,32,32,32,32,46,102,114,101,101,95,114,101,103,105,111,110,95,102,111,117,110,100,0,0
+literal.890 dq 18
           dq string.890
-string.890 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,105,32,43,32,56,93,44,32,114,100,105,0,0,0,0,0,0,0,0
-literal.891 dq 22
+string.890 db 46,102,114,101,101,95,114,101,103,105,111,110,95,110,101,120,116,58,0,0,0,0,0,0
+literal.891 dq 52
           dq string.891
-string.891 db 32,32,32,32,106,109,112,32,32,32,32,32,46,102,114,101,101,95,108,105,110,107,0,0
-literal.892 dq 11
+string.891 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,114,97,120,93,32,32,32,32,32,32,32,32,32,32,32,59,32,110,101,120,116,32,114,101,103,105,111,110,0,0,0,0
+literal.892 dq 81
           dq string.892
-string.892 db 46,102,114,101,101,95,104,101,97,100,58,0,0,0,0,0
-literal.893 dq 34
+string.892 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,114,97,120,32,43,32,56,93,32,32,32,32,32,32,32,59,32,98,108,111,99,107,115,32,111,102,32,97,110,32,111,108,100,101,114,32,114,101,103,105,111,110,32,101,110,100,32,97,116,32,105,116,115,32,101,110,100,0,0,0,0,0,0,0
+literal.893 dq 24
           dq string.893
-string.893 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,102,114,101,101,95,108,105,115,116,93,44,32,114,100,105,0,0,0,0,0,0
-literal.894 dq 11
+string.893 db 32,32,32,32,106,109,112,32,32,32,32,32,46,102,114,101,101,95,114,101,103,105,111,110,0,0,0,0,0,0,0,0
+literal.894 dq 19
           dq string.894
-string.894 db 46,102,114,101,101,95,108,105,110,107,58,0,0,0,0,0
-literal.895 dq 28
+string.894 db 46,102,114,101,101,95,114,101,103,105,111,110,95,102,111,117,110,100,58,0,0,0,0,0
+literal.895 dq 20
           dq string.895
-string.895 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,100,105,93,44,32,114,99,120,0,0,0,0
-literal.896 dq 32
+string.895 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,114,100,120,0,0,0,0
+literal.896 dq 72
           dq string.896
-string.896 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,100,105,32,43,32,56,93,44,32,114,97,120,0,0,0,0,0,0,0,0
-literal.897 dq 11
+string.896 db 32,32,32,32,115,117,98,32,32,32,32,32,114,97,120,44,32,114,100,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,98,121,116,101,115,32,102,114,111,109,32,116,104,101,32,98,108,111,99,107,32,116,111,32,116,104,101,32,101,110,100,0,0,0,0,0,0,0,0
+literal.897 dq 19
           dq string.897
-string.897 db 46,102,114,101,101,95,100,111,110,101,58,0,0,0,0,0
-literal.898 dq 15
+string.897 db 32,32,32,32,99,109,112,32,32,32,32,32,114,97,120,44,32,49,54,0,0,0,0,0
+literal.898 dq 30
           dq string.898
-string.898 db 32,32,32,32,112,111,112,32,32,32,32,32,114,97,120,0
-literal.899 dq 57
+string.898 db 32,32,32,32,106,98,32,32,32,32,32,32,97,108,108,111,99,95,105,110,118,97,108,105,100,95,102,114,101,101,0,0
+literal.899 dq 28
           dq string.899
-string.899 db 59,32,97,108,108,111,99,97,116,111,114,32,101,114,114,111,114,115,32,119,114,105,116,101,32,97,32,109,101,115,115,97,103,101,32,97,110,100,32,101,120,105,116,32,119,105,116,104,32,115,116,97,116,117,115,32,49,0,0,0,0,0,0,0
-literal.900 dq 10
+string.899 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,114,100,105,93,0,0,0,0
+literal.900 dq 20
           dq string.900
-string.900 db 97,108,108,111,99,95,111,111,109,58,0,0,0,0,0,0
-literal.901 dq 30
+string.900 db 32,32,32,32,109,111,118,32,32,32,32,32,114,99,120,44,32,114,100,120,0,0,0,0
+literal.901 dq 51
           dq string.901
-string.901 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,97,108,108,111,99,95,111,111,109,95,109,115,103,0,0
-literal.902 dq 30
+string.901 db 32,32,32,32,97,110,100,32,32,32,32,32,114,99,120,44,32,45,56,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,98,108,111,99,107,32,115,105,122,101,0,0,0,0,0
+literal.902 dq 20
           dq string.902
-string.902 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,97,108,108,111,99,95,111,111,109,95,108,101,110,0,0
-literal.903 dq 23
+string.902 db 32,32,32,32,99,109,112,32,32,32,32,32,114,99,120,44,32,114,97,120,0,0,0,0
+literal.903 dq 30
           dq string.903
-string.903 db 32,32,32,32,106,109,112,32,32,32,32,32,97,108,108,111,99,95,97,98,111,114,116,0
-literal.904 dq 15
+string.903 db 32,32,32,32,106,97,32,32,32,32,32,32,97,108,108,111,99,95,105,110,118,97,108,105,100,95,102,114,101,101,0,0
+literal.904 dq 18
           dq string.904
-string.904 db 97,108,108,111,99,95,110,101,103,97,116,105,118,101,58,0
-literal.905 dq 35
+string.904 db 32,32,32,32,116,101,115,116,32,32,32,32,114,100,120,44,32,54,0,0,0,0,0,0
+literal.905 dq 18
           dq string.905
-string.905 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,97,108,108,111,99,95,110,101,103,97,116,105,118,101,95,109,115,103,0,0,0,0,0
-literal.906 dq 35
+string.905 db 32,32,32,32,116,101,115,116,32,32,32,32,114,100,120,44,32,49,0,0,0,0,0,0
+literal.906 dq 29
           dq string.906
-string.906 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,97,108,108,111,99,95,110,101,103,97,116,105,118,101,95,108,101,110,0,0,0,0,0
-literal.907 dq 19
+string.906 db 32,32,32,32,106,122,32,32,32,32,32,32,97,108,108,111,99,95,100,111,117,98,108,101,95,102,114,101,101,0,0,0
+literal.907 dq 53
           dq string.907
-string.907 db 97,108,108,111,99,95,105,110,118,97,108,105,100,95,102,114,101,101,58,0,0,0,0,0
-literal.908 dq 34
+string.907 db 32,32,32,32,59,32,102,105,110,100,32,116,104,101,32,102,114,101,101,32,98,108,111,99,107,115,32,98,101,102,111,114,101,32,97,110,100,32,97,102,116,101,114,32,116,104,101,32,98,108,111,99,107,0,0,0
+literal.908 dq 56
           dq string.908
-string.908 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,97,108,108,111,99,95,105,110,118,97,108,105,100,95,109,115,103,0,0,0,0,0,0
-literal.909 dq 34
+string.908 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,102,114,101,101,95,108,105,115,116,93,32,32,32,32,32,59,32,110,101,120,116,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0,0,0,0
+literal.909 dq 11
           dq string.909
-string.909 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,97,108,108,111,99,95,105,110,118,97,108,105,100,95,108,101,110,0,0,0,0,0,0
-literal.910 dq 18
+string.909 db 46,102,114,101,101,95,102,105,110,100,58,0,0,0,0,0
+literal.910 dq 23
           dq string.910
-string.910 db 97,108,108,111,99,95,100,111,117,98,108,101,95,102,114,101,101,58,0,0,0,0,0,0
-literal.911 dq 33
+string.910 db 32,32,32,32,106,122,32,32,32,32,32,32,46,102,114,101,101,95,99,104,101,99,107,0
+literal.911 dq 20
           dq string.911
-string.911 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,97,108,108,111,99,95,100,111,117,98,108,101,95,109,115,103,0,0,0,0,0,0,0
-literal.912 dq 33
+string.911 db 32,32,32,32,99,109,112,32,32,32,32,32,114,97,120,44,32,114,100,105,0,0,0,0
+literal.912 dq 23
           dq string.912
-string.912 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,97,108,108,111,99,95,100,111,117,98,108,101,95,108,101,110,0,0,0,0,0,0,0
-literal.913 dq 12
+string.912 db 32,32,32,32,106,97,101,32,32,32,32,32,46,102,114,101,101,95,99,104,101,99,107,0
+literal.913 dq 22
           dq string.913
-string.913 db 97,108,108,111,99,95,97,98,111,114,116,58,0,0,0,0
-literal.914 dq 46
+string.913 db 32,32,32,32,106,109,112,32,32,32,32,32,46,102,114,101,101,95,102,105,110,100,0,0
+literal.914 dq 12
           dq string.914
-string.914 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,49,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,119,114,105,116,101,0,0
-literal.915 dq 47
+string.914 db 46,102,114,101,101,95,99,104,101,99,107,58,0,0,0,0
+literal.915 dq 28
           dq string.915
-string.915 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,50,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,115,116,100,101,114,114,0
-literal.916 dq 45
+string.915 db 32,32,32,32,106,122,32,32,32,32,32,32,46,102,114,101,101,95,99,104,101,99,107,95,110,101,120,116,0,0,0,0
+literal.916 dq 28
           dq string.916
-string.916 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,54,48,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,101,120,105,116,0,0,0
-literal.917 dq 18
+string.916 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,114,115,105,93,0,0,0,0
+literal.917 dq 20
           dq string.917
-string.917 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,49,0,0,0,0,0,0
-literal.918 dq 11
+string.917 db 32,32,32,32,97,100,100,32,32,32,32,32,114,100,120,44,32,114,115,105,0,0,0,0
+literal.918 dq 73
           dq string.918
-string.918 db 59,32,102,108,111,97,116,32,97,100,100,0,0,0,0,0
-literal.919 dq 25
+string.918 db 32,32,32,32,106,97,32,32,32,32,32,32,97,108,108,111,99,95,100,111,117,98,108,101,95,102,114,101,101,32,32,32,32,32,32,32,32,32,32,59,32,116,104,101,32,98,108,111,99,107,32,105,115,32,105,110,115,105,100,101,32,97,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0,0,0
+literal.919 dq 17
           dq string.919
-string.919 db 59,32,32,32,73,78,80,85,84,58,32,40,102,108,111,97,116,44,32,102,108,111,97,116,41,0,0,0,0,0,0,0
-literal.920 dq 19
+string.919 db 46,102,114,101,101,95,99,104,101,99,107,95,110,101,120,116,58,0,0,0,0,0,0,0
+literal.920 dq 28
           dq string.920
-string.920 db 59,32,32,32,79,85,84,80,85,84,58,32,40,102,108,111,97,116,41,0,0,0,0,0
-literal.921 dq 4
+string.920 db 32,32,32,32,106,122,32,32,32,32,32,32,46,102,114,101,101,95,109,101,114,103,101,95,112,114,101,118,0,0,0,0
+literal.921 dq 28
           dq string.921
-string.921 db 58,32,59,32,0,0,0,0
-literal.922 dq 21
+string.921 db 32,32,32,32,108,101,97,32,32,32,32,32,114,100,120,44,32,91,114,100,105,32,43,32,114,99,120,93,0,0,0,0
+literal.922 dq 20
           dq string.922
-string.922 db 32,32,32,32,109,111,118,113,32,32,32,32,120,109,109,48,44,32,114,97,120,0,0,0
-literal.923 dq 21
+string.922 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,120,44,32,114,97,120,0,0,0,0
+literal.923 dq 72
           dq string.923
-string.923 db 32,32,32,32,109,111,118,113,32,32,32,32,120,109,109,49,44,32,114,97,120,0,0,0
-literal.924 dq 22
+string.923 db 32,32,32,32,106,97,32,32,32,32,32,32,97,108,108,111,99,95,105,110,118,97,108,105,100,95,102,114,101,101,32,32,32,32,32,32,32,32,32,59,32,116,104,101,32,98,108,111,99,107,32,111,118,101,114,108,97,112,115,32,97,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0,0,0,0
+literal.924 dq 28
           dq string.924
-string.924 db 32,32,32,32,97,100,100,115,100,32,32,32,120,109,109,48,44,32,120,109,109,49,0,0
-literal.925 dq 21
+string.924 db 32,32,32,32,106,98,32,32,32,32,32,32,46,102,114,101,101,95,109,101,114,103,101,95,112,114,101,118,0,0,0,0
+literal.925 dq 71
           dq string.925
-string.925 db 32,32,32,32,109,111,118,113,32,32,32,32,114,100,105,44,32,120,109,109,48,0,0,0
-literal.926 dq 16
+string.925 db 32,32,32,32,97,100,100,32,32,32,32,32,114,99,120,44,32,113,119,111,114,100,32,91,114,97,120,93,32,32,32,32,32,32,32,32,32,32,32,59,32,109,101,114,103,101,32,119,105,116,104,32,116,104,101,32,110,101,120,116,32,102,114,101,101,32,98,108,111,99,107,0
+literal.926 dq 17
           dq string.926
-string.926 db 59,32,102,108,111,97,116,32,115,117,98,116,114,97,99,116,0,0,0,0,0,0,0,0
+string.926 db 46,102,114,101,101,95,109,101,114,103,101,95,112,114,101,118,58,0,0,0,0,0,0,0
 literal.927 dq 22
           dq string.927
-string.927 db 32,32,32,32,115,117,98,115,100,32,32,32,120,109,109,48,44,32,120,109,109,49,0,0
-literal.928 dq 16
+string.927 db 32,32,32,32,106,122,32,32,32,32,32,32,46,102,114,101,101,95,104,101,97,100,0,0
+literal.928 dq 27
           dq string.928
-string.928 db 59,32,102,108,111,97,116,32,109,117,108,116,105,112,108,121,0,0,0,0,0,0,0,0
-literal.929 dq 22
+string.928 db 32,32,32,32,108,101,97,32,32,32,32,32,114,56,44,32,91,114,115,105,32,43,32,114,100,120,93,0,0,0,0,0
+literal.929 dq 19
           dq string.929
-string.929 db 32,32,32,32,109,117,108,115,100,32,32,32,120,109,109,48,44,32,120,109,109,49,0,0
-literal.930 dq 14
+string.929 db 32,32,32,32,99,109,112,32,32,32,32,32,114,56,44,32,114,100,105,0,0,0,0,0
+literal.930 dq 23
           dq string.930
-string.930 db 59,32,102,108,111,97,116,32,100,105,118,105,100,101,0,0
-literal.931 dq 22
+string.930 db 32,32,32,32,106,110,101,32,32,32,32,32,46,102,114,101,101,95,97,102,116,101,114,0
+literal.931 dq 75
           dq string.931
-string.931 db 32,32,32,32,100,105,118,115,100,32,32,32,120,109,109,48,44,32,120,109,109,49,0,0
-literal.932 dq 35
+string.931 db 32,32,32,32,97,100,100,32,32,32,32,32,114,100,120,44,32,114,99,120,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,109,101,114,103,101,32,119,105,116,104,32,116,104,101,32,112,114,101,118,105,111,117,115,32,102,114,101,101,32,98,108,111,99,107,0,0,0,0,0
+literal.932 dq 28
           dq string.932
-string.932 db 59,32,102,108,111,97,116,32,103,114,101,97,116,101,114,32,116,104,97,110,44,32,102,97,108,115,101,32,102,111,114,32,78,97,78,0,0,0,0,0
-literal.933 dq 18
+string.932 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,105,93,44,32,114,100,120,0,0,0,0
+literal.933 dq 32
           dq string.933
-string.933 db 59,32,32,32,79,85,84,80,85,84,58,32,40,98,111,111,108,41,0,0,0,0,0,0
+string.933 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,105,32,43,32,56,93,44,32,114,97,120,0,0,0,0,0,0,0,0
 literal.934 dq 22
           dq string.934
-string.934 db 32,32,32,32,117,99,111,109,105,115,100,32,120,109,109,48,44,32,120,109,109,49,0,0
-literal.935 dq 14
+string.934 db 32,32,32,32,106,109,112,32,32,32,32,32,46,102,114,101,101,95,100,111,110,101,0,0
+literal.935 dq 12
           dq string.935
-string.935 db 32,32,32,32,115,101,116,97,32,32,32,32,97,108,0,0
-literal.936 dq 19
+string.935 db 46,102,114,101,101,95,97,102,116,101,114,58,0,0,0,0
+literal.936 dq 32
           dq string.936
-string.936 db 32,32,32,32,109,111,118,122,120,32,32,32,114,97,120,44,32,97,108,0,0,0,0,0
-literal.937 dq 32
+string.936 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,105,32,43,32,56,93,44,32,114,100,105,0,0,0,0,0,0,0,0
+literal.937 dq 22
           dq string.937
-string.937 db 59,32,102,108,111,97,116,32,108,101,115,115,32,116,104,97,110,44,32,102,97,108,115,101,32,102,111,114,32,78,97,78,0,0,0,0,0,0,0,0
-literal.938 dq 22
+string.937 db 32,32,32,32,106,109,112,32,32,32,32,32,46,102,114,101,101,95,108,105,110,107,0,0
+literal.938 dq 11
           dq string.938
-string.938 db 32,32,32,32,117,99,111,109,105,115,100,32,120,109,109,49,44,32,120,109,109,48,0,0
-literal.939 dq 45
+string.938 db 46,102,114,101,101,95,104,101,97,100,58,0,0,0,0,0
+literal.939 dq 34
           dq string.939
-string.939 db 59,32,102,108,111,97,116,32,101,113,117,97,108,44,32,102,97,108,115,101,32,102,111,114,32,78,97,78,44,32,45,48,46,48,32,101,113,117,97,108,115,32,48,46,48,0,0,0
-literal.940 dq 14
+string.939 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,102,114,101,101,95,108,105,115,116,93,44,32,114,100,105,0,0,0,0,0,0
+literal.940 dq 11
           dq string.940
-string.940 db 32,32,32,32,115,101,116,101,32,32,32,32,97,108,0,0
-literal.941 dq 14
+string.940 db 46,102,114,101,101,95,108,105,110,107,58,0,0,0,0,0
+literal.941 dq 28
           dq string.941
-string.941 db 32,32,32,32,115,101,116,110,112,32,32,32,99,108,0,0
-literal.942 dq 18
+string.941 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,100,105,93,44,32,114,99,120,0,0,0,0
+literal.942 dq 32
           dq string.942
-string.942 db 32,32,32,32,97,110,100,32,32,32,32,32,97,108,44,32,99,108,0,0,0,0,0,0
-literal.943 dq 14
+string.942 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,100,105,32,43,32,56,93,44,32,114,97,120,0,0,0,0,0,0,0,0
+literal.943 dq 11
           dq string.943
-string.943 db 59,32,105,110,116,32,116,111,32,102,108,111,97,116,0,0
-literal.944 dq 16
+string.943 db 46,102,114,101,101,95,100,111,110,101,58,0,0,0,0,0
+literal.944 dq 15
           dq string.944
-string.944 db 59,32,32,32,73,78,80,85,84,58,32,40,105,110,116,41,0,0,0,0,0,0,0,0
-literal.945 dq 22
+string.944 db 32,32,32,32,112,111,112,32,32,32,32,32,114,97,120,0
+literal.945 dq 57
           dq string.945
-string.945 db 32,32,32,32,99,118,116,115,105,50,115,100,32,120,109,109,48,44,32,114,97,120,0,0
-literal.946 dq 36
+string.945 db 59,32,97,108,108,111,99,97,116,111,114,32,101,114,114,111,114,115,32,119,114,105,116,101,32,97,32,109,101,115,115,97,103,101,32,97,110,100,32,101,120,105,116,32,119,105,116,104,32,115,116,97,116,117,115,32,49,0,0,0,0,0,0,0
+literal.946 dq 10
           dq string.946
-string.946 db 59,32,102,108,111,97,116,32,116,111,32,105,110,116,44,32,116,114,117,110,99,97,116,101,32,116,111,119,97,114,100,32,122,101,114,111,0,0,0,0
-literal.947 dq 18
+string.946 db 97,108,108,111,99,95,111,111,109,58,0,0,0,0,0,0
+literal.947 dq 30
           dq string.947
-string.947 db 59,32,32,32,73,78,80,85,84,58,32,40,102,108,111,97,116,41,0,0,0,0,0,0
-literal.948 dq 17
+string.947 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,97,108,108,111,99,95,111,111,109,95,109,115,103,0,0
+literal.948 dq 30
           dq string.948
-string.948 db 59,32,32,32,79,85,84,80,85,84,58,32,40,105,110,116,41,0,0,0,0,0,0,0
+string.948 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,97,108,108,111,99,95,111,111,109,95,108,101,110,0,0
 literal.949 dq 23
           dq string.949
-string.949 db 32,32,32,32,99,118,116,116,115,100,50,115,105,32,114,97,120,44,32,120,109,109,48,0
-literal.950 dq 18
+string.949 db 32,32,32,32,106,109,112,32,32,32,32,32,97,108,108,111,99,95,97,98,111,114,116,0
+literal.950 dq 15
           dq string.950
-string.950 db 59,32,97,100,100,114,101,115,115,32,111,102,32,102,108,111,97,116,0,0,0,0,0,0
-literal.951 dq 17
+string.950 db 97,108,108,111,99,95,110,101,103,97,116,105,118,101,58,0
+literal.951 dq 35
           dq string.951
-string.951 db 59,32,32,32,79,85,84,80,85,84,58,32,40,112,116,114,41,0,0,0,0,0,0,0
-literal.952 dq 22
+string.951 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,97,108,108,111,99,95,110,101,103,97,116,105,118,101,95,109,115,103,0,0,0,0,0
+literal.952 dq 35
           dq string.952
-string.952 db 59,32,100,101,114,101,102,101,114,101,110,99,101,32,97,115,32,102,108,111,97,116,0,0
-literal.953 dq 16
+string.952 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,97,108,108,111,99,95,110,101,103,97,116,105,118,101,95,108,101,110,0,0,0,0,0
+literal.953 dq 19
           dq string.953
-string.953 db 59,32,32,32,73,78,80,85,84,58,32,40,112,116,114,41,0,0,0,0,0,0,0,0
-literal.954 dq 5
+string.953 db 97,108,108,111,99,95,105,110,118,97,108,105,100,95,102,114,101,101,58,0,0,0,0,0
+literal.954 dq 34
           dq string.954
-string.954 db 59,32,100,117,112,0,0,0
-literal.955 dq 14
+string.954 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,97,108,108,111,99,95,105,110,118,97,108,105,100,95,109,115,103,0,0,0,0,0,0
+literal.955 dq 34
           dq string.955
-string.955 db 59,32,32,32,73,78,80,85,84,58,32,40,97,41,0,0
+string.955 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,97,108,108,111,99,95,105,110,118,97,108,105,100,95,108,101,110,0,0,0,0,0,0
 literal.956 dq 18
           dq string.956
-string.956 db 59,32,32,32,79,85,84,80,85,84,58,32,40,97,44,32,97,41,0,0,0,0,0,0
-literal.957 dq 67
+string.956 db 97,108,108,111,99,95,100,111,117,98,108,101,95,102,114,101,101,58,0,0,0,0,0,0
+literal.957 dq 33
           dq string.957
-string.957 db 32,32,32,32,115,117,98,32,32,32,32,32,114,115,112,44,32,49,54,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,97,108,108,111,99,97,116,101,32,50,32,108,111,99,97,108,32,118,97,114,105,97,98,108,101,115,0,0,0,0,0
-literal.958 dq 27
+string.957 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,97,108,108,111,99,95,100,111,117,98,108,101,95,109,115,103,0,0,0,0,0,0,0
+literal.958 dq 33
           dq string.958
-string.958 db 32,32,32,32,99,97,108,108,32,32,32,32,115,116,97,99,107,95,112,101,101,107,95,97,100,100,114,0,0,0,0,0
-literal.959 dq 67
+string.958 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,97,108,108,111,99,95,100,111,117,98,108,101,95,108,101,110,0,0,0,0,0,0,0
+literal.959 dq 12
           dq string.959
-string.959 db 32,32,32,32,97,100,100,32,32,32,32,32,114,115,112,44,32,49,54,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,100,101,97,108,108,111,99,97,116,101,32,108,111,99,97,108,32,118,97,114,105,97,98,108,101,115,0,0,0,0,0
-literal.960 dq 5
+string.959 db 97,108,108,111,99,95,97,98,111,114,116,58,0,0,0,0
+literal.960 dq 46
           dq string.960
-string.960 db 59,32,115,119,112,0,0,0
-literal.961 dq 17
+string.960 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,49,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,119,114,105,116,101,0,0
+literal.961 dq 47
           dq string.961
-string.961 db 59,32,32,32,73,78,80,85,84,58,32,40,97,44,32,98,41,0,0,0,0,0,0,0
-literal.962 dq 18
+string.961 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,50,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,115,116,100,101,114,114,0
+literal.962 dq 45
           dq string.962
-string.962 db 59,32,32,32,79,85,84,80,85,84,58,32,40,98,44,32,97,41,0,0,0,0,0,0
-literal.963 dq 13
+string.962 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,54,48,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,101,120,105,116,0,0,0
+literal.963 dq 18
           dq string.963
-string.963 db 32,32,32,32,59,32,116,48,32,60,45,32,65,0,0,0
-literal.964 dq 36
+string.963 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,49,0,0,0,0,0,0
+literal.964 dq 11
           dq string.964
-string.964 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,48,93,44,32,114,97,120,0,0,0,0
-literal.965 dq 13
+string.964 db 59,32,102,108,111,97,116,32,97,100,100,0,0,0,0,0
+literal.965 dq 25
           dq string.965
-string.965 db 32,32,32,32,59,32,116,49,32,60,45,32,66,0,0,0
-literal.966 dq 36
+string.965 db 59,32,32,32,73,78,80,85,84,58,32,40,102,108,111,97,116,44,32,102,108,111,97,116,41,0,0,0,0,0,0,0
+literal.966 dq 19
           dq string.966
-string.966 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,49,93,44,32,114,97,120,0,0,0,0
-literal.967 dq 12
+string.966 db 59,32,32,32,79,85,84,80,85,84,58,32,40,102,108,111,97,116,41,0,0,0,0,0
+literal.967 dq 4
           dq string.967
-string.967 db 32,32,32,32,59,32,112,117,115,104,32,65,0,0,0,0
-literal.968 dq 30
+string.967 db 58,32,59,32,0,0,0,0
+literal.968 dq 21
           dq string.968
-string.968 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,91,114,98,112,32,45,32,108,111,99,95,48,93,0,0
-literal.969 dq 12
+string.968 db 32,32,32,32,109,111,118,113,32,32,32,32,120,109,109,48,44,32,114,97,120,0,0,0
+literal.969 dq 21
           dq string.969
-string.969 db 32,32,32,32,59,32,112,117,115,104,32,66,0,0,0,0
-literal.970 dq 30
+string.969 db 32,32,32,32,109,111,118,113,32,32,32,32,120,109,109,49,44,32,114,97,120,0,0,0
+literal.970 dq 22
           dq string.970
-string.970 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,91,114,98,112,32,45,32,108,111,99,95,49,93,0,0
-literal.971 dq 5
+string.970 db 32,32,32,32,97,100,100,115,100,32,32,32,120,109,109,48,44,32,120,109,109,49,0,0
+literal.971 dq 21
           dq string.971
-string.971 db 59,32,114,111,116,0,0,0
-literal.972 dq 20
+string.971 db 32,32,32,32,109,111,118,113,32,32,32,32,114,100,105,44,32,120,109,109,48,0,0,0
+literal.972 dq 16
           dq string.972
-string.972 db 59,32,32,32,73,78,80,85,84,58,32,40,97,44,32,98,44,32,99,41,0,0,0,0
-literal.973 dq 21
+string.972 db 59,32,102,108,111,97,116,32,115,117,98,116,114,97,99,116,0,0,0,0,0,0,0,0
+literal.973 dq 22
           dq string.973
-string.973 db 59,32,32,32,79,85,84,80,85,84,58,32,40,98,44,32,99,44,32,97,41,0,0,0
-literal.974 dq 67
+string.973 db 32,32,32,32,115,117,98,115,100,32,32,32,120,109,109,48,44,32,120,109,109,49,0,0
+literal.974 dq 16
           dq string.974
-string.974 db 32,32,32,32,115,117,98,32,32,32,32,32,114,115,112,44,32,51,50,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,97,108,108,111,99,97,116,101,32,52,32,108,111,99,97,108,32,118,97,114,105,97,98,108,101,115,0,0,0,0,0
-literal.975 dq 24
+string.974 db 59,32,102,108,111,97,116,32,109,117,108,116,105,112,108,121,0,0,0,0,0,0,0,0
+literal.975 dq 22
           dq string.975
-string.975 db 32,32,32,32,59,32,40,67,32,66,32,65,41,32,45,62,32,40,66,32,65,32,67,41,0,0,0,0,0,0,0,0
-literal.976 dq 13
+string.975 db 32,32,32,32,109,117,108,115,100,32,32,32,120,109,109,48,44,32,120,109,109,49,0,0
+literal.976 dq 14
           dq string.976
-string.976 db 32,32,32,32,59,32,116,50,32,60,45,32,67,0,0,0
-literal.977 dq 36
+string.976 db 59,32,102,108,111,97,116,32,100,105,118,105,100,101,0,0
+literal.977 dq 22
           dq string.977
-string.977 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,50,93,44,32,114,97,120,0,0,0,0
-literal.978 dq 12
+string.977 db 32,32,32,32,100,105,118,115,100,32,32,32,120,109,109,48,44,32,120,109,109,49,0,0
+literal.978 dq 35
           dq string.978
-string.978 db 32,32,32,32,59,32,112,117,115,104,32,67,0,0,0,0
-literal.979 dq 30
+string.978 db 59,32,102,108,111,97,116,32,103,114,101,97,116,101,114,32,116,104,97,110,44,32,102,97,108,115,101,32,102,111,114,32,78,97,78,0,0,0,0,0
+literal.979 dq 18
           dq string.979
-string.979 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,91,114,98,112,32,45,32,108,111,99,95,50,93,0,0
-literal.980 dq 67
+string.979 db 59,32,32,32,79,85,84,80,85,84,58,32,40,98,111,111,108,41,0,0,0,0,0,0
+literal.980 dq 22
           dq string.980
-string.980 db 32,32,32,32,97,100,100,32,32,32,32,32,114,115,112,44,32,51,50,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,100,101,97,108,108,111,99,97,116,101,32,108,111,99,97,108,32,118,97,114,105,97,98,108,101,115,0,0,0,0,0
-literal.981 dq 6
+string.980 db 32,32,32,32,117,99,111,109,105,115,100,32,120,109,109,48,44,32,120,109,109,49,0,0
+literal.981 dq 14
           dq string.981
-string.981 db 59,32,114,111,116,52,0,0
-literal.982 dq 23
+string.981 db 32,32,32,32,115,101,116,97,32,32,32,32,97,108,0,0
+literal.982 dq 19
           dq string.982
-string.982 db 59,32,32,32,73,78,80,85,84,58,32,40,97,44,32,98,44,32,99,44,32,100,41,0
-literal.983 dq 24
+string.982 db 32,32,32,32,109,111,118,122,120,32,32,32,114,97,120,44,32,97,108,0,0,0,0,0
+literal.983 dq 32
           dq string.983
-string.983 db 59,32,32,32,79,85,84,80,85,84,58,32,40,98,44,32,99,44,32,100,44,32,97,41,0,0,0,0,0,0,0,0
-literal.984 dq 28
+string.983 db 59,32,102,108,111,97,116,32,108,101,115,115,32,116,104,97,110,44,32,102,97,108,115,101,32,102,111,114,32,78,97,78,0,0,0,0,0,0,0,0
+literal.984 dq 22
           dq string.984
-string.984 db 32,32,32,32,59,32,40,68,32,67,32,66,32,65,41,32,45,62,32,40,67,32,66,32,65,32,68,41,0,0,0,0
-literal.985 dq 13
+string.984 db 32,32,32,32,117,99,111,109,105,115,100,32,120,109,109,49,44,32,120,109,109,48,0,0
+literal.985 dq 45
           dq string.985
-string.985 db 32,32,32,32,59,32,116,51,32,60,45,32,68,0,0,0
-literal.986 dq 36
+string.985 db 59,32,102,108,111,97,116,32,101,113,117,97,108,44,32,102,97,108,115,101,32,102,111,114,32,78,97,78,44,32,45,48,46,48,32,101,113,117,97,108,115,32,48,46,48,0,0,0
+literal.986 dq 14
           dq string.986
-string.986 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,51,93,44,32,114,97,120,0,0,0,0
-literal.987 dq 12
+string.986 db 32,32,32,32,115,101,116,101,32,32,32,32,97,108,0,0
+literal.987 dq 14
           dq string.987
-string.987 db 32,32,32,32,59,32,112,117,115,104,32,68,0,0,0,0
-literal.988 dq 30
+string.987 db 32,32,32,32,115,101,116,110,112,32,32,32,99,108,0,0
+literal.988 dq 18
           dq string.988
-string.988 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,91,114,98,112,32,45,32,108,111,99,95,51,93,0,0
-literal.989 dq 5
+string.988 db 32,32,32,32,97,110,100,32,32,32,32,32,97,108,44,32,99,108,0,0,0,0,0,0
+literal.989 dq 14
           dq string.989
-string.989 db 59,32,112,111,112,0,0,0
-literal.990 dq 14
+string.989 db 59,32,105,110,116,32,116,111,32,102,108,111,97,116,0,0
+literal.990 dq 16
           dq string.990
-string.990 db 59,32,32,32,79,85,84,80,85,84,58,32,40,41,0,0
-literal.991 dq 6
+string.990 db 59,32,32,32,73,78,80,85,84,58,32,40,105,110,116,41,0,0,0,0,0,0,0,0
+literal.991 dq 22
           dq string.991
-string.991 db 59,32,112,105,99,107,0,0
-literal.992 dq 27
+string.991 db 32,32,32,32,99,118,116,115,105,50,115,100,32,120,109,109,48,44,32,114,97,120,0,0
+literal.992 dq 36
           dq string.992
-string.992 db 32,32,32,32,99,97,108,108,32,32,32,32,115,116,97,99,107,95,112,105,99,107,95,97,100,100,114,0,0,0,0,0
-literal.993 dq 6
+string.992 db 59,32,102,108,111,97,116,32,116,111,32,105,110,116,44,32,116,114,117,110,99,97,116,101,32,116,111,119,97,114,100,32,122,101,114,111,0,0,0,0
+literal.993 dq 18
           dq string.993
-string.993 db 59,32,112,108,117,115,0,0
-literal.994 dq 21
+string.993 db 59,32,32,32,73,78,80,85,84,58,32,40,102,108,111,97,116,41,0,0,0,0,0,0
+literal.994 dq 17
           dq string.994
-string.994 db 59,32,32,32,73,78,80,85,84,58,32,40,105,110,116,44,32,105,110,116,41,0,0,0
-literal.995 dq 5
+string.994 db 59,32,32,32,79,85,84,80,85,84,58,32,40,105,110,116,41,0,0,0,0,0,0,0
+literal.995 dq 23
           dq string.995
-string.995 db 59,32,115,117,98,0,0,0
-literal.996 dq 20
+string.995 db 32,32,32,32,99,118,116,116,115,100,50,115,105,32,114,97,120,44,32,120,109,109,48,0
+literal.996 dq 18
           dq string.996
-string.996 db 32,32,32,32,115,117,98,32,32,32,32,32,114,100,105,44,32,114,97,120,0,0,0,0
-literal.997 dq 5
+string.996 db 59,32,97,100,100,114,101,115,115,32,111,102,32,102,108,111,97,116,0,0,0,0,0,0
+literal.997 dq 17
           dq string.997
-string.997 db 59,32,109,117,108,0,0,0
-literal.998 dq 15
+string.997 db 59,32,32,32,79,85,84,80,85,84,58,32,40,112,116,114,41,0,0,0,0,0,0,0
+literal.998 dq 22
           dq string.998
-string.998 db 32,32,32,32,109,117,108,32,32,32,32,32,114,100,105,0
-literal.999 dq 5
+string.998 db 59,32,100,101,114,101,102,101,114,101,110,99,101,32,97,115,32,102,108,111,97,116,0,0
+literal.999 dq 16
           dq string.999
-string.999 db 59,32,100,105,118,0,0,0
-literal.1000 dq 7
+string.999 db 59,32,32,32,73,78,80,85,84,58,32,40,112,116,114,41,0,0,0,0,0,0,0,0
+literal.1000 dq 5
           dq string.1000
-string.1000 db 32,32,32,32,99,113,111,0
-literal.1001 dq 15
+string.1000 db 59,32,100,117,112,0,0,0
+literal.1001 dq 14
           dq string.1001
-string.1001 db 32,32,32,32,105,100,105,118,32,32,32,32,114,100,105,0
-literal.1002 dq 5
+string.1001 db 59,32,32,32,73,78,80,85,84,58,32,40,97,41,0,0
+literal.1002 dq 18
           dq string.1002
-string.1002 db 59,32,109,111,100,0,0,0
-literal.1003 dq 5
+string.1002 db 59,32,32,32,79,85,84,80,85,84,58,32,40,97,44,32,97,41,0,0,0,0,0,0
+literal.1003 dq 67
           dq string.1003
-string.1003 db 59,32,97,110,100,0,0,0
-literal.1004 dq 20
+string.1003 db 32,32,32,32,115,117,98,32,32,32,32,32,114,115,112,44,32,49,54,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,97,108,108,111,99,97,116,101,32,50,32,108,111,99,97,108,32,118,97,114,105,97,98,108,101,115,0,0,0,0,0
+literal.1004 dq 27
           dq string.1004
-string.1004 db 32,32,32,32,97,110,100,32,32,32,32,32,114,100,105,44,32,114,97,120,0,0,0,0
-literal.1005 dq 4
+string.1004 db 32,32,32,32,99,97,108,108,32,32,32,32,115,116,97,99,107,95,112,101,101,107,95,97,100,100,114,0,0,0,0,0
+literal.1005 dq 67
           dq string.1005
-string.1005 db 59,32,111,114,0,0,0,0
-literal.1006 dq 20
+string.1005 db 32,32,32,32,97,100,100,32,32,32,32,32,114,115,112,44,32,49,54,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,100,101,97,108,108,111,99,97,116,101,32,108,111,99,97,108,32,118,97,114,105,97,98,108,101,115,0,0,0,0,0
+literal.1006 dq 5
           dq string.1006
-string.1006 db 32,32,32,32,111,114,32,32,32,32,32,32,114,100,105,44,32,114,97,120,0,0,0,0
-literal.1007 dq 5
+string.1006 db 59,32,115,119,112,0,0,0
+literal.1007 dq 17
           dq string.1007
-string.1007 db 59,32,120,111,114,0,0,0
-literal.1008 dq 20
+string.1007 db 59,32,32,32,73,78,80,85,84,58,32,40,97,44,32,98,41,0,0,0,0,0,0,0
+literal.1008 dq 18
           dq string.1008
-string.1008 db 32,32,32,32,120,111,114,32,32,32,32,32,114,100,105,44,32,114,97,120,0,0,0,0
-literal.1009 dq 5
+string.1008 db 59,32,32,32,79,85,84,80,85,84,58,32,40,98,44,32,97,41,0,0,0,0,0,0
+literal.1009 dq 13
           dq string.1009
-string.1009 db 59,32,115,104,114,0,0,0
-literal.1010 dq 19
+string.1009 db 32,32,32,32,59,32,116,48,32,60,45,32,65,0,0,0
+literal.1010 dq 36
           dq string.1010
-string.1010 db 32,32,32,32,115,97,114,32,32,32,32,32,114,97,120,44,32,99,108,0,0,0,0,0
-literal.1011 dq 5
+string.1010 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,48,93,44,32,114,97,120,0,0,0,0
+literal.1011 dq 13
           dq string.1011
-string.1011 db 59,32,115,104,108,0,0,0
-literal.1012 dq 19
+string.1011 db 32,32,32,32,59,32,116,49,32,60,45,32,66,0,0,0
+literal.1012 dq 36
           dq string.1012
-string.1012 db 32,32,32,32,115,104,108,32,32,32,32,32,114,97,120,44,32,99,108,0,0,0,0,0
-literal.1013 dq 14
+string.1012 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,49,93,44,32,114,97,120,0,0,0,0
+literal.1013 dq 12
           dq string.1013
-string.1013 db 59,32,103,114,101,97,116,101,114,32,116,104,97,110,0,0
-literal.1014 dq 20
+string.1013 db 32,32,32,32,59,32,112,117,115,104,32,65,0,0,0,0
+literal.1014 dq 30
           dq string.1014
-string.1014 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,105,44,32,114,97,120,0,0,0,0
-literal.1015 dq 14
+string.1014 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,91,114,98,112,32,45,32,108,111,99,95,48,93,0,0
+literal.1015 dq 12
           dq string.1015
-string.1015 db 32,32,32,32,115,101,116,103,32,32,32,32,97,108,0,0
-literal.1016 dq 17
+string.1015 db 32,32,32,32,59,32,112,117,115,104,32,66,0,0,0,0
+literal.1016 dq 30
           dq string.1016
-string.1016 db 32,32,32,32,97,110,100,32,32,32,32,32,97,108,44,32,49,0,0,0,0,0,0,0
-literal.1017 dq 11
+string.1016 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,91,114,98,112,32,45,32,108,111,99,95,49,93,0,0
+literal.1017 dq 5
           dq string.1017
-string.1017 db 59,32,108,101,115,115,32,116,104,97,110,0,0,0,0,0
-literal.1018 dq 14
+string.1017 db 59,32,114,111,116,0,0,0
+literal.1018 dq 20
           dq string.1018
-string.1018 db 32,32,32,32,115,101,116,108,32,32,32,32,97,108,0,0
-literal.1019 dq 17
+string.1018 db 59,32,32,32,73,78,80,85,84,58,32,40,97,44,32,98,44,32,99,41,0,0,0,0
+literal.1019 dq 21
           dq string.1019
-string.1019 db 59,32,109,101,109,111,114,121,32,97,108,108,111,99,97,116,101,0,0,0,0,0,0,0
-literal.1020 dq 20
+string.1019 db 59,32,32,32,79,85,84,80,85,84,58,32,40,98,44,32,99,44,32,97,41,0,0,0
+literal.1020 dq 67
           dq string.1020
-string.1020 db 32,32,32,32,99,97,108,108,32,32,32,32,97,108,108,111,99,97,116,101,0,0,0,0
-literal.1021 dq 13
+string.1020 db 32,32,32,32,115,117,98,32,32,32,32,32,114,115,112,44,32,51,50,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,97,108,108,111,99,97,116,101,32,52,32,108,111,99,97,108,32,118,97,114,105,97,98,108,101,115,0,0,0,0,0
+literal.1021 dq 24
           dq string.1021
-string.1021 db 59,32,109,101,109,111,114,121,32,102,114,101,101,0,0,0
-literal.1022 dq 22
+string.1021 db 32,32,32,32,59,32,40,67,32,66,32,65,41,32,45,62,32,40,66,32,65,32,67,41,0,0,0,0,0,0,0,0
+literal.1022 dq 13
           dq string.1022
-string.1022 db 32,32,32,32,99,97,108,108,32,32,32,32,100,101,97,108,108,111,99,97,116,101,0,0
-literal.1023 dq 15
+string.1022 db 32,32,32,32,59,32,116,50,32,60,45,32,67,0,0,0
+literal.1023 dq 36
           dq string.1023
-string.1023 db 59,32,109,101,109,111,114,121,32,111,102,102,115,101,116,0
-literal.1024 dq 21
+string.1023 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,50,93,44,32,114,97,120,0,0,0,0
+literal.1024 dq 12
           dq string.1024
-string.1024 db 59,32,32,32,73,78,80,85,84,58,32,40,112,116,114,44,32,105,110,116,41,0,0,0
-literal.1025 dq 67
+string.1024 db 32,32,32,32,59,32,112,117,115,104,32,67,0,0,0,0
+literal.1025 dq 30
           dq string.1025
-string.1025 db 32,32,32,32,115,117,98,32,32,32,32,32,114,115,112,44,32,50,52,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,97,108,108,111,99,97,116,101,32,51,32,108,111,99,97,108,32,118,97,114,105,97,98,108,101,115,0,0,0,0,0
-literal.1026 dq 15
+string.1025 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,91,114,98,112,32,45,32,108,111,99,95,50,93,0,0
+literal.1026 dq 67
           dq string.1026
-string.1026 db 32,32,32,32,59,32,116,49,32,60,45,32,105,110,116,0
-literal.1027 dq 15
+string.1026 db 32,32,32,32,97,100,100,32,32,32,32,32,114,115,112,44,32,51,50,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,100,101,97,108,108,111,99,97,116,101,32,108,111,99,97,108,32,118,97,114,105,97,98,108,101,115,0,0,0,0,0
+literal.1027 dq 6
           dq string.1027
-string.1027 db 32,32,32,32,59,32,116,50,32,60,45,32,112,116,114,0
-literal.1028 dq 22
+string.1027 db 59,32,114,111,116,52,0,0
+literal.1028 dq 23
           dq string.1028
-string.1028 db 32,32,32,32,59,32,112,116,114,91,48,93,32,60,45,32,98,121,116,101,32,97,0,0
-literal.1029 dq 36
+string.1028 db 59,32,32,32,73,78,80,85,84,58,32,40,97,44,32,98,44,32,99,44,32,100,41,0
+literal.1029 dq 24
           dq string.1029
-string.1029 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,50,93,0,0,0,0
-literal.1030 dq 36
+string.1029 db 59,32,32,32,79,85,84,80,85,84,58,32,40,98,44,32,99,44,32,100,44,32,97,41,0,0,0,0,0,0,0,0
+literal.1030 dq 28
           dq string.1030
-string.1030 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,49,93,0,0,0,0
-literal.1031 dq 67
+string.1030 db 32,32,32,32,59,32,40,68,32,67,32,66,32,65,41,32,45,62,32,40,67,32,66,32,65,32,68,41,0,0,0,0
+literal.1031 dq 13
           dq string.1031
-string.1031 db 32,32,32,32,97,100,100,32,32,32,32,32,114,115,112,44,32,50,52,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,100,101,97,108,108,111,99,97,116,101,32,108,111,99,97,108,32,118,97,114,105,97,98,108,101,115,0,0,0,0,0
-literal.1032 dq 13
+string.1031 db 32,32,32,32,59,32,116,51,32,60,45,32,68,0,0,0
+literal.1032 dq 36
           dq string.1032
-string.1032 db 59,32,109,101,109,111,114,121,32,99,111,112,121,0,0,0
-literal.1033 dq 26
+string.1032 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,51,93,44,32,114,97,120,0,0,0,0
+literal.1033 dq 12
           dq string.1033
-string.1033 db 59,32,32,32,73,78,80,85,84,58,32,40,100,115,116,44,32,115,114,99,44,32,108,101,110,41,0,0,0,0,0,0
-literal.1034 dq 15
+string.1033 db 32,32,32,32,59,32,112,117,115,104,32,68,0,0,0,0
+literal.1034 dq 30
           dq string.1034
-string.1034 db 32,32,32,32,59,32,116,48,32,60,45,32,108,101,110,0
-literal.1035 dq 15
+string.1034 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,91,114,98,112,32,45,32,108,111,99,95,51,93,0,0
+literal.1035 dq 5
           dq string.1035
-string.1035 db 32,32,32,32,59,32,116,49,32,60,45,32,115,114,99,0
-literal.1036 dq 15
+string.1035 db 59,32,112,111,112,0,0,0
+literal.1036 dq 14
           dq string.1036
-string.1036 db 32,32,32,32,59,32,116,50,32,60,45,32,100,115,116,0
-literal.1037 dq 36
+string.1036 db 59,32,32,32,79,85,84,80,85,84,58,32,40,41,0,0
+literal.1037 dq 6
           dq string.1037
-string.1037 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,50,93,0,0,0,0
-literal.1038 dq 36
+string.1037 db 59,32,112,105,99,107,0,0
+literal.1038 dq 27
           dq string.1038
-string.1038 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,49,93,0,0,0,0
-literal.1039 dq 36
+string.1038 db 32,32,32,32,99,97,108,108,32,32,32,32,115,116,97,99,107,95,112,105,99,107,95,97,100,100,114,0,0,0,0,0
+literal.1039 dq 6
           dq string.1039
-string.1039 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,48,93,0,0,0,0
-literal.1040 dq 11
+string.1039 db 59,32,112,108,117,115,0,0
+literal.1040 dq 21
           dq string.1040
-string.1040 db 46,110,101,120,116,95,98,121,116,101,58,0,0,0,0,0
-literal.1041 dq 54
+string.1040 db 59,32,32,32,73,78,80,85,84,58,32,40,105,110,116,44,32,105,110,116,41,0,0,0
+literal.1041 dq 5
           dq string.1041
-string.1041 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,120,44,32,48,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,99,104,101,99,107,32,105,102,32,100,111,110,101,0,0
-literal.1042 dq 17
+string.1041 db 59,32,115,117,98,0,0,0
+literal.1042 dq 20
           dq string.1042
-string.1042 db 32,32,32,32,106,108,101,32,32,32,32,32,46,100,111,110,101,0,0,0,0,0,0,0
-literal.1043 dq 59
+string.1042 db 32,32,32,32,115,117,98,32,32,32,32,32,114,100,105,44,32,114,97,120,0,0,0,0
+literal.1043 dq 5
           dq string.1043
-string.1043 db 32,32,32,32,109,111,118,32,32,32,32,32,97,108,44,32,98,121,116,101,32,91,114,115,105,93,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,103,101,116,32,98,121,116,101,32,102,114,111,109,32,115,101,108,102,0,0,0,0,0
-literal.1044 dq 64
+string.1043 db 59,32,109,117,108,0,0,0
+literal.1044 dq 15
           dq string.1044
-string.1044 db 32,32,32,32,109,111,118,32,32,32,32,32,98,121,116,101,32,91,114,100,105,93,44,32,97,108,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,99,111,112,121,32,98,121,116,101,32,116,111,32,110,101,119,32,111,98,106,101,99,116,0,0,0,0,0,0,0,0
-literal.1045 dq 62
+string.1044 db 32,32,32,32,109,117,108,32,32,32,32,32,114,100,105,0
+literal.1045 dq 5
           dq string.1045
-string.1045 db 32,32,32,32,105,110,99,32,32,32,32,32,114,100,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,105,110,99,114,101,109,101,110,116,32,100,101,115,116,105,110,97,116,105,111,110,0,0
-literal.1046 dq 57
+string.1045 db 59,32,100,105,118,0,0,0
+literal.1046 dq 7
           dq string.1046
-string.1046 db 32,32,32,32,105,110,99,32,32,32,32,32,114,115,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,105,110,99,114,101,109,101,110,116,32,115,111,117,114,99,101,0,0,0,0,0,0,0
-literal.1047 dq 56
+string.1046 db 32,32,32,32,99,113,111,0
+literal.1047 dq 15
           dq string.1047
-string.1047 db 32,32,32,32,100,101,99,32,32,32,32,32,114,100,120,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,100,101,99,114,101,109,101,110,116,32,99,111,117,110,116,0,0,0,0,0,0,0,0
-literal.1048 dq 18
+string.1047 db 32,32,32,32,105,100,105,118,32,32,32,32,114,100,105,0
+literal.1048 dq 5
           dq string.1048
-string.1048 db 32,32,32,32,106,109,112,32,46,110,101,120,116,95,98,121,116,101,0,0,0,0,0,0
-literal.1049 dq 6
+string.1048 db 59,32,109,111,100,0,0,0
+literal.1049 dq 20
           dq string.1049
-string.1049 db 46,100,111,110,101,58,0,0
-literal.1050 dq 16
+string.1049 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,114,100,120,0,0,0,0
+literal.1050 dq 5
           dq string.1050
-string.1050 db 32,32,32,32,59,32,100,101,114,101,102,32,100,97,116,97,0,0,0,0,0,0,0,0
-literal.1051 dq 22
+string.1050 db 59,32,97,110,100,0,0,0
+literal.1051 dq 20
           dq string.1051
-string.1051 db 32,32,32,32,59,32,103,101,116,32,101,110,118,32,118,97,114,115,32,112,116,114,0,0
-literal.1052 dq 34
+string.1051 db 32,32,32,32,97,110,100,32,32,32,32,32,114,100,105,44,32,114,97,120,0,0,0,0
+literal.1052 dq 4
           dq string.1052
-string.1052 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,113,119,111,114,100,32,91,115,116,97,99,107,95,101,110,118,93,0,0,0,0,0,0
-literal.1053 dq 10
+string.1052 db 59,32,111,114,0,0,0,0
+literal.1053 dq 20
           dq string.1053
-string.1053 db 59,32,115,121,115,99,97,108,108,49,0,0,0,0,0,0
-literal.1054 dq 19
+string.1053 db 32,32,32,32,111,114,32,32,32,32,32,32,114,100,105,44,32,114,97,120,0,0,0,0
+literal.1054 dq 5
           dq string.1054
-string.1054 db 59,32,32,32,73,78,80,85,84,58,32,40,97,44,32,105,110,116,41,0,0,0,0,0
-literal.1055 dq 15
+string.1054 db 59,32,120,111,114,0,0,0
+literal.1055 dq 20
           dq string.1055
-string.1055 db 32,32,32,32,59,32,116,48,32,60,45,32,105,110,116,0
-literal.1056 dq 13
+string.1055 db 32,32,32,32,120,111,114,32,32,32,32,32,114,100,105,44,32,114,97,120,0,0,0,0
+literal.1056 dq 5
           dq string.1056
-string.1056 db 32,32,32,32,59,32,116,49,32,60,45,32,97,0,0,0
-literal.1057 dq 21
+string.1056 db 59,32,115,104,114,0,0,0
+literal.1057 dq 19
           dq string.1057
-string.1057 db 32,32,32,32,59,32,115,121,115,99,97,108,108,49,40,116,48,41,32,116,49,0,0,0
-literal.1058 dq 36
+string.1057 db 32,32,32,32,115,97,114,32,32,32,32,32,114,97,120,44,32,99,108,0,0,0,0,0
+literal.1058 dq 5
           dq string.1058
-string.1058 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,48,93,0,0,0,0
-literal.1059 dq 63
+string.1058 db 59,32,115,104,108,0,0,0
+literal.1059 dq 19
           dq string.1059
-string.1059 db 32,32,32,32,120,111,114,32,32,32,32,32,101,115,105,44,32,101,115,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,117,110,117,115,101,100,32,97,114,103,117,109,101,110,116,115,32,97,114,101,32,48,0
-literal.1060 dq 20
+string.1059 db 32,32,32,32,115,104,108,32,32,32,32,32,114,97,120,44,32,99,108,0,0,0,0,0
+literal.1060 dq 14
           dq string.1060
-string.1060 db 32,32,32,32,120,111,114,32,32,32,32,32,101,100,120,44,32,101,100,120,0,0,0,0
-literal.1061 dq 22
+string.1060 db 59,32,103,114,101,97,116,101,114,32,116,104,97,110,0,0
+literal.1061 dq 20
           dq string.1061
-string.1061 db 32,32,32,32,120,111,114,32,32,32,32,32,114,49,48,100,44,32,114,49,48,100,0,0
-literal.1062 dq 20
+string.1061 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,105,44,32,114,97,120,0,0,0,0
+literal.1062 dq 14
           dq string.1062
-string.1062 db 32,32,32,32,120,111,114,32,32,32,32,32,114,56,100,44,32,114,56,100,0,0,0,0
-literal.1063 dq 20
+string.1062 db 32,32,32,32,115,101,116,103,32,32,32,32,97,108,0,0
+literal.1063 dq 17
           dq string.1063
-string.1063 db 32,32,32,32,120,111,114,32,32,32,32,32,114,57,100,44,32,114,57,100,0,0,0,0
-literal.1064 dq 10
+string.1063 db 32,32,32,32,97,110,100,32,32,32,32,32,97,108,44,32,49,0,0,0,0,0,0,0
+literal.1064 dq 11
           dq string.1064
-string.1064 db 59,32,115,121,115,99,97,108,108,51,0,0,0,0,0,0
-literal.1065 dq 25
+string.1064 db 59,32,108,101,115,115,32,116,104,97,110,0,0,0,0,0
+literal.1065 dq 14
           dq string.1065
-string.1065 db 59,32,32,32,73,78,80,85,84,58,32,40,97,44,32,98,44,32,99,44,32,105,110,116,41,0,0,0,0,0,0,0
-literal.1066 dq 13
+string.1065 db 32,32,32,32,115,101,116,108,32,32,32,32,97,108,0,0
+literal.1066 dq 17
           dq string.1066
-string.1066 db 32,32,32,32,59,32,116,49,32,60,45,32,99,0,0,0
-literal.1067 dq 13
+string.1066 db 59,32,109,101,109,111,114,121,32,97,108,108,111,99,97,116,101,0,0,0,0,0,0,0
+literal.1067 dq 20
           dq string.1067
-string.1067 db 32,32,32,32,59,32,116,50,32,60,45,32,98,0,0,0
+string.1067 db 32,32,32,32,99,97,108,108,32,32,32,32,97,108,108,111,99,97,116,101,0,0,0,0
 literal.1068 dq 13
           dq string.1068
-string.1068 db 32,32,32,32,59,32,116,51,32,60,45,32,97,0,0,0
-literal.1069 dq 27
+string.1068 db 59,32,109,101,109,111,114,121,32,102,114,101,101,0,0,0
+literal.1069 dq 15
           dq string.1069
-string.1069 db 32,32,32,32,59,32,115,121,115,99,97,108,108,51,40,116,48,41,32,116,51,32,116,50,32,116,49,0,0,0,0,0
-literal.1070 dq 36
+string.1069 db 59,32,109,101,109,111,114,121,32,111,102,102,115,101,116,0
+literal.1070 dq 21
           dq string.1070
-string.1070 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,51,93,0,0,0,0
-literal.1071 dq 36
+string.1070 db 59,32,32,32,73,78,80,85,84,58,32,40,112,116,114,44,32,105,110,116,41,0,0,0
+literal.1071 dq 67
           dq string.1071
-string.1071 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,50,93,0,0,0,0
-literal.1072 dq 36
+string.1071 db 32,32,32,32,115,117,98,32,32,32,32,32,114,115,112,44,32,50,52,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,97,108,108,111,99,97,116,101,32,51,32,108,111,99,97,108,32,118,97,114,105,97,98,108,101,115,0,0,0,0,0
+literal.1072 dq 15
           dq string.1072
-string.1072 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,49,93,0,0,0,0
-literal.1073 dq 63
+string.1072 db 32,32,32,32,59,32,116,49,32,60,45,32,105,110,116,0
+literal.1073 dq 15
           dq string.1073
-string.1073 db 32,32,32,32,120,111,114,32,32,32,32,32,114,49,48,100,44,32,114,49,48,100,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,117,110,117,115,101,100,32,97,114,103,117,109,101,110,116,115,32,97,114,101,32,48,0
-literal.1074 dq 1
+string.1073 db 32,32,32,32,59,32,116,50,32,60,45,32,112,116,114,0
+literal.1074 dq 22
           dq string.1074
-string.1074 db 32,0,0,0,0,0,0,0
-literal.1075 dq 3
+string.1074 db 32,32,32,32,59,32,112,116,114,91,48,93,32,60,45,32,98,121,116,101,32,97,0,0
+literal.1075 dq 36
           dq string.1075
-string.1075 db 73,70,10,0,0,0,0,0
-literal.1076 dq 5
+string.1075 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,50,93,0,0,0,0
+literal.1076 dq 36
           dq string.1076
-string.1076 db 69,76,83,69,10,0,0,0
-literal.1077 dq 3
+string.1076 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,49,93,0,0,0,0
+literal.1077 dq 67
           dq string.1077
-string.1077 db 70,73,10,0,0,0,0,0
-literal.1078 dq 22
+string.1077 db 32,32,32,32,97,100,100,32,32,32,32,32,114,115,112,44,32,50,52,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,100,101,97,108,108,111,99,97,116,101,32,108,111,99,97,108,32,118,97,114,105,97,98,108,101,115,0,0,0,0,0
+literal.1078 dq 13
           dq string.1078
-string.1078 db 46,47,108,105,98,47,115,116,97,99,107,47,100,117,109,112,46,115,116,97,99,107,0,0
-literal.1079 dq 6
+string.1078 db 59,32,109,101,109,111,114,121,32,99,111,112,121,0,0,0
+literal.1079 dq 26
           dq string.1079
-string.1079 db 87,72,73,76,69,10,0,0
-literal.1080 dq 5
+string.1079 db 59,32,32,32,73,78,80,85,84,58,32,40,100,115,116,44,32,115,114,99,44,32,108,101,110,41,0,0,0,0,0,0
+literal.1080 dq 15
           dq string.1080
-string.1080 db 76,79,79,80,10,0,0,0
-literal.1081 dq 5
+string.1080 db 32,32,32,32,59,32,116,48,32,60,45,32,108,101,110,0
+literal.1081 dq 15
           dq string.1081
-string.1081 db 80,79,79,76,10,0,0,0
-literal.1082 dq 111
-literal.1083 dq 120
-literal.1084 dq 187
-literal.1085 dq 7
+string.1081 db 32,32,32,32,59,32,116,49,32,60,45,32,115,114,99,0
+literal.1082 dq 15
+          dq string.1082
+string.1082 db 32,32,32,32,59,32,116,50,32,60,45,32,100,115,116,0
+literal.1083 dq 36
+          dq string.1083
+string.1083 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,50,93,0,0,0,0
+literal.1084 dq 36
+          dq string.1084
+string.1084 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,49,93,0,0,0,0
+literal.1085 dq 36
           dq string.1085
-string.1085 db 101,120,116,101,114,110,32,0
-literal.1086 dq 3
+string.1085 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,48,93,0,0,0,0
+literal.1086 dq 11
           dq string.1086
-string.1086 db 97,114,103,0,0,0,0,0
-literal.1087 dq 3
+string.1086 db 46,110,101,120,116,95,98,121,116,101,58,0,0,0,0,0
+literal.1087 dq 54
           dq string.1087
-string.1087 db 114,101,116,0,0,0,0,0
-literal.1088 dq 9
+string.1087 db 32,32,32,32,99,109,112,32,32,32,32,32,114,100,120,44,32,48,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,99,104,101,99,107,32,105,102,32,100,111,110,101,0,0
+literal.1088 dq 17
           dq string.1088
-string.1088 db 115,121,109,98,111,108,58,32,34,0,0,0,0,0,0,0
-literal.1089 dq 3
+string.1088 db 32,32,32,32,106,108,101,32,32,32,32,32,46,100,111,110,101,0,0,0,0,0,0,0
+literal.1089 dq 59
           dq string.1089
-string.1089 db 34,10,10,0,0,0,0,0
-literal.1090 dq 9
+string.1089 db 32,32,32,32,109,111,118,32,32,32,32,32,97,108,44,32,98,121,116,101,32,91,114,115,105,93,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,103,101,116,32,98,121,116,101,32,102,114,111,109,32,115,101,108,102,0,0,0,0,0
+literal.1090 dq 64
           dq string.1090
-string.1090 db 64,105,109,112,111,114,116,32,34,0,0,0,0,0,0,0
-literal.1091 dq 6
+string.1090 db 32,32,32,32,109,111,118,32,32,32,32,32,98,121,116,101,32,91,114,100,105,93,44,32,97,108,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,99,111,112,121,32,98,121,116,101,32,116,111,32,110,101,119,32,111,98,106,101,99,116,0,0,0,0,0,0,0,0
+literal.1091 dq 62
           dq string.1091
-string.1091 db 99,111,110,115,116,32,0,0
-literal.1092 dq 6
+string.1091 db 32,32,32,32,105,110,99,32,32,32,32,32,114,100,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,105,110,99,114,101,109,101,110,116,32,100,101,115,116,105,110,97,116,105,111,110,0,0
+literal.1092 dq 57
           dq string.1092
-string.1092 db 98,111,100,121,58,10,0,0
-literal.1093 dq 13
+string.1092 db 32,32,32,32,105,110,99,32,32,32,32,32,114,115,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,105,110,99,114,101,109,101,110,116,32,115,111,117,114,99,101,0,0,0,0,0,0,0
+literal.1093 dq 56
           dq string.1093
-string.1093 db 66,117,105,108,100,32,101,114,114,111,114,58,32,0,0,0
-literal.1094 dq 24
+string.1093 db 32,32,32,32,100,101,99,32,32,32,32,32,114,100,120,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,100,101,99,114,101,109,101,110,116,32,99,111,117,110,116,0,0,0,0,0,0,0,0
+literal.1094 dq 18
           dq string.1094
-string.1094 db 46,47,108,105,98,47,115,116,97,99,107,47,100,114,105,118,101,114,46,115,116,97,99,107,0,0,0,0,0,0,0,0
-literal.1095 dq 1
+string.1094 db 32,32,32,32,106,109,112,32,46,110,101,120,116,95,98,121,116,101,0,0,0,0,0,0
+literal.1095 dq 6
           dq string.1095
-string.1095 db 96,0,0,0,0,0,0,0
-literal.1096 dq 23
+string.1095 db 46,100,111,110,101,58,0,0
+literal.1096 dq 16
           dq string.1096
-string.1096 db 96,32,119,97,115,32,107,105,108,108,101,100,32,98,121,32,115,105,103,110,97,108,32,0
-literal.1097 dq 128
-literal.1098 dq 26
+string.1096 db 32,32,32,32,59,32,100,101,114,101,102,32,100,97,116,97,0,0,0,0,0,0,0,0
+literal.1097 dq 22
+          dq string.1097
+string.1097 db 32,32,32,32,59,32,103,101,116,32,101,110,118,32,118,97,114,115,32,112,116,114,0,0
+literal.1098 dq 34
           dq string.1098
-string.1098 db 96,32,102,97,105,108,101,100,32,119,105,116,104,32,101,120,105,116,32,115,116,97,116,117,115,32,0,0,0,0,0,0
-literal.1099 dq 12
+string.1098 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,113,119,111,114,100,32,91,115,116,97,99,107,95,101,110,118,93,0,0,0,0,0,0
+literal.1099 dq 10
           dq string.1099
-string.1099 db 99,97,110,110,111,116,32,114,117,110,32,96,0,0,0,0
-literal.1100 dq 13
+string.1099 db 59,32,115,121,115,99,97,108,108,49,0,0,0,0,0,0
+literal.1100 dq 19
           dq string.1100
-string.1100 db 99,97,110,110,111,116,32,102,105,110,100,32,96,0,0,0
-literal.1101 dq 9
+string.1100 db 59,32,32,32,73,78,80,85,84,58,32,40,97,44,32,105,110,116,41,0,0,0,0,0
+literal.1101 dq 15
           dq string.1101
-string.1101 db 96,32,105,110,32,80,65,84,72,0,0,0,0,0,0,0
-literal.1102 dq 19
+string.1101 db 32,32,32,32,59,32,116,48,32,60,45,32,105,110,116,0
+literal.1102 dq 13
           dq string.1102
-string.1102 db 73,47,79,32,101,114,114,111,114,58,32,111,117,116,112,117,116,32,96,0,0,0,0,0
-literal.1103 dq 19
+string.1102 db 32,32,32,32,59,32,116,49,32,60,45,32,97,0,0,0
+literal.1103 dq 21
           dq string.1103
-string.1103 db 96,32,105,115,32,97,110,32,105,110,112,117,116,32,102,105,108,101,10,0,0,0,0,0
-literal.1104 dq 524288
-literal.1105 dq -22
-literal.1106 dq 40
+string.1103 db 32,32,32,32,59,32,115,121,115,99,97,108,108,49,40,116,48,41,32,116,49,0,0,0
+literal.1104 dq 36
+          dq string.1104
+string.1104 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,48,93,0,0,0,0
+literal.1105 dq 63
+          dq string.1105
+string.1105 db 32,32,32,32,120,111,114,32,32,32,32,32,101,115,105,44,32,101,115,105,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,117,110,117,115,101,100,32,97,114,103,117,109,101,110,116,115,32,97,114,101,32,48,0
+literal.1106 dq 20
           dq string.1106
-string.1106 db 73,47,79,32,101,114,114,111,114,58,32,99,97,110,110,111,116,32,116,114,117,110,99,97,116,101,32,111,117,116,112,117,116,32,102,105,108,101,32,34,0,0,0,0,0,0,0,0
-literal.1107 dq 36
+string.1106 db 32,32,32,32,120,111,114,32,32,32,32,32,101,100,120,44,32,101,100,120,0,0,0,0
+literal.1107 dq 22
           dq string.1107
-string.1107 db 73,47,79,32,101,114,114,111,114,58,32,99,97,110,110,111,116,32,115,116,97,116,32,111,117,116,112,117,116,32,102,105,108,101,32,34,0,0,0,0
-literal.1108 dq 36
+string.1107 db 32,32,32,32,120,111,114,32,32,32,32,32,114,49,48,100,44,32,114,49,48,100,0,0
+literal.1108 dq 20
           dq string.1108
-string.1108 db 73,47,79,32,101,114,114,111,114,58,32,99,97,110,110,111,116,32,111,112,101,110,32,111,117,116,112,117,116,32,102,105,108,101,32,34,0,0,0,0
-literal.1109 dq 40
+string.1108 db 32,32,32,32,120,111,114,32,32,32,32,32,114,56,100,44,32,114,56,100,0,0,0,0
+literal.1109 dq 20
           dq string.1109
-string.1109 db 73,47,79,32,101,114,114,111,114,58,32,99,97,110,110,111,116,32,119,114,105,116,101,32,97,115,115,101,109,98,108,121,32,111,117,116,112,117,116,10,0,0,0,0,0,0,0,0
-literal.1110 dq 131072
-literal.1111 dq 384
-literal.1112 dq 14
+string.1109 db 32,32,32,32,120,111,114,32,32,32,32,32,114,57,100,44,32,114,57,100,0,0,0,0
+literal.1110 dq 10
+          dq string.1110
+string.1110 db 59,32,115,121,115,99,97,108,108,51,0,0,0,0,0,0
+literal.1111 dq 25
+          dq string.1111
+string.1111 db 59,32,32,32,73,78,80,85,84,58,32,40,97,44,32,98,44,32,99,44,32,105,110,116,41,0,0,0,0,0,0,0
+literal.1112 dq 13
           dq string.1112
-string.1112 db 99,97,110,110,111,116,32,119,114,105,116,101,32,96,0,0
-literal.1113 dq 9
+string.1112 db 32,32,32,32,59,32,116,49,32,60,45,32,99,0,0,0
+literal.1113 dq 13
           dq string.1113
-string.1113 db 47,100,101,118,47,110,117,108,108,0,0,0,0,0,0,0
-literal.1114 dq 4
+string.1113 db 32,32,32,32,59,32,116,50,32,60,45,32,98,0,0,0
+literal.1114 dq 13
           dq string.1114
-string.1114 db 102,97,115,109,0,0,0,0
-literal.1115 dq 23
+string.1114 db 32,32,32,32,59,32,116,51,32,60,45,32,97,0,0,0
+literal.1115 dq 27
           dq string.1115
-string.1115 db 99,97,110,110,111,116,32,111,112,101,110,32,96,47,100,101,118,47,110,117,108,108,96,0
-literal.1116 dq 13
+string.1115 db 32,32,32,32,59,32,115,121,115,99,97,108,108,51,40,116,48,41,32,116,51,32,116,50,32,116,49,0,0,0,0,0
+literal.1116 dq 36
           dq string.1116
-string.1116 db 45,110,111,115,116,97,114,116,102,105,108,101,115,0,0,0
-literal.1117 dq 7
+string.1116 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,105,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,51,93,0,0,0,0
+literal.1117 dq 36
           dq string.1117
-string.1117 db 45,110,111,45,112,105,101,0
-literal.1118 dq 192
-literal.1119 dq 193
-literal.1120 dq 2
+string.1117 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,105,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,50,93,0,0,0,0
+literal.1118 dq 36
+          dq string.1118
+string.1118 db 32,32,32,32,109,111,118,32,32,32,32,32,114,100,120,44,32,113,119,111,114,100,32,91,114,98,112,32,45,32,108,111,99,95,49,93,0,0,0,0
+literal.1119 dq 63
+          dq string.1119
+string.1119 db 32,32,32,32,120,111,114,32,32,32,32,32,114,49,48,100,44,32,114,49,48,100,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,32,59,32,117,110,117,115,101,100,32,97,114,103,117,109,101,110,116,115,32,97,114,101,32,48,0
+literal.1120 dq 1
           dq string.1120
-string.1120 db 99,99,0,0,0,0,0,0
-literal.1121 dq 39
+string.1120 db 32,0,0,0,0,0,0,0
+literal.1121 dq 3
           dq string.1121
-string.1121 db 99,97,110,110,111,116,32,114,101,109,111,118,101,32,116,104,101,32,116,101,109,112,111,114,97,114,121,32,100,105,114,101,99,116,111,114,121,32,96,0
-literal.1122 dq 4
+string.1121 db 73,70,10,0,0,0,0,0
+literal.1122 dq 5
           dq string.1122
-string.1122 db 115,108,99,45,0,0,0,0
-literal.1123 dq 9
+string.1122 db 69,76,83,69,10,0,0,0
+literal.1123 dq 3
           dq string.1123
-string.1123 db 47,109,97,105,110,46,97,115,109,0,0,0,0,0,0,0
-literal.1124 dq 7
+string.1123 db 70,73,10,0,0,0,0,0
+literal.1124 dq 22
           dq string.1124
-string.1124 db 47,109,97,105,110,46,111,0
-literal.1125 dq 35
+string.1124 db 46,47,108,105,98,47,115,116,97,99,107,47,100,117,109,112,46,115,116,97,99,107,0,0
+literal.1125 dq 6
           dq string.1125
-string.1125 db 99,97,110,110,111,116,32,99,114,101,97,116,101,32,97,32,116,101,109,112,111,114,97,114,121,32,100,105,114,101,99,116,111,114,121,0,0,0,0,0
-literal.1126 dq 77
-literal.1127 dq 23
+string.1125 db 87,72,73,76,69,10,0,0
+literal.1126 dq 5
+          dq string.1126
+string.1126 db 76,79,79,80,10,0,0,0
+literal.1127 dq 5
           dq string.1127
-string.1127 db 46,47,108,105,98,47,115,116,97,99,107,47,102,108,111,97,116,46,115,116,97,99,107,0
-literal.1128 dq 4294967295
-literal.1129 dq 1000000000
-literal.1130 dq 4294967296
-literal.1131 dq 1000000000000000
-literal.1132 dq -1022
-literal.1133 dq 1074
-literal.1134 dq 9007199254740992
-literal.1135 dq 4503599627370496
-literal.1136 dq -324
-literal.1137 dq -9223372036854775808
-literal.1138 dq -322
-literal.1139 dq 2
+string.1127 db 80,79,79,76,10,0,0,0
+literal.1128 dq 111
+literal.1129 dq 120
+literal.1130 dq 187
+literal.1131 dq 7
+          dq string.1131
+string.1131 db 101,120,116,101,114,110,32,0
+literal.1132 dq 3
+          dq string.1132
+string.1132 db 97,114,103,0,0,0,0,0
+literal.1133 dq 3
+          dq string.1133
+string.1133 db 114,101,116,0,0,0,0,0
+literal.1134 dq 9
+          dq string.1134
+string.1134 db 115,121,109,98,111,108,58,32,34,0,0,0,0,0,0,0
+literal.1135 dq 3
+          dq string.1135
+string.1135 db 34,10,10,0,0,0,0,0
+literal.1136 dq 9
+          dq string.1136
+string.1136 db 64,105,109,112,111,114,116,32,34,0,0,0,0,0,0,0
+literal.1137 dq 6
+          dq string.1137
+string.1137 db 99,111,110,115,116,32,0,0
+literal.1138 dq 6
+          dq string.1138
+string.1138 db 98,111,100,121,58,10,0,0
+literal.1139 dq 13
           dq string.1139
-string.1139 db 48,120,0,0,0,0,0,0
-literal.1140 dq 2
+string.1139 db 66,117,105,108,100,32,101,114,114,111,114,58,32,0,0,0
+literal.1140 dq 24
           dq string.1140
-string.1140 db 114,57,0,0,0,0,0,0
-literal.1141 dq 2
+string.1140 db 46,47,108,105,98,47,115,116,97,99,107,47,100,114,105,118,101,114,46,115,116,97,99,107,0,0,0,0,0,0,0,0
+literal.1141 dq 1
           dq string.1141
-string.1141 db 114,56,0,0,0,0,0,0
-literal.1142 dq 3
+string.1141 db 96,0,0,0,0,0,0,0
+literal.1142 dq 23
           dq string.1142
-string.1142 db 114,99,120,0,0,0,0,0
-literal.1143 dq 3
-          dq string.1143
-string.1143 db 114,100,120,0,0,0,0,0
-literal.1144 dq 3
+string.1142 db 96,32,119,97,115,32,107,105,108,108,101,100,32,98,121,32,115,105,103,110,97,108,32,0
+literal.1143 dq 128
+literal.1144 dq 26
           dq string.1144
-string.1144 db 114,115,105,0,0,0,0,0
-literal.1145 dq 3
+string.1144 db 96,32,102,97,105,108,101,100,32,119,105,116,104,32,101,120,105,116,32,115,116,97,116,117,115,32,0,0,0,0,0,0
+literal.1145 dq 12
           dq string.1145
-string.1145 db 114,100,105,0,0,0,0,0
-literal.1146 dq 21
+string.1145 db 99,97,110,110,111,116,32,114,117,110,32,96,0,0,0,0
+literal.1146 dq 13
           dq string.1146
-string.1146 db 46,47,108,105,98,47,115,116,97,99,107,47,102,102,105,46,115,116,97,99,107,0,0,0
-literal.1147 dq 4
+string.1146 db 99,97,110,110,111,116,32,102,105,110,100,32,96,0,0,0
+literal.1147 dq 9
           dq string.1147
-string.1147 db 102,102,105,46,0,0,0,0
-literal.1148 dq 7
+string.1147 db 96,32,105,110,32,80,65,84,72,0,0,0,0,0,0,0
+literal.1148 dq 19
           dq string.1148
-string.1148 db 101,120,116,114,110,32,39,0
-literal.1149 dq 5
+string.1148 db 73,47,79,32,101,114,114,111,114,58,32,111,117,116,112,117,116,32,96,0,0,0,0,0
+literal.1149 dq 19
           dq string.1149
-string.1149 db 39,32,97,115,32,0,0,0
-literal.1150 dq 20
-          dq string.1150
-string.1150 db 32,32,32,32,97,110,100,32,32,32,32,32,114,115,112,44,32,45,49,54,0,0,0,0
-literal.1151 dq 25
-          dq string.1151
-string.1151 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,112,32,43,32,0,0,0,0,0,0,0
-literal.1152 dq 30
+string.1149 db 96,32,105,115,32,97,110,32,105,110,112,117,116,32,102,105,108,101,10,0,0,0,0,0
+literal.1150 dq 524288
+literal.1151 dq -22
+literal.1152 dq 40
           dq string.1152
-string.1152 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,114,115,112,32,43,32,0,0
-literal.1153 dq 15
+string.1152 db 73,47,79,32,101,114,114,111,114,58,32,99,97,110,110,111,116,32,116,114,117,110,99,97,116,101,32,111,117,116,112,117,116,32,102,105,108,101,32,34,0,0,0,0,0,0,0,0
+literal.1153 dq 36
           dq string.1153
-string.1153 db 32,32,32,32,109,111,118,113,32,32,32,32,120,109,109,0
-literal.1154 dq 15
+string.1153 db 73,47,79,32,101,114,114,111,114,58,32,99,97,110,110,111,116,32,115,116,97,116,32,111,117,116,112,117,116,32,102,105,108,101,32,34,0,0,0,0
+literal.1154 dq 36
           dq string.1154
-string.1154 db 44,32,113,119,111,114,100,32,91,114,115,112,32,43,32,0
-literal.1155 dq 12
+string.1154 db 73,47,79,32,101,114,114,111,114,58,32,99,97,110,110,111,116,32,111,112,101,110,32,111,117,116,112,117,116,32,102,105,108,101,32,34,0,0,0,0
+literal.1155 dq 40
           dq string.1155
-string.1155 db 32,32,32,32,109,111,118,32,32,32,32,32,0,0,0,0
-literal.1156 dq 20
-          dq string.1156
-string.1156 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,112,44,32,114,98,112,0,0,0,0
-literal.1157 dq 19
-          dq string.1157
-string.1157 db 44,32,65,115,115,101,109,98,108,101,114,32,101,114,114,111,114,58,32,0,0,0,0,0
-literal.1158 dq 25
+string.1155 db 73,47,79,32,101,114,114,111,114,58,32,99,97,110,110,111,116,32,119,114,105,116,101,32,97,115,115,101,109,98,108,121,32,111,117,116,112,117,116,10,0,0,0,0,0,0,0,0
+literal.1156 dq 131072
+literal.1157 dq 384
+literal.1158 dq 14
           dq string.1158
-string.1158 db 32,115,121,109,98,111,108,32,104,97,115,32,105,110,118,97,108,105,100,32,98,121,116,101,32,0,0,0,0,0,0,0
-literal.1159 dq 52
+string.1158 db 99,97,110,110,111,116,32,119,114,105,116,101,32,96,0,0
+literal.1159 dq 9
           dq string.1159
-string.1159 db 44,32,101,120,112,101,99,116,101,100,32,112,114,105,110,116,97,98,108,101,32,65,83,67,73,73,32,119,105,116,104,111,117,116,32,115,112,97,99,101,115,32,111,114,32,113,117,111,116,101,115,10,0,0,0,0
-literal.1160 dq 21
+string.1159 db 47,100,101,118,47,110,117,108,108,0,0,0,0,0,0,0
+literal.1160 dq 4
           dq string.1160
-string.1160 db 32,104,97,115,32,97,110,32,101,109,112,116,121,32,115,121,109,98,111,108,10,0,0,0
-literal.1161 dq 19
+string.1160 db 102,97,115,109,0,0,0,0
+literal.1161 dq 23
           dq string.1161
-string.1161 db 46,47,108,105,98,47,112,114,111,99,101,115,115,46,115,116,97,99,107,0,0,0,0,0
-literal.1162 dq 25
-literal.1163 dq 61440
-literal.1164 dq 32768
-literal.1165 dq 4
-          dq string.1165
-string.1165 db 80,65,84,72,0,0,0,0
-literal.1166 dq 13
+string.1161 db 99,97,110,110,111,116,32,111,112,101,110,32,96,47,100,101,118,47,110,117,108,108,96,0
+literal.1162 dq 13
+          dq string.1162
+string.1162 db 45,110,111,115,116,97,114,116,102,105,108,101,115,0,0,0
+literal.1163 dq 7
+          dq string.1163
+string.1163 db 45,110,111,45,112,105,101,0
+literal.1164 dq 192
+literal.1165 dq 193
+literal.1166 dq 2
           dq string.1166
-string.1166 db 47,98,105,110,58,47,117,115,114,47,98,105,110,0,0,0
-literal.1167 dq -4
-literal.1168 dq 16
+string.1166 db 99,99,0,0,0,0,0,0
+literal.1167 dq 39
+          dq string.1167
+string.1167 db 99,97,110,110,111,116,32,114,101,109,111,118,101,32,116,104,101,32,116,101,109,112,111,114,97,114,121,32,100,105,114,101,99,116,111,114,121,32,96,0
+literal.1168 dq 4
           dq string.1168
-string.1168 db 99,97,110,110,111,116,32,101,120,101,99,117,116,101,32,96,0,0,0,0,0,0,0,0
-literal.1169 dq 31
+string.1168 db 115,108,99,45,0,0,0,0
+literal.1169 dq 9
           dq string.1169
-string.1169 db 99,97,110,110,111,116,32,114,101,100,105,114,101,99,116,32,116,104,101,32,111,117,116,112,117,116,32,111,102,32,96,0
-literal.1170 dq 16
+string.1169 db 47,109,97,105,110,46,97,115,109,0,0,0,0,0,0,0
+literal.1170 dq 7
           dq string.1170
-string.1170 db 48,49,50,51,52,53,54,55,56,57,97,98,99,100,101,102,0,0,0,0,0,0,0,0
-literal.1171 dq 6
+string.1170 db 47,109,97,105,110,46,111,0
+literal.1171 dq 35
           dq string.1171
-string.1171 db 84,77,80,68,73,82,0,0
-literal.1172 dq 4
-          dq string.1172
-string.1172 db 47,116,109,112,0,0,0,0
-literal.1173 dq -17
+string.1171 db 99,97,110,110,111,116,32,99,114,101,97,116,101,32,97,32,116,101,109,112,111,114,97,114,121,32,100,105,114,101,99,116,111,114,121,0,0,0,0,0
+literal.1172 dq 77
+literal.1173 dq 23
+          dq string.1173
+string.1173 db 46,47,108,105,98,47,115,116,97,99,107,47,102,108,111,97,116,46,115,116,97,99,107,0
+literal.1174 dq 4294967295
+literal.1175 dq 1000000000
+literal.1176 dq 4294967296
+literal.1177 dq 1000000000000000
+literal.1178 dq -1022
+literal.1179 dq 1074
+literal.1180 dq 9007199254740992
+literal.1181 dq 4503599627370496
+literal.1182 dq -324
+literal.1183 dq -9223372036854775808
+literal.1184 dq -322
+literal.1185 dq 2
+          dq string.1185
+string.1185 db 48,120,0,0,0,0,0,0
+literal.1186 dq 2
+          dq string.1186
+string.1186 db 114,57,0,0,0,0,0,0
+literal.1187 dq 2
+          dq string.1187
+string.1187 db 114,56,0,0,0,0,0,0
+literal.1188 dq 3
+          dq string.1188
+string.1188 db 114,99,120,0,0,0,0,0
+literal.1189 dq 3
+          dq string.1189
+string.1189 db 114,100,120,0,0,0,0,0
+literal.1190 dq 3
+          dq string.1190
+string.1190 db 114,115,105,0,0,0,0,0
+literal.1191 dq 3
+          dq string.1191
+string.1191 db 114,100,105,0,0,0,0,0
+literal.1192 dq 21
+          dq string.1192
+string.1192 db 46,47,108,105,98,47,115,116,97,99,107,47,102,102,105,46,115,116,97,99,107,0,0,0
+literal.1193 dq 4
+          dq string.1193
+string.1193 db 102,102,105,46,0,0,0,0
+literal.1194 dq 7
+          dq string.1194
+string.1194 db 101,120,116,114,110,32,39,0
+literal.1195 dq 5
+          dq string.1195
+string.1195 db 39,32,97,115,32,0,0,0
+literal.1196 dq 20
+          dq string.1196
+string.1196 db 32,32,32,32,97,110,100,32,32,32,32,32,114,115,112,44,32,45,49,54,0,0,0,0
+literal.1197 dq 25
+          dq string.1197
+string.1197 db 32,32,32,32,109,111,118,32,32,32,32,32,113,119,111,114,100,32,91,114,115,112,32,43,32,0,0,0,0,0,0,0
+literal.1198 dq 30
+          dq string.1198
+string.1198 db 32,32,32,32,109,111,118,32,32,32,32,32,114,97,120,44,32,113,119,111,114,100,32,91,114,115,112,32,43,32,0,0
+literal.1199 dq 15
+          dq string.1199
+string.1199 db 32,32,32,32,109,111,118,113,32,32,32,32,120,109,109,0
+literal.1200 dq 15
+          dq string.1200
+string.1200 db 44,32,113,119,111,114,100,32,91,114,115,112,32,43,32,0
+literal.1201 dq 12
+          dq string.1201
+string.1201 db 32,32,32,32,109,111,118,32,32,32,32,32,0,0,0,0
+literal.1202 dq 20
+          dq string.1202
+string.1202 db 32,32,32,32,109,111,118,32,32,32,32,32,114,115,112,44,32,114,98,112,0,0,0,0
+literal.1203 dq 19
+          dq string.1203
+string.1203 db 44,32,65,115,115,101,109,98,108,101,114,32,101,114,114,111,114,58,32,0,0,0,0,0
+literal.1204 dq 25
+          dq string.1204
+string.1204 db 32,115,121,109,98,111,108,32,104,97,115,32,105,110,118,97,108,105,100,32,98,121,116,101,32,0,0,0,0,0,0,0
+literal.1205 dq 52
+          dq string.1205
+string.1205 db 44,32,101,120,112,101,99,116,101,100,32,112,114,105,110,116,97,98,108,101,32,65,83,67,73,73,32,119,105,116,104,111,117,116,32,115,112,97,99,101,115,32,111,114,32,113,117,111,116,101,115,10,0,0,0,0
+literal.1206 dq 21
+          dq string.1206
+string.1206 db 32,104,97,115,32,97,110,32,101,109,112,116,121,32,115,121,109,98,111,108,10,0,0,0
+literal.1207 dq 19
+          dq string.1207
+string.1207 db 46,47,108,105,98,47,112,114,111,99,101,115,115,46,115,116,97,99,107,0,0,0,0,0
+literal.1208 dq 25
+literal.1209 dq 61440
+literal.1210 dq 32768
+literal.1211 dq 4
+          dq string.1211
+string.1211 db 80,65,84,72,0,0,0,0
+literal.1212 dq 13
+          dq string.1212
+string.1212 db 47,98,105,110,58,47,117,115,114,47,98,105,110,0,0,0
+literal.1213 dq -4
+literal.1214 dq 16
+          dq string.1214
+string.1214 db 99,97,110,110,111,116,32,101,120,101,99,117,116,101,32,96,0,0,0,0,0,0,0,0
+literal.1215 dq 31
+          dq string.1215
+string.1215 db 99,97,110,110,111,116,32,114,101,100,105,114,101,99,116,32,116,104,101,32,111,117,116,112,117,116,32,111,102,32,96,0
+literal.1216 dq 16
+          dq string.1216
+string.1216 db 48,49,50,51,52,53,54,55,56,57,97,98,99,100,101,102,0,0,0,0,0,0,0,0
+literal.1217 dq 6
+          dq string.1217
+string.1217 db 84,77,80,68,73,82,0,0
+literal.1218 dq 4
+          dq string.1218
+string.1218 db 47,116,109,112,0,0,0,0
+literal.1219 dq -17
 
 section '.note.GNU-stack'

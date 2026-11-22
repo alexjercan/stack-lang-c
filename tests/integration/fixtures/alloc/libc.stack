@@ -1,0 +1,121 @@
+@import "stdlib"
+
+extern c.malloc (int) (ptr) "c_malloc"
+extern c.realloc (ptr, int) (ptr) "c_realloc"
+extern c.free (ptr) () "c_free"
+extern c.fill (ptr, int, int) () "c_fill"
+extern c.filled (ptr, int, int) (bool) "c_filled"
+extern c.break () (int) "c_break"
+
+-- Each failed check exits with its case number.
+func check (bool, int) () in swp if pop else sys.exit fi end
+
+func ptrs.new () (array) in ptr.sizeof array.init.with_sz end
+func ptrs.add (array, ptr) () in match xs p in xs p ptr.& array.append unwrap end end
+func ptrs.at (array, int) (ptr) in array.get unwrap ptr.* end
+func ptrs.set (array, int, ptr) () in match xs i p in xs i p ptr.& array.set unwrap end end
+
+const N 200
+
+-- Sizes and fill bytes of block i.
+func m.size (int) (int) in 37 * 1 + end
+func s.size (int) (int) in 53 * 1 + end
+func r.size (int) (int) in 91 * 4096 + end
+func m.byte (int) (int) in 256 % end
+func s.byte (int) (int) in 101 + 256 % end
+
+-- The size of malloc block i. After realloc, even blocks have r.size.
+func m.size' (bool, int) (int) in
+    match grown i in grown i 2 % 0 = and if i r.size else i m.size fi end
+end
+
+-- Check the blocks of malloc (ms) and of ptr.alloc (ss).
+func blocks.check (array, array, bool, int) () in
+    match ms ss grown id in
+        0 while dup N < loop
+            match i in
+                grown i m.size' match n in
+                    ms i ptrs.at n i m.byte c.filled id check
+                end
+                ss i ptrs.at i s.size i s.byte c.filled id 1 + check
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+func main () (int) in
+    ptrs.new ptrs.new match ms ss in
+        -- malloc and ptr.alloc one after the other.
+        0 while dup N < loop
+            match i in
+                i m.size c.malloc match m in
+                    m i m.size i m.byte c.fill
+                    ms m ptrs.add
+                end
+                i s.size ptr.alloc match s in
+                    s i s.size i s.byte c.fill
+                    ss s ptrs.add
+                end
+                i 1 +
+            end
+        pool pop
+        ms ss false 1 blocks.check
+
+        -- realloc moves and grows the malloc blocks.
+        0 while dup N < loop
+            match i in
+                i 2 % 0 = if
+                    ms i ptrs.at i r.size c.realloc match m in
+                        m i m.size i m.byte c.filled 3 check
+                        m i r.size i m.byte c.fill
+                        ms i m ptrs.set
+                    end
+                fi
+                i 1 +
+            end
+        pool pop
+        ms ss true 4 blocks.check
+
+        -- The runtime does not move the program break: it uses mmap.
+        c.break match before in
+            0 while dup 50 < loop
+                match i in
+                    1572864 ptr.alloc pop
+                    i 100 * ptr.alloc ptr.free
+                    i 1 +
+                end
+            pool pop
+            0 while dup 200000 < loop 1 + pool pop
+            c.break before = 6 check
+        end
+        ms ss true 7 blocks.check
+
+        -- Free half of each, then allocate again from both.
+        0 while dup N 2 / < loop
+            match i in
+                ms i ptrs.at c.free
+                ss i ptrs.at ptr.free
+                i 1 +
+            end
+        pool pop
+        0 while dup N 2 / < loop
+            match i in
+                i s.size ptr.alloc match s in
+                    s i s.size 0 c.filled 9 check
+                    s i s.size i s.byte c.fill
+                    ss i s ptrs.set
+                end
+                i m.size c.malloc match m in
+                    i 2 % 0 = if m i r.size c.realloc else m fi match m' in
+                        m' true i m.size' i m.byte c.fill
+                        ms i m' ptrs.set
+                    end
+                end
+                i 1 +
+            end
+        pool pop
+        ms ss true 10 blocks.check
+    end
+    0
+end

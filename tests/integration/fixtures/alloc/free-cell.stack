@@ -1,0 +1,7 @@
+@import "stdlib"
+
+-- A computed int is a scalar cell, not a block.
+func main () (int) in
+    2 3 + int.& ptr.free
+    0
+end

@@ -1,0 +1,7 @@
+@import "stdlib"
+
+-- argv is on the stack of the process.
+func main (int, ptr) (int) in
+    ptr.free pop
+    0
+end

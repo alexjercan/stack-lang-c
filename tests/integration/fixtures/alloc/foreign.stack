@@ -1,0 +1,9 @@
+@import "stdlib"
+
+extern c.malloc (int) (ptr) "c_malloc"
+
+-- ptr.free rejects memory from malloc.
+func main () (int) in
+    32 c.malloc ptr.free
+    0
+end

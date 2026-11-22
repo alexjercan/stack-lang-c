@@ -5,9 +5,10 @@ nix develop --command bash scripts/checker.sh --all
 ```
 
 Run one stage with `--lexer`, `--parser`, `--preprocessor`, `--typecheck`,
-`--io`, `--import`, `--ffi`, `--driver`, or `--runtime`. Add `--no-build` to use
-the existing `out/slc`. `--ffi` and `--driver` also need a C compiler (`CC`,
-default `cc`). `--driver` also needs `cc` and `ar` in `PATH`.
+`--io`, `--import`, `--ffi`, `--driver`, `--alloc`, or `--runtime`. Add
+`--no-build` to use the existing `out/slc`. `--ffi`, `--driver` and `--alloc`
+also need a C compiler (`CC`, default `cc`). `--driver` and `--alloc` also need
+`cc` in `PATH`, and `--driver` needs `ar`.
 
 Runtime tests check that generated assembly contains only printable ASCII.
 

@@ -1,0 +1,10 @@
+@import "stdlib"
+
+-- The header says that the block is larger than the rest of its region.
+func main () (int) in
+    16 ptr.alloc 8 ptr.alloc match a _guard in
+        a -8 ptr.+ 1073741825 int.& int.sizeof ptr.@ pop
+        a ptr.free
+    end
+    0
+end

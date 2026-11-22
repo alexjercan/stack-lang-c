@@ -57,6 +57,10 @@ ld -z noexecstack add-stack.o add.o -o add
 ```
 
 `cc` links shared libraries and libc when a library needs them. The program
-still has no C runtime startup, so code that uses libc can fail. For example,
-`make examples` links the raylib example, but libc allocation in raylib can
-crash at run time.
+still has no C runtime startup, so code that uses libc can fail. The runtime
+gets its memory with `mmap` and does not move the program break, so `malloc`,
+`realloc` and `free` of libc can be used next to `ptr.alloc` when `cc` links
+libc dynamically. The tests check only these functions, not other parts of
+libc. Do not mix the allocators: `ptr.free` rejects memory from `malloc`, and
+`free` must not get memory from `ptr.alloc`. `make examples` links the raylib
+example, but the tests do not run it.

@@ -574,7 +574,7 @@ func stack_assembler.emit.allocator (stack_assembler) () in
     dup "; memory layout" emit
     dup "stack_pos dq 0" emit
     dup "stack_end dq 0" emit
-    dup "heap_base dq 0" emit
+    dup "heap_regions dq 0" emit
     dup "heap_top dq 0" emit
     dup "heap_end dq 0" emit
     dup "cell_pos dq 0" emit
@@ -593,6 +593,7 @@ func stack_assembler.emit.allocator (stack_assembler) () in
     dup "STACK_SIZE = 0x10000" emit
     dup "CELL_CHUNK_SIZE = 0x10000" emit
     dup "HEAP_GROW_SIZE = 0x100000" emit
+    dup "HEAP_REGION_HEADER = 16" emit
     dup "" emit
 
     dup "section '.text' executable" emit
@@ -608,26 +609,13 @@ func stack_assembler.emit.allocator (stack_assembler) () in
     dup "    push    rbp                        ; save return address" emit
     dup "    mov     rbp, rsp                   ; set up stack frame" emit
     dup "" emit
-    dup "    ; initialize the heap" emit
-    dup "    mov     rax, 12                    ; brk" emit
-    dup "    mov     rdi, 0                     ; increment = 0" emit
-    dup "    syscall" emit
-    dup "    mov     [heap_end], rax            ; save the end of the heap" emit
-    dup "    add     rax, 7" emit
-    dup "    and     rax, -8" emit
-    dup "    mov     [heap_top], rax            ; align the top of the heap" emit
-    dup "" emit
-    dup "    ; allocate the stack 64K" emit
+    dup "    ; allocate the stack 64K. Cell chunks and heap regions get their own" emit
+    dup "    ; mappings when they are needed." emit
     dup "    mov     rdi, STACK_SIZE" emit
-    dup "    call    heap_take" emit
+    dup "    call    map_take" emit
     dup "    mov     [stack_pos], rax           ; save the current position of the stack" emit
     dup "    add     rax, STACK_SIZE" emit
     dup "    mov     [stack_end], rax           ; save the end of the stack" emit
-    dup "" emit
-    dup "    ; blocks and cell chunks come after the stack" emit
-    dup "    mov     [heap_base], rax" emit
-    dup "    mov     [cell_pos], rax" emit
-    dup "    mov     [cell_end], rax" emit
     dup "" emit
     dup "    pop     rbp                        ; restore return address" emit
     dup "    ret" emit
@@ -669,7 +657,7 @@ func stack_assembler.emit.allocator (stack_assembler) () in
     dup "" emit
     dup "    push    rdi" emit
     dup "    mov     rdi, CELL_CHUNK_SIZE" emit
-    dup "    call    heap_take                  ; start a new cell chunk" emit
+    dup "    call    map_take                   ; start a new cell chunk" emit
     dup "    pop     rdi" emit
     dup "    lea     rsi, [rax + CELL_CHUNK_SIZE]" emit
     dup "    mov     qword [cell_end], rsi" emit
@@ -785,10 +773,57 @@ func stack_assembler.emit.allocator (stack_assembler) () in
 
     dup ";" emit
     dup ";" emit
+    dup "; map take" emit
+    dup ";" emit
+    dup ";   INPUT: rdi contains the size in bytes" emit
+    dup ";   OUTPUT: rax points to new zero memory from an anonymous private mmap" emit
+    dup ";   All other registers keep their values. The mapping is never unmapped." emit
+    dup ";" emit
+    dup "map_take:" emit
+    dup "    push    rbp                        ; save return address" emit
+    dup "    mov     rbp, rsp                   ; set up stack frame" emit
+    dup "    push    rcx" emit
+    dup "    push    rdx" emit
+    dup "    push    rsi" emit
+    dup "    push    rdi" emit
+    dup "    push    r8" emit
+    dup "    push    r9" emit
+    dup "    push    r10" emit
+    dup "    push    r11" emit
+    dup "" emit
+    dup "    mov     rsi, rdi                   ; length" emit
+    dup "    xor     edi, edi                   ; the kernel selects the address" emit
+    dup "    mov     edx, 3                     ; PROT_READ | PROT_WRITE" emit
+    dup "    mov     r10d, 0x22                 ; MAP_PRIVATE | MAP_ANONYMOUS" emit
+    dup "    mov     r8, -1                     ; no file" emit
+    dup "    xor     r9d, r9d                   ; offset 0" emit
+    dup "    mov     eax, 9                     ; mmap" emit
+    dup "    syscall" emit
+    dup "    cmp     rax, -4096" emit
+    dup "    ja      alloc_oom                  ; -4095 to -1 are errors" emit
+    dup "" emit
+    dup "    pop     r11" emit
+    dup "    pop     r10" emit
+    dup "    pop     r9" emit
+    dup "    pop     r8" emit
+    dup "    pop     rdi" emit
+    dup "    pop     rsi" emit
+    dup "    pop     rdx" emit
+    dup "    pop     rcx" emit
+    dup "    pop     rbp                        ; restore return address" emit
+    dup "    ret" emit
+    dup "" emit
+    dup ";" emit
+    dup ";" emit
     dup "; heap take" emit
     dup ";" emit
     dup ";   INPUT: rdi contains the size in bytes (multiple of 8)" emit
-    dup ";   OUTPUT: rax points to new memory at the top of the heap" emit
+    dup ";   OUTPUT: rax points to new zero memory at the top of the current region" emit
+    dup ";   The heap is a list of regions. A region starts with a header: the next" emit
+    dup ";   (older) region and the end of the region. heap_regions is the current" emit
+    dup ";   region; its blocks end at heap_top. When a size does not fit, the rest of" emit
+    dup ";   the current region becomes a free block and a new region is mapped. The" emit
+    dup ";   header keeps blocks of different regions apart, so they never merge." emit
     dup ";" emit
     dup "heap_take:" emit
     dup "    push    rbp                        ; save return address" emit
@@ -796,37 +831,57 @@ func stack_assembler.emit.allocator (stack_assembler) () in
     dup "    push    rcx" emit
     dup "    push    rdx" emit
     dup "    push    rdi" emit
-    dup "    push    r11" emit
     dup "" emit
     dup "    mov     rdx, qword [heap_top]" emit
-    dup "    add     rdx, rdi                   ; new top of the heap" emit
-    dup "    jc      alloc_oom" emit
+    dup "    add     rdx, rdi                   ; new top of the region" emit
+    dup "    jc      .take_new" emit
     dup "    cmp     rdx, qword [heap_end]" emit
     dup "    jbe     .take_ok" emit
     dup "" emit
-    dup "    mov     rdi, rdx" emit
-    dup "    add     rdi, HEAP_GROW_SIZE - 1" emit
+    dup ".take_new:" emit
+    dup "    ; free the rest of the current region" emit
+    dup "    mov     rax, qword [heap_top]" emit
+    dup "    mov     rcx, qword [heap_end]" emit
+    dup "    mov     qword [heap_top], rcx" emit
+    dup "    sub     rcx, rax" emit
+    dup "    cmp     rcx, 16" emit
+    dup "    jb      .take_map" emit
+    dup "    or      rcx, 1" emit
+    dup "    mov     qword [rax], rcx           ; an allocated block of the rest" emit
+    dup "    push    rdi" emit
+    dup "    lea     rdi, [rax + 8]" emit
+    dup "    call    deallocate" emit
+    dup "    pop     rdi" emit
+    dup "" emit
+    dup ".take_map:" emit
+    dup "    mov     rcx, rdi" emit
+    dup "    add     rcx, HEAP_REGION_HEADER + HEAP_GROW_SIZE - 1" emit
     dup "    jc      alloc_oom" emit
-    dup "    and     rdi, -HEAP_GROW_SIZE       ; new end of the heap" emit
-    dup "    mov     rax, 12                    ; brk" emit
-    dup "    syscall" emit
-    dup "    cmp     rax, rdi                   ; brk returns the old end on failure" emit
-    dup "    jb      alloc_oom" emit
-    dup "    mov     qword [heap_end], rax" emit
+    dup "    and     rcx, -HEAP_GROW_SIZE       ; region size" emit
+    dup "    push    rdi" emit
+    dup "    mov     rdi, rcx" emit
+    dup "    call    map_take" emit
+    dup "    pop     rdi" emit
+    dup "    mov     rdx, qword [heap_regions]" emit
+    dup "    mov     qword [rax], rdx           ; next region" emit
+    dup "    add     rcx, rax" emit
+    dup "    mov     qword [rax + 8], rcx       ; end of the region" emit
+    dup "    mov     qword [heap_regions], rax" emit
+    dup "    mov     qword [heap_end], rcx" emit
+    dup "    lea     rdx, [rax + HEAP_REGION_HEADER]" emit
+    dup "    mov     qword [heap_top], rdx" emit
+    dup "    add     rdx, rdi" emit
     dup "" emit
     dup ".take_ok:" emit
     dup "    mov     rax, qword [heap_top]" emit
     dup "    mov     qword [heap_top], rdx" emit
     dup "" emit
-    dup "    pop     r11" emit
     dup "    pop     rdi" emit
     dup "    pop     rdx" emit
     dup "    pop     rcx" emit
     dup "    pop     rbp                        ; restore return address" emit
     dup "    ret" emit
     dup "" emit
-
-    dup ";" emit
     dup ";" emit
     dup "; allocate" emit
     dup ";" emit
@@ -937,11 +992,27 @@ func stack_assembler.emit.allocator (stack_assembler) () in
     dup "    test    rdi, 7" emit
     dup "    jnz     alloc_invalid_free" emit
     dup "    sub     rdi, 8                     ; block header" emit
-    dup "    cmp     rdi, qword [heap_base]" emit
-    dup "    jb      alloc_invalid_free" emit
-    dup "    mov     rax, qword [heap_top]" emit
-    dup "    sub     rax, rdi                   ; bytes from the block to the heap top" emit
-    dup "    jb      alloc_invalid_free" emit
+    dup "" emit
+    dup "    ; find the region of the block. Read only region headers until then." emit
+    dup "    mov     rax, qword [heap_regions]" emit
+    dup "    test    rax, rax" emit
+    dup "    jz      alloc_invalid_free" emit
+    dup "    mov     rdx, qword [heap_top]      ; blocks of the current region end here" emit
+    dup ".free_region:" emit
+    dup "    lea     rcx, [rax + HEAP_REGION_HEADER]" emit
+    dup "    cmp     rdi, rcx" emit
+    dup "    jb      .free_region_next" emit
+    dup "    cmp     rdi, rdx" emit
+    dup "    jb      .free_region_found" emit
+    dup ".free_region_next:" emit
+    dup "    mov     rax, qword [rax]           ; next region" emit
+    dup "    test    rax, rax" emit
+    dup "    jz      alloc_invalid_free" emit
+    dup "    mov     rdx, qword [rax + 8]       ; blocks of an older region end at its end" emit
+    dup "    jmp     .free_region" emit
+    dup ".free_region_found:" emit
+    dup "    mov     rax, rdx" emit
+    dup "    sub     rax, rdi                   ; bytes from the block to the end" emit
     dup "    cmp     rax, 16" emit
     dup "    jb      alloc_invalid_free" emit
     dup "    mov     rdx, qword [rdi]" emit

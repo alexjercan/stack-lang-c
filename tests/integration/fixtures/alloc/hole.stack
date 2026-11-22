@@ -1,0 +1,10 @@
+@import "stdlib"
+
+extern c.hole () (ptr) "c_hole"
+
+-- ptr.free rejects an address in an unmapped page. It must not read it.
+func main () (int) in
+    c.hole match p in
+        p ptr.null ptr.= if 2 else p ptr.free 0 fi
+    end
+end

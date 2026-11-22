@@ -3,6 +3,11 @@
 
 data link (int value, ptr target)
 
+-- True when the n bytes at a and the m bytes at b do not overlap.
+func disjoint (ptr, int, ptr, int) (bool) in
+    match a n b m in a addr n + b addr <= b addr m + a addr <= or end
+end
+
 func test.alignment () () in
     0 while dup 20 < loop
         match n in
@@ -142,7 +147,9 @@ func test.order () () in
         a ptr.free
         b ptr.free
         -- Live blocks keep a, b and c apart, so no merged block fits 48.
-        48 ptr.alloc addr c addr > 60 check
+        48 ptr.alloc match d in
+            d 48 a 24 disjoint d 48 b 24 disjoint and d 48 c 24 disjoint and 60 check
+        end
         24 ptr.alloc a ptr.= 61 check
         24 ptr.alloc b ptr.= 62 check
         24 ptr.alloc c ptr.= 63 check
@@ -179,15 +186,21 @@ func test.chunks () () in
     7 35 + 24 ptr.alloc match kept a in
         -- Each loop pushes new scalar cells, so cell chunks roll over.
         0 while dup 10000 < loop 1 + pool pop
-        24 ptr.alloc 5 6 * match b later in
-            b addr a addr - 65536 > 70 check
+        -- The guard keeps a and b apart, so they cannot merge.
+        8 ptr.alloc 24 ptr.alloc 5 6 * match _guard b later in
+            b 24 a 24 disjoint 70 check
             kept 42 = 71 check
             later 30 = 72 check
             a ptr.free
             b ptr.free
-            56 ptr.alloc addr b addr > 73 check
-            24 ptr.alloc a ptr.= 74 check
-            24 ptr.alloc b ptr.= 75 check
+            56 ptr.alloc match d in
+                d 56 a 24 disjoint d 56 b 24 disjoint and 73 check
+            end
+            -- The free list is sorted by address, which can be in any order.
+            24 ptr.alloc 24 ptr.alloc match x y in
+                x a ptr.= y b ptr.= and x b ptr.= y a ptr.= and or 74 check
+                x y ptr.= not 75 check
+            end
             kept 42 = 76 check
         end
     end
@@ -196,7 +209,7 @@ end
 func test.large () () in
     3145728 ptr.alloc 3145728 ptr.alloc match x y in
         x header 3145737 = 80 check
-        y addr x addr 3145736 + >= 81 check
+        x 3145728 y 3145728 disjoint 81 check
         x 3145720 ptr.+ 82 poke
         y 5 poke
         x 3145720 ptr.+ peek 82 = 82 check
