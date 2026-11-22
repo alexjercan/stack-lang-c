@@ -1,0 +1,191 @@
+@import "stdlib"
+@import "stack/lexer"
+@import "stack/parser"
+
+-- The dumps of the lexer and parser stages.
+
+-- STACK TOKENIZER
+
+func stack_lexer.dump (stack_lexer) () in
+    match lexer in
+        true while loop
+            lexer stack_lexer.next match token in
+                token stack_token.kind stack_token_kind.map
+                token stack_token.value string.len 0 > if
+                    "(" string.concat token stack_token.value string.concat ")" string.concat
+                fi
+                "\n" string.concat string.stdout
+
+                token stack_token.kind STACK_TOKEN_EOF = not
+            end
+        pool
+    end
+end
+
+-- STACK PARSER
+
+const stack_ast.dump.indent 4
+
+func stack_ast.dump.pad (int) () in -- indent
+    " " swp string.repeat string.stdout
+end
+
+func stack_ast.dump.node (int, stack_ast_node) () in -- indent, node
+    swp stack_ast.dump.pad stack_ast_node.value string.stdout "\n" string.stdout
+end
+
+func stack_ast.dump.cond (int, stack_ast_cond) () in -- indent, cond
+    match indent cond in
+        indent stack_ast.dump.pad "IF\n" string.stdout
+        indent stack_ast.dump.indent + cond stack_ast_cond.if_ stack_ast.dump.exprs
+        indent stack_ast.dump.pad "ELSE\n" string.stdout
+        indent stack_ast.dump.indent + cond stack_ast_cond.else_ stack_ast.dump.exprs
+        indent stack_ast.dump.pad "FI\n" string.stdout
+    end
+end
+
+func stack_ast.dump.binds (array) () in -- array<node>
+    match binds in
+        0 while dup binds array.count < loop
+            " " string.stdout
+            dup binds swp array.get unwrap stack_ast_node.* stack_ast_node.value string.stdout
+            1 +
+        pool pop
+    end
+end
+
+func stack_ast.dump.match (int, stack_ast_match) () in -- indent, match
+    match indent node in
+        indent stack_ast.dump.pad "MATCH" string.stdout
+        node stack_ast_match.binds stack_ast.dump.binds
+        "\n" string.stdout
+        indent stack_ast.dump.indent + node stack_ast_match.exprs stack_ast.dump.exprs
+    end
+end
+
+func stack_ast.dump.while (int, stack_ast_while) () in -- indent, while
+    match indent node in
+        indent stack_ast.dump.pad "WHILE\n" string.stdout
+        indent stack_ast.dump.indent + node stack_ast_while.while_ stack_ast.dump.exprs
+        indent stack_ast.dump.pad "LOOP\n" string.stdout
+        indent stack_ast.dump.indent + node stack_ast_while.exprs stack_ast.dump.exprs
+        indent stack_ast.dump.pad "POOL\n" string.stdout
+    end
+end
+
+func stack_ast.dump.exprs (int, array) () in -- indent, array<expr>
+    match indent exprs in
+        0 while dup exprs array.count < loop
+            dup exprs swp array.get unwrap stack_ast_expr.* match expr in
+                expr stack_ast_expr.kind
+                dup STACK_AST_EXPR_NUMBER = if
+                    pop indent expr stack_ast_expr.expr stack_ast_node.* stack_ast.dump.node
+                else dup STACK_AST_EXPR_BOOLEAN = if
+                    pop indent expr stack_ast_expr.expr stack_ast_node.* stack_ast.dump.node
+                else dup STACK_AST_EXPR_STRING = if
+                    pop indent expr stack_ast_expr.expr stack_ast_node.* stack_ast.dump.node
+                else dup STACK_AST_EXPR_NAME = if
+                    pop indent expr stack_ast_expr.expr stack_ast_node.* stack_ast.dump.node
+                else dup STACK_AST_EXPR_COND = if
+                    pop indent expr stack_ast_expr.expr stack_ast_cond.* stack_ast.dump.cond
+                else dup STACK_AST_EXPR_MATCH = if
+                    pop indent expr stack_ast_expr.expr stack_ast_match.* stack_ast.dump.match
+                else dup STACK_AST_EXPR_WHILE = if
+                    pop indent expr stack_ast_expr.expr stack_ast_while.* stack_ast.dump.while
+                else
+                    panic pop
+                fi fi fi fi fi fi fi
+            end
+            1 +
+        pool pop
+    end
+end
+
+func stack_ast.dump.params (int, string, array) () in -- indent, label, array<node>
+    match indent label names in
+        0 while dup names array.count < loop
+            indent stack_ast.dump.pad
+            label over int.show string.concat string.stdout ": " string.stdout
+            dup names swp array.get unwrap stack_ast_node.* stack_ast_node.value string.stdout "\n" string.stdout
+            1 +
+        pool pop
+    end
+end
+
+func stack_ast.dump.fields (int, array) () in -- indent, array<stack_ast_data_field>
+    match indent fields in
+        0 while dup fields array.count < loop
+            dup fields swp array.get unwrap stack_ast_data_field.* match field in
+                indent stack_ast.dump.pad
+                field stack_ast_data_field.name stack_ast_node.value string.stdout ": " string.stdout
+                field stack_ast_data_field.type stack_ast_node.value string.stdout "\n" string.stdout
+            end
+            1 +
+        pool pop
+    end
+end
+
+func stack_ast.dump (stack_ast) () in
+    stack_ast.features match features in
+        0 while dup features array.count < loop
+            dup features swp array.get unwrap stack_ast_feature.* match feat in
+                feat stack_ast_feature.kind
+                dup STACK_AST_FEATURE_DATA = if
+                    pop feat stack_ast_feature.feature stack_ast_data.* match node in
+                        "data " string.stdout
+                        node stack_ast_data.name stack_ast_node.value string.stdout
+                        "\n" string.stdout
+
+                        stack_ast.dump.indent node stack_ast_data.fields stack_ast.dump.fields
+                        "\n" string.stdout
+                    end
+                else dup STACK_AST_FEATURE_FUNC = if
+                    pop feat stack_ast_feature.feature stack_ast_func.* match node in
+                        "func " string.stdout
+                        node stack_ast_func.name stack_ast_node.value string.stdout
+                        "\n" string.stdout
+
+                        stack_ast.dump.indent "arg" node stack_ast_func.args stack_ast.dump.params
+                        stack_ast.dump.indent "ret" node stack_ast_func.rets stack_ast.dump.params
+
+                        stack_ast.dump.indent stack_ast.dump.pad "body:\n" string.stdout
+                        stack_ast.dump.indent stack_ast.dump.indent + node stack_ast_func.exprs stack_ast.dump.exprs
+                        "\n" string.stdout
+                    end
+                else dup STACK_AST_FEATURE_CONST = if
+                    pop feat stack_ast_feature.feature stack_ast_const.* match node in
+                        "const " string.stdout
+                        node stack_ast_const.name stack_ast_node.value string.stdout
+                        "\n" string.stdout
+
+                        stack_ast.dump.indent node stack_ast_const.exprs stack_ast.dump.exprs
+                        "\n" string.stdout
+                    end
+                else dup STACK_AST_FEATURE_IMPORT = if
+                    pop feat stack_ast_feature.feature stack_ast_import.* match node in
+                        "@import \"" string.stdout
+                        node stack_ast_import.name stack_ast_node.value string.stdout
+                        "\"\n\n" string.stdout
+                    end
+                else dup STACK_AST_FEATURE_EXTERN = if
+                    pop feat stack_ast_feature.feature stack_ast_extern.* match node in
+                        "extern " string.stdout
+                        node stack_ast_extern.name stack_ast_node.value string.stdout
+                        "\n" string.stdout
+
+                        stack_ast.dump.indent "arg" node stack_ast_extern.args stack_ast.dump.params
+                        stack_ast.dump.indent "ret" node stack_ast_extern.rets stack_ast.dump.params
+
+                        stack_ast.dump.indent stack_ast.dump.pad "symbol: \"" string.stdout
+                        node stack_ast_extern.symbol stack_ast_node.value string.stdout
+                        "\"\n\n" string.stdout
+                    end
+                else
+                    int.show string.stdout "\n" string.stdout
+                    todo
+                fi fi fi fi fi
+            end
+            1 +
+        pool pop
+    end
+end
