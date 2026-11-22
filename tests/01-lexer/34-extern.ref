@@ -1,0 +1,13 @@
+EXTERN
+NAME(extern_name)
+NAME(external)
+NAME(c.extern)
+NAME(Extern)
+(
+EXTERN
+)
+,
+EXTERN
+STRING("extern")
+EXTERN
+<EOF>

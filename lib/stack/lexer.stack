@@ -24,6 +24,7 @@ const STACK_TOKEN_MATCH     18
 const STACK_TOKEN_WHILE     19
 const STACK_TOKEN_LOOP      20
 const STACK_TOKEN_POOL      21
+const STACK_TOKEN_EXTERN    22
 
 func stack_token_kind.map (int) (string) in
     dup STACK_TOKEN_EOF = if pop "<EOF>"
@@ -48,7 +49,8 @@ func stack_token_kind.map (int) (string) in
     else dup STACK_TOKEN_WHILE = if pop "WHILE"
     else dup STACK_TOKEN_LOOP = if pop "LOOP"
     else dup STACK_TOKEN_POOL = if pop "POOL"
-    else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- (string)
+    else dup STACK_TOKEN_EXTERN = if pop "EXTERN"
+    else panic pop "" fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- (string)
 end
 
 func stack_token_kind.describe (int) (string) in
@@ -71,8 +73,9 @@ func stack_token_kind.describe (int) (string) in
         else dup STACK_TOKEN_WHILE = if pop "while"
         else dup STACK_TOKEN_LOOP = if pop "loop"
         else dup STACK_TOKEN_POOL = if pop "pool"
+        else dup STACK_TOKEN_EXTERN = if pop "extern"
         else stack_token_kind.map
-        fi fi fi fi fi fi fi fi fi fi fi fi fi
+        fi fi fi fi fi fi fi fi fi fi fi fi fi fi
         "'" swp string.concat "'" string.concat
     fi fi fi fi fi
 end
@@ -292,9 +295,11 @@ func stack_lexer.next.name (int, stack_lexer) (stack_token) in -- pos, stack_lex
             pop STACK_TOKEN_LOOP ""
         else dup "pool" string.= if
             pop STACK_TOKEN_POOL ""
+        else dup "extern" string.= if
+            pop STACK_TOKEN_EXTERN ""
         else
             STACK_TOKEN_NAME swp
-        fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- kind, value
+        fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi fi -- kind, value
 
         pos stack_token.init.ok
     end
