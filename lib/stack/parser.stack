@@ -398,9 +398,27 @@ func stack_parser.parse.import (stack_parser) (stack_ast_import) in -- parser
     stack_ast_import.init -- import
 end
 
+func stack_parser.parse.extern (stack_parser) (stack_ast_extern) in -- parser
+    dup stack_parser.read stack_token.kind STACK_TOKEN_EXTERN = unwrap -- parser
+    dup STACK_TOKEN_NAME stack_parser.expect -- parser tok
+    dup2 stack_token.value rot stack_token.pos stack_ast_node.init swp -- name, parser
+
+    dup STACK_TOKEN_LPAREN stack_parser.expect pop -- name, parser
+    dup stack_ast_node.sizeof array.init.with_sz stack_parser.parse.names.until swp -- name, args, parser
+
+    dup STACK_TOKEN_LPAREN stack_parser.expect pop -- name, args, parser
+    dup stack_ast_node.sizeof array.init.with_sz stack_parser.parse.names.until swp -- name, args, rets, parser
+
+    dup STACK_TOKEN_STRING stack_parser.expect -- name, args, rets, parser, tok
+    dup2 stack_token.value over stack_parser.failed not if stack_string.interpret fi
+    rot stack_token.pos stack_ast_node.init swp -- name, args, rets, symbol, parser
+
+    pop stack_ast_extern.init -- extern
+end
+
 func stack_parser.parse.unexpected (stack_parser) () in
     match parser in
-        parser "'data', 'func', '@import', or 'const'" stack_parser.expect.fail
+        parser "'data', 'func', '@import', 'const', or 'extern'" stack_parser.expect.fail
     end
 end
 
@@ -422,9 +440,12 @@ func stack_parser.parse (stack_parser) (stack_ast, bool) in
             else dup STACK_TOKEN_CONST = if
                 pop parser stack_parser.parse.const
                 parser stack_parser.failed if pop else ast swp stack_ast.features.append.const fi
+            else dup STACK_TOKEN_EXTERN = if
+                pop parser stack_parser.parse.extern
+                parser stack_parser.failed if pop else ast swp stack_ast.features.append.extern fi
             else
                 pop parser stack_parser.parse.unexpected
-            fi fi fi fi
+            fi fi fi fi fi
         pool
         ast parser stack_parser.failed not
     end
@@ -451,11 +472,14 @@ data stack_ast_data (stack_ast_node name, array fields)
 data stack_ast_func (stack_ast_node name, array args, array rets, array exprs)
 data stack_ast_const (stack_ast_node name, array exprs)
 data stack_ast_import (stack_ast_node name)
+-- An external function. symbol has the interpreted string.
+data stack_ast_extern (stack_ast_node name, array args, array rets, stack_ast_node symbol) -- array<node>, array<node>
 
 const STACK_AST_FEATURE_DATA 0
 const STACK_AST_FEATURE_FUNC 1
 const STACK_AST_FEATURE_CONST 2
 const STACK_AST_FEATURE_IMPORT 3
+const STACK_AST_FEATURE_EXTERN 4
 
 data stack_ast_feature (int kind, ptr feature)
 
@@ -487,6 +511,10 @@ end
 
 func stack_ast.features.append.import (stack_ast, stack_ast_import) () in
     stack_ast_import.& STACK_AST_FEATURE_IMPORT swp stack_ast_feature.init stack_ast.features.append
+end
+
+func stack_ast.features.append.extern (stack_ast, stack_ast_extern) () in
+    stack_ast_extern.& STACK_AST_FEATURE_EXTERN swp stack_ast_feature.init stack_ast.features.append
 end
 
 func stack_string.interpret (string) (string) in -- string

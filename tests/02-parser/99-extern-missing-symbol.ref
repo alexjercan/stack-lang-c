@@ -1,0 +1,1 @@
+tests/02-parser/99-extern-missing-symbol.stack:3:1, Parser error: expected string, got 'func'

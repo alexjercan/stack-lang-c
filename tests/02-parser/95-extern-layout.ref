@@ -1,0 +1,10 @@
+extern c.write
+    arg0: int
+    arg1: ptr
+    arg2: int
+    ret0: int
+    symbol: "write	"x"\"
+
+extern c.nop
+    symbol: ""
+

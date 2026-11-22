@@ -1,0 +1,11 @@
+@import "stdlib"
+
+const ARGC 2
+extern c.add (int, int) (int) "add"
+extern c.exit () () "exit"
+
+data pair (int a, int b)
+
+func main () (int) in
+    0
+end

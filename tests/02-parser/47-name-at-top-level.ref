@@ -1,1 +1,1 @@
-tests/02-parser/47-name-at-top-level.stack:1:1, Parser error: expected 'data', 'func', '@import', or 'const', got name
+tests/02-parser/47-name-at-top-level.stack:1:1, Parser error: expected 'data', 'func', '@import', 'const', or 'extern', got name

@@ -183,6 +183,24 @@ different file from every import.
 Two different files that define the same function, data type, or constant are
 an error, also when they have the same content.
 
+## 3.5. Externs
+
+An extern declares a function that is defined outside of the `Stack` program.
+
+```stack
+extern <name> (<type_i1>, <type_i2>, ...) (<type_o1>, <type_o2>, ...) "<symbol>"
+```
+
+For example
+
+```stack
+extern c.add (int, int) (int) "add"
+```
+
+The name is the `Stack` name of the function. The input and output lists have
+the same form as for functions. The string is the name of the external symbol.
+An extern has no body and no `in` or `end`.
+
 ## 4. Stack Data Types
 
 ### 4.1. int

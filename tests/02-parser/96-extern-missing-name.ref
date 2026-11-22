@@ -1,0 +1,1 @@
+tests/02-parser/96-extern-missing-name.stack:1:8, Parser error: expected name, got '('

@@ -1,0 +1,23 @@
+@import "stdlib"
+
+const ARGC
+    2
+
+extern c.add
+    arg0: int
+    arg1: int
+    ret0: int
+    symbol: "add"
+
+extern c.exit
+    symbol: "exit"
+
+data pair
+    a: int
+    b: int
+
+func main
+    ret0: int
+    body:
+        0
+

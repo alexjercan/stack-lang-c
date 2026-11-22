@@ -1,0 +1,1 @@
+tests/02-parser/98-extern-missing-rets.stack:1:25, Parser error: expected '(', got string

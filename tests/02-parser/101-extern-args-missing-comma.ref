@@ -1,0 +1,1 @@
+tests/02-parser/101-extern-args-missing-comma.stack:1:19, Parser error: expected ',' or ')', got name

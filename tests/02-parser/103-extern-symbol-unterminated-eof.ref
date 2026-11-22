@@ -1,0 +1,1 @@
+tests/02-parser/103-extern-symbol-unterminated-eof.stack:1:26, Lexical Error: Unterminated string

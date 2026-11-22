@@ -168,10 +168,23 @@ func stack_ast.dump (stack_ast) () in
                         node stack_ast_import.name stack_ast_node.value string.stdout
                         "\"\n\n" string.stdout
                     end
+                else dup STACK_AST_FEATURE_EXTERN = if
+                    pop feat stack_ast_feature.feature stack_ast_extern.* match node in
+                        "extern " string.stdout
+                        node stack_ast_extern.name stack_ast_node.value string.stdout
+                        "\n" string.stdout
+
+                        stack_ast.dump.indent "arg" node stack_ast_extern.args stack_ast.dump.params
+                        stack_ast.dump.indent "ret" node stack_ast_extern.rets stack_ast.dump.params
+
+                        stack_ast.dump.indent stack_ast.dump.pad "symbol: \"" string.stdout
+                        node stack_ast_extern.symbol stack_ast_node.value string.stdout
+                        "\"\n\n" string.stdout
+                    end
                 else
                     int.show string.stdout "\n" string.stdout
                     todo
-                fi fi fi fi
+                fi fi fi fi fi
             end
             1 +
         pool pop

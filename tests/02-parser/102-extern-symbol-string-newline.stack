@@ -1,0 +1,5 @@
+extern c.add (int) (int) "add
+
+func main () (int) in
+    0
+end

@@ -1,0 +1,12 @@
+-- header split over lines
+extern c.write -- name
+    ( int -- fd
+    , ptr
+    , int
+    ) -- args
+    (int) -- rets
+    "write\t\"x\"\\" -- symbol
+extern c.nop
+()
+()
+""

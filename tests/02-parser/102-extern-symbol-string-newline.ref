@@ -1,0 +1,1 @@
+tests/02-parser/102-extern-symbol-string-newline.stack:1:26, Lexical Error: String contains new line character
