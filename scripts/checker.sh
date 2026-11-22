@@ -12,13 +12,13 @@ PASSED=0
 shopt -s nullglob
 
 usage() {
-    echo "Usage: $0 [--all|--lexer|--parser|--preprocessor|--typecheck|--io|--import|--runtime]"
+    echo "Usage: $0 [--all|--lexer|--parser|--preprocessor|--typecheck|--io|--import|--ffi|--runtime]"
     echo "       [--no-build] [--memcheck] [--main PATH] [-v|--verbose] [-h|--help]"
 }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --all|--lexer|--parser|--preprocessor|--typecheck|--io|--import|--runtime)
+        --all|--lexer|--parser|--preprocessor|--typecheck|--io|--import|--ffi|--runtime)
             MODE=${1#--}; shift ;;
         --no-build) BUILD=0; shift ;;
         --memcheck) MEMCHECK=1; shift ;;
@@ -121,6 +121,9 @@ if [[ "$MODE" == all || "$MODE" == io ]]; then
 fi
 if [[ "$MODE" == all || "$MODE" == import ]]; then
     check 'Import integration suite' /dev/null 0 timeout 60 bash tests/integration/imports.sh "$MAIN"
+fi
+if [[ "$MODE" == all || "$MODE" == ffi ]]; then
+    check 'FFI integration suite' /dev/null 0 timeout 60 bash tests/integration/ffi.sh "$MAIN"
 fi
 if [[ "$MODE" == all || "$MODE" == runtime ]]; then
     for file in tests/04-runtime/*.stack; do

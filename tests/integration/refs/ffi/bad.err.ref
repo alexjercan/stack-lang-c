@@ -1,0 +1,7 @@
+bad.stack:3:24, Assembler error: extern bad.empty has an empty symbol
+bad.stack:4:24, Assembler error: extern bad.quote symbol has invalid byte \x27, expected printable ASCII without spaces or quotes
+bad.stack:5:25, Assembler error: extern bad.dquote symbol has invalid byte \x22, expected printable ASCII without spaces or quotes
+bad.stack:6:26, Assembler error: extern bad.newline symbol has invalid byte \x0A, expected printable ASCII without spaces or quotes
+bad.stack:7:22, Assembler error: extern bad.tab symbol has invalid byte \x09, expected printable ASCII without spaces or quotes
+bad.stack:8:24, Assembler error: extern bad.space symbol has invalid byte \x20, expected printable ASCII without spaces or quotes
+bad.stack:9:39, Assembler error: extern bad.many symbol has invalid byte \x20, expected printable ASCII without spaces or quotes

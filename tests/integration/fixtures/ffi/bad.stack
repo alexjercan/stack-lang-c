@@ -1,0 +1,11 @@
+data pair (int a)
+
+extern bad.empty () () ""
+extern bad.quote () () "a'b"
+extern bad.dquote () () "a\"b"
+extern bad.newline () () "a\nb"
+extern bad.tab () () "a\tb"
+extern bad.space () () "a b"
+extern bad.many (int, pair) (bool, a) "x y"
+
+func main () (int) in 0 end

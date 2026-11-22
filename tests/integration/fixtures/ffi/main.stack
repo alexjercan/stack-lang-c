@@ -1,0 +1,56 @@
+extern c.add (int, int) (int) "add"
+extern c.plus (int, int) (int) "add"
+extern c.sub (int, int) (int) "sub"
+extern c.hi32 (int) (int) "hi32"
+extern c.digits7 (int, int, int, int, int, int, int) (int) "digits7"
+extern c.digits8 (int, int, int, int, int, int, int, int) (int) "digits8"
+extern c.save (int) () "save"
+extern c.saved () (int) "saved_value"
+extern c.cell () (ptr) "cell"
+extern c.next (ptr) (ptr) "next"
+extern c.load (ptr) (int) "load"
+extern c.store (ptr, int) () "store"
+extern c.is_neg (int) (bool) "is_neg"
+extern c.not (bool) (bool) "negate"
+extern c.misaligned () (int) "misaligned"
+extern c.clobber () () "clobber"
+
+-- status is 0 or the id of the first failed check.
+func check (int, bool, int) (int) in -- status, ok, id
+    swp if pop else match status id in status 0 = if id else status fi end fi
+end
+
+-- A match with one bind moves rsp by 8 bytes.
+func align.1 () (int) in c.misaligned end
+func align.2 () (int) in 1 match a in align.1 a pop end end
+func align.3 () (int) in 1 2 match a b in align.2 c.misaligned + end end
+
+func clobbered () (int) in
+    11 22 match a b in
+        33 c.clobber a b + +
+    end
+end
+
+func main () (int) in
+    0
+    3 4 c.add 7 = 1 check
+    3 4 c.plus 7 = 2 check
+    10 3 c.sub 7 = 3 check
+    3 10 c.sub -7 = 4 check
+    1311768467463790320 c.hi32 305419896 = 5 check
+    -1 c.hi32 -1 = 6 check
+    0 9223372036854775807 c.sub 1 c.sub -9223372036854775807 1 - = 7 check
+    1 2 3 4 5 6 7 c.digits7 1234567 = 8 check
+    1 2 3 4 5 6 7 8 c.digits8 12345678 = 9 check
+    42 c.save c.saved 42 = 10 check
+    c.cell c.load 7 = 11 check
+    c.cell c.next c.load 9 = 12 check
+    8 ptr.alloc dup 99 c.store int.* 0 + 99 = 13 check
+    -5 c.is_neg 14 check
+    5 c.is_neg c.not 15 check
+    true c.not if 1 else 0 fi 0 = 16 check
+    1 2 c.add 3 c.add 4 c.sub 2 = 17 check
+    clobbered 66 = 18 check
+    align.3 0 = 19 check
+    c.misaligned 0 = 20 check
+end

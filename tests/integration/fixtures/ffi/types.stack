@@ -1,0 +1,8 @@
+data pair (int a)
+
+extern t.data (pair) (pair) "t_data"
+extern t.generic (a, b) (a) "t_generic"
+extern t.string (string, int) () "t_string"
+extern t.multi () (int, bool) "t_multi"
+
+func main () (int) in 0 end

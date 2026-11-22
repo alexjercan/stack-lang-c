@@ -1,0 +1,138 @@
+@import "stdlib"
+@import "stack/parser"
+
+-- The C function wrappers of the assembler.
+
+-- The System V AMD64 register of the integer argument i, for i < 6.
+func stack_assembler.extern.register (int) (string) in -- i
+    dup 0 = if pop "rdi"
+    else dup 1 = if pop "rsi"
+    else dup 2 = if pop "rdx"
+    else dup 3 = if pop "rcx"
+    else dup 4 = if pop "r8"
+    else pop "r9"
+    fi fi fi fi fi
+end
+
+-- The alias of the C symbol, and true for the first use of the symbol.
+func stack_assembler.extern.alias (stack_assembler, string) (string, bool) in -- asm, symbol
+    swp stack_assembler.extern_map match symbol symbols in
+        0 while
+            dup symbols array.count < if
+                dup symbols swp array.get unwrap string.* symbol string.= not
+            else
+                false
+            fi
+        loop 1 + pool -- i
+
+        dup symbols array.count >= dup if symbols symbol string.& array.append unwrap fi -- i, new
+        swp int.show "ffi." swp string.concat swp
+    end
+end
+
+-- The wrapper pops the arguments into an aligned frame, the last argument
+-- first, and then loads the registers. The pop helpers use rax, rsi and rdi.
+-- Arguments after the sixth stay on the machine stack.
+func stack_assembler.emit.extern (stack_assembler, stack_ast_extern) () in -- asm, extern
+    match asm decl in
+        decl stack_ast_extern.args array.count decl stack_ast_extern.symbol stack_ast_node.value
+        match count symbol in
+            asm symbol stack_assembler.extern.alias match alias first in
+                first if asm "extrn '" symbol string.concat "' as " string.concat alias string.concat emit fi
+
+                asm asm decl stack_ast_extern.name stack_ast_node.value stack_assembler.emit.pretty_func emit
+                asm "    push    rbp" emit
+                asm "    mov     rbp, rsp" emit
+                asm "    and     rsp, -16" emit
+                count 0 > if asm "    sub     rsp, " count 1 + 2 / 16 * int.show string.concat emit fi
+
+                count while dup 0 > loop
+                    1 - match i in
+                        asm "    call    stack_pop" emit
+                        asm "    mov     qword [rsp + " i 8 * int.show string.concat "], rax" string.concat emit
+                        i
+                    end
+                pool pop
+
+                0 while dup count 6 min < loop
+                    match i in
+                        asm "    mov     " i stack_assembler.extern.register string.concat
+                        ", qword [rsp + " string.concat i 8 * int.show string.concat "]" string.concat emit
+                        i 1 +
+                    end
+                pool pop
+
+                count 6 > if asm "    add     rsp, 48" emit fi
+                asm "    call    " alias string.concat emit
+                decl stack_ast_extern.rets array.count 0 > if
+                    asm "    mov     rdi, rax" emit
+                    asm "    call    stack_push" emit
+                fi
+                asm "    mov     rsp, rbp" emit
+                asm "    pop     rbp" emit
+                asm "    ret" emit
+                asm "" emit
+            end
+        end
+    end
+end
+
+func stack_assembler.extern.error (stack_ast_node, string) () in -- node, message
+    match node message in
+        node stack_ast_node.parser stack_parser.lexer node stack_ast_node.pos stack_lexer.location string.stderr
+        ", Assembler error: " string.stderr message string.stderr
+    end
+end
+
+-- The first byte of symbol that is not printable ASCII, or is a space or a
+-- quote, or -1.
+func stack_assembler.extern.symbol.invalid (string) (int) in -- symbol
+    match symbol in
+        -1 0 while dup symbol string.len < loop
+            match found i in
+                symbol i string.!! match b in
+                    found 0 < b BYTE_SPACE <= b BYTE_~ > or b BYTE_' = or b BYTE_QUOTE = or and
+                    if b else found fi
+                end
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+-- Show the externs with an empty or invalid symbol. False on an error.
+func stack_assembler.check.externs (stack_ast) (bool) in -- ast
+    stack_ast.features match features in
+        true 0 while dup features array.count < loop
+            match ok i in
+                features i array.get unwrap stack_ast_feature.* match feat in
+                    feat stack_ast_feature.kind STACK_AST_FEATURE_EXTERN = if
+                        feat stack_ast_feature.feature stack_ast_extern.* match decl in
+                            decl stack_ast_extern.name stack_ast_node.value
+                            decl stack_ast_extern.symbol stack_ast_node.value match name symbol in
+                                ok
+
+                                symbol string.len 0 = if
+                                    decl stack_ast_extern.symbol "extern " name string.concat
+                                    " has an empty symbol\n" string.concat stack_assembler.extern.error
+                                    pop false
+                                else symbol stack_assembler.extern.symbol.invalid match b in
+                                    b 0 >= if
+                                        decl stack_ast_extern.symbol "extern " name string.concat
+                                        " symbol has invalid byte " string.concat b stack_assembler.hex string.concat
+                                        ", expected printable ASCII without spaces or quotes\n" string.concat
+                                        stack_assembler.extern.error
+                                        pop false
+                                    fi
+                                end fi
+                            end
+                        end
+                    else
+                        ok
+                    fi
+                end
+                i 1 +
+            end
+        pool pop
+    end
+end
