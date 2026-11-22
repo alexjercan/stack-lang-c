@@ -1,0 +1,5 @@
+Semantic error: entrypoint func main is not defined
+tests/03-typecheck/50-extern-errors.stack:4:30, Semantic error: func c.add has non matching args, expected (int, int) but got (int)
+tests/03-typecheck/50-extern-errors.stack:5:31, Semantic error: func c.add has non matching args, expected (int, int) but got (bool, int)
+tests/03-typecheck/50-extern-errors.stack:6:30, Semantic error: func c.pair has non matching args, expected (a, a) but got (int, bool)
+tests/03-typecheck/50-extern-errors.stack:7:6, Semantic error: func rets has non matching return, expected (bool) but got (int)

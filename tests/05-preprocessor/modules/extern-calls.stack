@@ -1,0 +1,2 @@
+extern mod.inc (int) (int) "inc"
+func mod.inc2 (int) (int) in mod.inc mod.inc end

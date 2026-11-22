@@ -1,0 +1,7 @@
+extern c.add (int, int) (int) "add"
+extern c.pair (a, a) () "pair"
+
+func underflow () (int) in 1 c.add end
+func wrong () (int) in true 1 c.add end
+func generic () () in 1 true c.pair end
+func rets () (bool) in 1 2 c.add end

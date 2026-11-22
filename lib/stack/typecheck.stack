@@ -526,15 +526,15 @@ func stack_params.node_to_string (array) (array) in -- array<stack_ast_node>
     end
 end
 
-func stack_context.typecheck.func_def' (stack_context, stack_ast_func) () in -- ctx, func
-    match ctx decl in
-        decl stack_ast_func.name stack_ast_node.value match name in
+-- Add the function name (args) (rets), or show that name is redefined.
+func stack_context.typecheck.func_def.add (stack_context, stack_ast_node, array, array) () in -- ctx, name, args, rets
+    match ctx node args rets in
+        node stack_ast_node.value match name in
             ctx name stack_context.get_symbol pop if
-                ctx decl stack_ast_func.name "func " name string.concat " is redefined\n" string.concat
+                ctx node "func " name string.concat " is redefined\n" string.concat
                 stack_context.showf
             else
-                ctx
-                name decl stack_ast_func.args stack_params.node_to_string decl stack_ast_func.rets stack_params.node_to_string
+                ctx name args stack_params.node_to_string rets stack_params.node_to_string
                 stack_context_func.init stack_context.append.func
             fi
         end
@@ -546,8 +546,16 @@ func stack_context.typecheck.func_def (stack_context, stack_ast) () in -- ctx, a
         0 while dup features array.count < loop
             dup features swp array.get unwrap stack_ast_feature.* match feat in
                 feat stack_ast_feature.kind STACK_AST_FEATURE_FUNC = if
-                    ctx feat stack_ast_feature.feature stack_ast_func.* stack_context.typecheck.func_def'
-                fi
+                    feat stack_ast_feature.feature stack_ast_func.* match f in
+                        ctx f stack_ast_func.name f stack_ast_func.args f stack_ast_func.rets
+                        stack_context.typecheck.func_def.add
+                    end
+                else feat stack_ast_feature.kind STACK_AST_FEATURE_EXTERN = if
+                    feat stack_ast_feature.feature stack_ast_extern.* match f in
+                        ctx f stack_ast_extern.name f stack_ast_extern.args f stack_ast_extern.rets
+                        stack_context.typecheck.func_def.add
+                    end
+                fi fi
             end
             1 +
         pool pop
@@ -1019,13 +1027,9 @@ func stack_context.typecheck.rets.showf (stack_context, stack_ast_func, array, a
     end
 end
 
-func stack_ast_func.is_main (stack_ast_func) (bool) in
-    stack_ast_func.name stack_ast_node.value STACK_FUNC_MAIN string.=
-end
-
-func stack_context.typecheck.main.signature (stack_context, stack_ast_func) () in
-    match ctx entry in
-        entry stack_ast_func.args match inputs in
+func stack_context.typecheck.main.signature (stack_context, stack_ast_node, array, array) () in -- ctx, name, args, rets
+    match ctx name inputs outputs in
+        name stack_ast_node.value STACK_FUNC_MAIN string.= if
             inputs array.count 0 = if
                 true
             else inputs array.count 2 = if
@@ -1035,30 +1039,26 @@ func stack_context.typecheck.main.signature (stack_context, stack_ast_func) () i
             else
                 false
             fi fi
-        end
-        not if
-            ctx entry stack_ast_func.name
-            "func main must have input signature () or (int, ptr)\n" stack_context.showf
-        fi
+            not if
+                ctx name "func main must have input signature () or (int, ptr)\n" stack_context.showf
+            fi
 
-        entry stack_ast_func.rets match outputs in
             outputs array.count 1 = if
                 outputs 0 array.get unwrap stack_ast_node.* stack_ast_node.value STACK_DATA_INT string.=
             else
                 false
             fi
-        end
-        not if
-            ctx entry stack_ast_func.name
-            "func main must have return signature (int)\n" stack_context.showf
+            not if
+                ctx name "func main must have return signature (int)\n" stack_context.showf
+            fi
         fi
     end
 end
 
 func stack_context.typecheck.func' (stack_context, stack_ast_func) () in -- ctx, func
-    dup stack_ast_func.is_main if
-        dup2 stack_context.typecheck.main.signature
-    fi
+    dup2 match ctx f in
+        ctx f stack_ast_func.name f stack_ast_func.args f stack_ast_func.rets stack_context.typecheck.main.signature
+    end
     dup -- ctx, func, func
     stack_ast_func.args -- ctx, func, array<node>
     stack_params.node_to_string -- ctx, func, stack
@@ -1084,7 +1084,12 @@ func stack_context.typecheck.func (stack_context, stack_ast) () in -- ctx, ast
             dup features swp array.get unwrap stack_ast_feature.* match feat in
                 feat stack_ast_feature.kind STACK_AST_FEATURE_FUNC = if
                     ctx feat stack_ast_feature.feature stack_ast_func.* stack_context.typecheck.func'
-                fi
+                else feat stack_ast_feature.kind STACK_AST_FEATURE_EXTERN = if
+                    feat stack_ast_feature.feature stack_ast_extern.* match f in
+                        ctx f stack_ast_extern.name f stack_ast_extern.args f stack_ast_extern.rets
+                        stack_context.typecheck.main.signature
+                    end
+                fi fi
             end
             1 +
         pool pop

@@ -1,0 +1,2 @@
+tests/03-typecheck/52-extern-main-invalid.stack:1:8, Semantic error: func main must have input signature () or (int, ptr)
+tests/03-typecheck/52-extern-main-invalid.stack:1:8, Semantic error: func main must have return signature (int)

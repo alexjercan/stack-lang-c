@@ -1,0 +1,7 @@
+tests/03-typecheck/51-extern-duplicates.stack:6:8, Semantic error: func f.first is redefined
+tests/03-typecheck/51-extern-duplicates.stack:8:6, Semantic error: func e.first is redefined
+tests/03-typecheck/51-extern-duplicates.stack:10:8, Semantic error: func x.dup is redefined
+tests/03-typecheck/51-extern-duplicates.stack:11:8, Semantic error: func dup is redefined
+tests/03-typecheck/51-extern-duplicates.stack:12:8, Semantic error: func pair is redefined
+tests/03-typecheck/51-extern-duplicates.stack:13:8, Semantic error: func pair.& is redefined
+tests/05-preprocessor/modules/extern-dup.stack:1:8, Semantic error: func dup.ext is redefined

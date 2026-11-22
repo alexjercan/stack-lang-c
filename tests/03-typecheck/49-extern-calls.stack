@@ -1,0 +1,22 @@
+@import "tests/05-preprocessor/modules/extern-calls"
+
+data pair (int a, bool b)
+
+-- Calls before the extern declarations.
+func use.early () (int) in 1 2 c.add end
+
+extern c.add (int, int) (int) "add"
+extern c.none () () "none"
+extern c.split (ptr) (int, bool, ptr) "split"
+extern c.wrap (pair) (pair) "wrap"
+extern c.id (a) (a) "id"
+extern c.swap (a, b) (b, a) "swap"
+
+func main () (int) in
+    c.none
+    use.early
+    1 true pair.init c.wrap c.id pair.a c.add
+    true c.swap swp pop
+    0 ptr.alloc c.split pop pop c.add
+    mod.inc2
+end

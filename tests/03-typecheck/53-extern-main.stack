@@ -1,0 +1,1 @@
+extern main (int, ptr) (int) "main"

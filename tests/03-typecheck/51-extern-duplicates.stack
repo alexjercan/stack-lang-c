@@ -1,0 +1,16 @@
+@import "tests/05-preprocessor/modules/extern-dup"
+
+data pair (int a)
+
+func f.first () () in end
+extern f.first () () "first"
+extern e.first () () "first"
+func e.first () () in end
+extern x.dup () () "a"
+extern x.dup (int) () "b"
+extern dup (a) (a, a) "dup"
+extern pair (int) () "pair"
+extern pair.& (pair) (ptr) "ref"
+func dup.ext () (int) in 1 end
+
+func main () (int) in 0 end
