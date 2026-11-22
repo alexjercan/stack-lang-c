@@ -472,6 +472,9 @@ func stack_assembler.emit (stack_assembler, stack_ast) () in -- asm, ast
     swp dup2 stack_assembler.emit.ast
     swp dup stack_assembler.emit.literals
 
+    dup ""                           emit
+    dup "section '.note.GNU-stack'"  emit
+
     pop2
 end
 

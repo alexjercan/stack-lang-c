@@ -9,8 +9,16 @@ cc=${CC:-cc}
 run_main() {
     "$slc" --assembler main.stack > main.asm &&
         fasm main.asm main.o > /dev/null &&
-        ld -z noexecstack main.o ffi.o -o main &&
+        ld main.o ffi.o -o main &&
         ./main
+}
+# The note of the Stack object is not writable or executable, and the stack
+# of the linked program is not executable.
+gnu_stack() {
+    local note
+    note=$(readelf -SW main.o | grep -F .note.GNU-stack) &&
+        ! grep -qE '[A-Z]*[WX][A-Z]* +[0-9]+ +[0-9]+ +[0-9]+ *$' <<< "$note" &&
+        readelf -lW main | grep -qE 'GNU_STACK( +[^ ]+){5} +RW '
 }
 assemble() { "$slc" --assembler "$1.stack" > "$1.asm" && fasm "$1.asm" "$1.o" > /dev/null; }
 
@@ -20,6 +28,7 @@ cd "$tmp/work" || exit 1
 
 ref=$refs/ffi
 check "C calls" 0 "$empty" "$empty" run_main
+check "GNU stack note" 0 "$empty" "$empty" gnu_stack
 check "one extrn per symbol" 0 "$ref/extrn.ref" "$empty" grep -c "^extrn 'add' as " main.asm
 check "other types --typecheck" 0 "$empty" "$empty" "$slc" --typecheck types.stack
 check "other types --assembler" 0 "$empty" "$empty" assemble types
