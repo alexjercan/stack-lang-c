@@ -1,0 +1,54 @@
+@import "stdlib"
+
+extern ray.InitWindow (int, int, ptr) () "InitWindow"
+extern ray.SetTargetFPS (int) () "SetTargetFPS"
+extern ray.WindowShouldClose () (int) "WindowShouldClose"
+extern ray.BeginDrawing () () "BeginDrawing"
+extern ray.ClearBackground (int) () "ClearBackground"
+extern ray.DrawRectangle (int, int, int, int, int) () "DrawRectangle"
+extern ray.EndDrawing () () "EndDrawing"
+extern ray.CloseWindow () () "CloseWindow"
+
+const WIDTH 800
+const HEIGHT 600
+const LOGO_WIDTH 120
+const LOGO_HEIGHT 60
+
+-- Colors are packed RGBA bytes, with red in the lowest byte.
+const BACKGROUND 4279505940
+const LOGO_COLOR 4294956800
+
+data logo (int x, int y, int dx, int dy)
+
+func logo.update (logo) () in
+    match box in
+        box box logo.x box logo.dx + logo.x.set
+        box box logo.y box logo.dy + logo.y.set
+
+        box logo.x 0 <= box logo.x WIDTH LOGO_WIDTH - >= or if
+            box 0 box logo.dx - logo.dx.set
+        fi
+        box logo.y 0 <= box logo.y HEIGHT LOGO_HEIGHT - >= or if
+            box 0 box logo.dy - logo.dy.set
+        fi
+    end
+end
+
+func main () (int) in
+    WIDTH HEIGHT "DVD logo" string.str ray.InitWindow
+    60 ray.SetTargetFPS
+
+    100 90 4 3 logo.init match box in
+        while ray.WindowShouldClose 255 & 0 = loop
+            box logo.update
+
+            ray.BeginDrawing
+            BACKGROUND ray.ClearBackground
+            box logo.x box logo.y LOGO_WIDTH LOGO_HEIGHT LOGO_COLOR ray.DrawRectangle
+            ray.EndDrawing
+        pool
+    end
+
+    ray.CloseWindow
+    0
+end

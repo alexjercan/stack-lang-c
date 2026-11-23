@@ -31,7 +31,7 @@ $(OUTDIR)/%: $(EXAMPLES_DIR)/%.$(EXT) build
 	$(CC) $< -o $@ $(LINKFLAGS)
 
 # Link flags of one example. Make runs pkg-config only for that example.
-$(OUTDIR)/11-raylib: LINKFLAGS = -- $(shell pkg-config --libs raylib)
+$(OUTDIR)/11-raylib $(OUTDIR)/12-dvd-logo: LINKFLAGS = -- $(shell pkg-config --libs raylib)
 
 examples: $(EXAMPLE_OUT_FILES)
 
