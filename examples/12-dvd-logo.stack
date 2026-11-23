@@ -2,7 +2,7 @@
 
 extern ray.InitWindow (int, int, ptr) () "InitWindow"
 extern ray.SetTargetFPS (int) () "SetTargetFPS"
-extern ray.WindowShouldClose () (int) "WindowShouldClose"
+extern ray.WindowShouldClose () (bool) "WindowShouldClose"
 extern ray.BeginDrawing () () "BeginDrawing"
 extern ray.ClearBackground (int) () "ClearBackground"
 extern ray.DrawRectangle (int, int, int, int, int) () "DrawRectangle"
@@ -34,18 +34,23 @@ func logo.update (logo) () in
     end
 end
 
+func logo.draw (logo) () in
+    match box in
+        ray.BeginDrawing
+        BACKGROUND ray.ClearBackground
+        box logo.x box logo.y LOGO_WIDTH LOGO_HEIGHT LOGO_COLOR ray.DrawRectangle
+        ray.EndDrawing
+    end
+end
+
 func main () (int) in
     WIDTH HEIGHT "DVD logo" string.str ray.InitWindow
     60 ray.SetTargetFPS
 
     100 90 4 3 logo.init match box in
-        while ray.WindowShouldClose 255 & 0 = loop
+        while ray.WindowShouldClose not loop
             box logo.update
-
-            ray.BeginDrawing
-            BACKGROUND ray.ClearBackground
-            box logo.x box logo.y LOGO_WIDTH LOGO_HEIGHT LOGO_COLOR ray.DrawRectangle
-            ray.EndDrawing
+            box logo.draw
         pool
     end
 
