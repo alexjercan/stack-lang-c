@@ -1,47 +1,13 @@
-@import "stdlib"
+@import "linux"
+@import "std/core"
+@import "std/string"
+@import "std/io"
+@import "std/array"
+@import "cstr"
+@import "std/os"
 
--- Processes and temporary directories of Linux x86_64. The functions use
--- system calls, not libc.
-
--- A new C string with the bytes of s and a NUL byte. The bool is false when
--- s contains a NUL byte, because C cannot see the bytes after it.
-func cstr.from (string) (ptr, bool) in -- s
-    match s in
-        s string.len 1 + ptr.alloc match p in
-            p s string.str s string.len ptr.@
-        end
-        true 0 while dup s string.len < loop -- ok, i
-            match ok i in ok s i string.!! BYTE_NULL = not and i 1 + end
-        pool pop
-    end
-end
-
--- A NULL terminated array of new C strings for xs (array<string>).
-func cstr.array (array) (ptr, bool) in -- xs
-    match xs in
-        xs array.count 1 + ptr.sizeof * ptr.alloc match argv in
-            true 0 while dup xs array.count < loop -- ok, i
-                match ok i in
-                    xs i array.get unwrap string.* cstr.from match p p_ok in
-                        argv i ptr.sizeof * ptr.+ p ptr.& ptr.sizeof ptr.@ pop
-                        ok p_ok and i 1 +
-                    end
-                end
-            pool pop
-            argv swp
-        end
-    end
-end
-
--- Free the C strings of cstr.array and the array.
-func cstr.array.free (ptr) () in -- argv
-    match argv in
-        argv while dup ptr.* ptr.null ptr.= not loop
-            dup ptr.* ptr.free ptr.sizeof ptr.+
-        pool pop
-        argv ptr.free
-    end
-end
+-- Processes of Linux x86_64: find, run, and wait for programs. The functions
+-- use system calls, not libc.
 
 -- True when path is a regular file that this process can execute.
 func process.executable (string) (bool) in -- path
@@ -138,59 +104,3 @@ end
 func process.status.exited (int) (bool) in 127 & 0 = end
 func process.status.code (int) (int) in 8 >> 255 & end
 func process.status.signal (int) (int) in 127 & end
-
--- n random bytes as 2 * n lowercase hex digits.
-func os.random.hex (int) (string, bool) in -- n
-    match n in
-        n ptr.alloc match buf in
-            buf n 0 sys.getrandom n = if
-                "" 0 while dup n < loop -- s, i
-                    match s i in
-                        buf i ptr.+ byte.init match b in
-                            s
-                            "0123456789abcdef" b 4 >> 1 string.substr string.concat
-                            "0123456789abcdef" b 15 & 1 string.substr string.concat
-                            i 1 +
-                        end
-                    end
-                pool pop true
-            else "" false fi
-            buf ptr.free
-        end
-    end
-end
-
--- Make a new directory with mode 0700 in TMPDIR, or in /tmp when TMPDIR is
--- not an absolute path. The name is prefix and 16 random hex digits. Return
--- the path and true, or false on failure.
-func os.tempdir.create (string) (string, bool) in -- prefix
-    match prefix in
-        "TMPDIR" os.env.get match tmp ok in
-            ok tmp "/" string.starts_with and if tmp else "/tmp" fi
-        end
-        match base in
-            "" false 0 while -- path, ok, tries
-                match path ok tries in path ok tries ok not tries 16 < and end loop
-                match _path _ok tries in
-                    8 os.random.hex match hex hex_ok in
-                        base "/" string.concat prefix string.concat hex string.concat
-                        cstr.from match p p_ok in
-                            hex_ok p_ok and if
-                                p O_0700 sys.mkdir match r in
-                                    r 0 = if
-                                        base "/" string.concat prefix string.concat hex string.concat true tries 1 +
-                                    else r EEXIST = if
-                                        "" false tries 1 +
-                                    else
-                                        "" false 16
-                                    fi fi
-                                end
-                            else "" false 16 fi
-                            p ptr.free
-                        end
-                    end
-                end
-            pool pop
-        end
-    end
-end

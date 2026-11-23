@@ -1,0 +1,22 @@
+@import "linux"
+@import "std/core"
+@import "std/string"
+@import "std/int"
+@import "std/io"
+
+-- Stop the program: abort, panic, unwrap, and todo. here is the source
+-- location of its use.
+
+const abort 1 sys.exit
+
+const here -- () (string)
+    __file__ ":" string.concat __line__ int.show string.concat ":" string.concat __col__ int.show string.concat ": " string.concat
+
+const panic -- () ()
+    here "panic!\n" string.concat STDERR swp stdlib.fwrite pop abort
+
+const unwrap -- (ok) ()
+    not if panic fi
+
+const todo -- () ()
+    here "todo!\n" string.concat STDERR swp stdlib.fwrite pop abort

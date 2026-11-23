@@ -104,7 +104,7 @@ local dup = hover(7, 5)
 check(dup:find("dup", 1, true) ~= nil, "hover on the builtin dup: " .. dup)
 local stdout = hover(7, 30)
 check(stdout:find("string.stdout", 1, true) ~= nil,
-  "hover on string.stdout from STACK_HOME/lib/stdlib.stack: " .. stdout)
+  "hover on string.stdout from STACK_HOME/lib/std/stdio.stack: " .. stdout)
 local local_func = hover(12, 7)
 check(local_func:find("func generate.data", 1, true) ~= nil,
   "hover on a function of the file: " .. local_func)

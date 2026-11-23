@@ -12,13 +12,13 @@ PASSED=0
 shopt -s nullglob
 
 usage() {
-    echo "Usage: $0 [--all|--lexer|--parser|--preprocessor|--typecheck|--io|--import|--ffi|--driver|--alloc|--runtime]"
+    echo "Usage: $0 [--all|--lexer|--parser|--preprocessor|--typecheck|--io|--import|--ffi|--driver|--alloc|--stdlib|--runtime]"
     echo "       [--no-build] [--memcheck] [--main PATH] [-v|--verbose] [-h|--help]"
 }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --all|--lexer|--parser|--preprocessor|--typecheck|--io|--import|--ffi|--driver|--alloc|--runtime)
+        --all|--lexer|--parser|--preprocessor|--typecheck|--io|--import|--ffi|--driver|--alloc|--stdlib|--runtime)
             MODE=${1#--}; shift ;;
         --no-build) BUILD=0; shift ;;
         --memcheck) MEMCHECK=1; shift ;;
@@ -130,6 +130,9 @@ if [[ "$MODE" == all || "$MODE" == driver ]]; then
 fi
 if [[ "$MODE" == all || "$MODE" == alloc ]]; then
     check 'Allocator integration suite' /dev/null 0 timeout 300 bash tests/integration/alloc.sh "$MAIN"
+fi
+if [[ "$MODE" == all || "$MODE" == stdlib ]]; then
+    check 'Standard library integration suite' /dev/null 0 timeout 120 bash tests/integration/stdlib.sh "$MAIN"
 fi
 if [[ "$MODE" == all || "$MODE" == runtime ]]; then
     for file in tests/04-runtime/*.stack; do

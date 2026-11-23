@@ -1,0 +1,9 @@
+@import "std/panic"
+
+-- unwrap of true does nothing. here is the place of its use.
+func main () (int) in
+    true unwrap
+    STDOUT here "\n" string.concat stdlib.fwrite unwrap
+    false unwrap
+    0
+end

@@ -1,0 +1,20 @@
+@import "std/io"
+
+func main () (int) in
+    STDOUT "io\n" stdlib.fwrite pop
+    "/dev/null" "r" stdlib.fopen match fd ok in
+        ok fd 0 >= and not if 1 else
+            fd stdlib.fidentity match _dev _ino id_ok in
+                fd stdlib.MAX_LINE stdlib.fread match s read_ok in
+                    fd stdlib.fread.<eof> match t eof_ok in
+                        fd stdlib.fclose match closed in
+                            id_ok read_ok and eof_ok and closed and
+                            s string.len t string.len + 0 = and
+                            if 0 else 2 fi
+                        end
+                    end
+                end
+            end
+        fi
+    end
+end

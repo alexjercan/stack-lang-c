@@ -1,0 +1,18 @@
+@import "std/core"
+
+-- The first failed case, or 0. Only builtins.
+func case (int, bool, int) (int) in
+    match first ok n in first 0 = if ok if 0 else n fi else first fi end
+end
+
+func main () (int) in
+    0
+    1 2 dup2 + + + 6 = 1 case
+    1 2 3 rot' + * 9 = 2 case      -- 3 1 2 -> 3 * (1 + 2)
+    1 2 over pop2 1 = 3 case
+    1 2 3 dup3 pop3 + + 6 = 4 case
+    1 2 3 4 rot4' pop pop pop 4 = 5 case
+    2 3 <= 3 3 >= and 2 3 >= not and 6 case
+    true false or 7 case
+    true bool.show pop true 8 case
+end

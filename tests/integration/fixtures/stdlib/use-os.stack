@@ -1,0 +1,16 @@
+@import "std/os"
+
+func case (int, bool, int) (int) in
+    match first ok n in first 0 = if ok if 0 else n fi else first fi end
+end
+
+func main () (int) in
+    0
+    "STDLIB_TEST" os.env.get match v ok in ok v "a=b" string.= and end 1 case
+    "STDLIB_MISSING" os.env.get swp pop not 2 case
+    4 os.random.hex swp string.len 8 = and 3 case
+    "t-" os.tempdir.create match dir ok in
+        ok dir "/" string.starts_with and 4 case
+        dir cstr.from pop match p in p sys.rmdir 0 = p ptr.free end 5 case
+    end
+end

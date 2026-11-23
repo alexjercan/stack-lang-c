@@ -1,0 +1,18 @@
+@import "cstr"
+
+func case (int, bool, int) (int) in
+    match first ok n in first 0 = if ok if 0 else n fi else first fi end
+end
+
+func main () (int) in
+    0
+    "ab" cstr.from match p ok in ok p ptr.strlen 2 = and p ptr.free end 1 case
+    "a" BYTE_NULL byte.chr string.concat cstr.from not swp ptr.free 2 case
+    string.sizeof array.init.with_sz match xs in
+        xs "x" string.& array.append unwrap
+        xs cstr.array match argv ok in
+            ok argv ptr.* ptr.strlen 1 = and argv ptr.sizeof ptr.+ ptr.* ptr.null ptr.= and 3 case
+            argv cstr.array.free
+        end
+    end
+end

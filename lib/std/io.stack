@@ -1,0 +1,80 @@
+@import "linux"
+@import "std/core"
+@import "std/string"
+
+-- File descriptors: open, close, identify, read, and write.
+
+const STDIN 0
+const STDOUT 1
+const STDERR 2
+
+const stdlib.MAX_LINE 1024
+
+func stdlib.fopen (string, string) (int, bool) in -- fn, md
+    match fn md in
+        md "r" string.= if
+            fn string.str O_RDONLY O_0644 sys.open true
+        else md "w" string.= if
+            fn string.str O_WRONLY O_CREAT | O_0644 sys.open true
+        else
+            0 false
+        fi fi
+    end
+end
+
+func stdlib.fclose (int) (bool) in -- fd
+    sys.close 0 =
+end
+
+func stdlib.fidentity (int) (int, int, bool) in -- fd
+    match fd in
+        STAT_SIZE ptr.alloc match buf in
+            fd buf sys.fstat 0 = if
+                buf STAT_DEV_OFF ptr.+ int.* 0 + buf STAT_INO_OFF ptr.+ int.* 0 + true
+            else
+                0 0 false
+            fi
+            buf ptr.free
+        end
+    end -- dev, ino, ok
+end
+
+-- Read at most L bytes. A failed read returns "" and false.
+func stdlib.fread (int, int) (string, bool) in -- fd, L
+    match fd L in
+        L string.memory-needed ptr.alloc match buf in
+            fd buf L sys.read match n in
+                n 0 < if buf ptr.free "" false else n buf string.init true fi
+            end
+        end
+    end
+end
+
+-- Read until a read returns 0 bytes. A failed read returns "" and false.
+func stdlib.fread.<eof> (int) (string, bool) in -- fd
+    match fd in
+        "" true true while loop -- s, ok
+            match s _ok in
+                fd stdlib.MAX_LINE stdlib.fread match chunk ok in
+                    ok not if
+                        s string.len 0 > if s string.str ptr.free fi
+                        "" false false
+                    else chunk string.len 0 = if
+                        s string.len 0 = if chunk else chunk string.str ptr.free s fi
+                        true false
+                    else s string.len 0 = if
+                        chunk true true
+                    else
+                        s chunk string.concat true true
+                        s string.str ptr.free
+                        chunk string.str ptr.free
+                    fi fi fi
+                end
+            end
+        pool
+    end
+end
+
+func stdlib.fwrite (int, string) (bool) in -- fd, s
+    match fd s in fd s string.str s string.len sys.write 0 >= end
+end

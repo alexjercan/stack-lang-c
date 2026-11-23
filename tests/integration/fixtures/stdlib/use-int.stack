@@ -1,0 +1,14 @@
+@import "std/int"
+
+func case (int, bool, int) (int) in
+    match first ok n in first 0 = if ok if 0 else n fi else first fi end
+end
+
+func main () (int) in
+    0
+    -42 int.show "-42" string.= 1 case
+    "123" int.read swp 123 = and 2 case
+    "12a" int.read not swp pop 3 case
+    -7 3 mod 2 = -3 abs 3 = and 2 5 min 2 = and 4 case
+    7 digit.show "7" string.= 5 case
+end

@@ -1,0 +1,19 @@
+@import "std/string"
+
+func case (int, bool, int) (int) in
+    match first ok n in first 0 = if ok if 0 else n fi else first fi end
+end
+
+func main () (int) in
+    0
+    "ab" "cd" string.concat "abcd" string.= 1 case
+    "abcd" 1 2 string.substr "bc" string.= 2 case
+    "a=b" "=" string.cut match k v ok in k "a" string.= v "b" string.= and ok and end 3 case
+    "a=b" "=" string.split pop "a" string.= 4 case
+    "abc" "c" string.index swp 2 = and 5 case
+    "ab" 2 string.repeat "abab" string.= 6 case
+    "abc" "ab" string.starts_with 7 case
+    BYTE_a byte.chr "a" string.= 8 case
+    "x" string.str string.init.cstr string.len 1 = 9 case
+    "xy" 1 string.!! BYTE_a 24 + = 10 case
+end

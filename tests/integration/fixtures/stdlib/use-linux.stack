@@ -1,0 +1,8 @@
+@import "linux"
+
+-- linux alone: system calls and constants.
+func main () (int) in
+    -1 sys.close -9 = if
+        O_CREAT 64 = if EINVAL -22 = if 0 else 3 fi else 2 fi
+    else 1 fi
+end

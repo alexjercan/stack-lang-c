@@ -1,0 +1,8 @@
+@import "std/error"
+
+func main () (int) in
+    error.nil error.unwrap
+    "bad" error.fail match e in
+        e error.ok if 1 else e error.message "bad" string.= if 0 else 2 fi fi
+    end
+end

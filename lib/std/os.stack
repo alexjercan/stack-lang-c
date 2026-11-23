@@ -1,0 +1,82 @@
+@import "linux"
+@import "std/core"
+@import "std/byte"
+@import "std/string"
+@import "cstr"
+
+-- The environment, random bytes, and temporary directories of Linux x86_64.
+-- The functions use system calls, not libc.
+
+-- OS
+
+func os.env.get (string) (string, bool) in -- name
+    match name in
+        "" false os.env while -- result, found, ptr<c-str>
+            match result found env in
+                result found env found not env int.* 0 = not and
+            end loop -- result, found, ptr<c-str>
+            match _result _found env in
+                env ptr.* string.init.cstr "=" string.split match key value in
+                    value key name string.= env 8 ptr.+
+                end
+            end
+        pool -- result, found, ptr<c-str>
+        pop
+    end -- result, found
+end
+
+-- n random bytes as 2 * n lowercase hex digits.
+func os.random.hex (int) (string, bool) in -- n
+    match n in
+        n ptr.alloc match buf in
+            buf n 0 sys.getrandom n = if
+                "" 0 while dup n < loop -- s, i
+                    match s i in
+                        buf i ptr.+ byte.init match b in
+                            s
+                            "0123456789abcdef" b 4 >> 1 string.substr string.concat
+                            "0123456789abcdef" b 15 & 1 string.substr string.concat
+                            i 1 +
+                        end
+                    end
+                pool pop true
+            else "" false fi
+            buf ptr.free
+        end
+    end
+end
+
+-- Make a new directory with mode 0700 in TMPDIR, or in /tmp when TMPDIR is
+-- not an absolute path. The name is prefix and 16 random hex digits. Return
+-- the path and true, or false on failure.
+func os.tempdir.create (string) (string, bool) in -- prefix
+    match prefix in
+        "TMPDIR" os.env.get match tmp ok in
+            ok tmp "/" string.starts_with and if tmp else "/tmp" fi
+        end
+        match base in
+            "" false 0 while -- path, ok, tries
+                match path ok tries in path ok tries ok not tries 16 < and end loop
+                match _path _ok tries in
+                    8 os.random.hex match hex hex_ok in
+                        base "/" string.concat prefix string.concat hex string.concat
+                        cstr.from match p p_ok in
+                            hex_ok p_ok and if
+                                p O_0700 sys.mkdir match r in
+                                    r 0 = if
+                                        base "/" string.concat prefix string.concat hex string.concat true tries 1 +
+                                    else r EEXIST = if
+                                        "" false tries 1 +
+                                    else
+                                        "" false 16
+                                    fi fi
+                                end
+                            else "" false 16 fi
+                            p ptr.free
+                        end
+                    end
+                end
+            pool pop
+        end
+    end
+end

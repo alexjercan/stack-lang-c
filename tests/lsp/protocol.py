@@ -1463,13 +1463,14 @@ def definition_imports():
         definitions(text, [("shared.g", 0, 0, (file_uri(spelled), shared, "shared.g", 0))],
                     cwd=tmp, env=dict(os.environ, STACK_HOME="./ln/../h2"))
         # stdlib from the root of the repository, with STACK_HOME "." and absolute.
+        # string.len is in the module std/string that stdlib imports.
         text = '@import "stdlib"\nfunc f (string) (int) in string.len end\n'
-        with open(os.path.join(ROOT, "lib", "stdlib.stack"), encoding="utf-8") as f:
+        with open(os.path.join(ROOT, "lib", "std", "string.stack"), encoding="utf-8") as f:
             std = f.read()
-        want = (file_uri(os.path.join(os.path.realpath(ROOT), "lib", "stdlib.stack")), std, "len, ptr str)", 0)
+        want = (file_uri(os.path.join(os.path.realpath(ROOT), "lib", "std", "string.stack")), std, "len, ptr str)", 0)
         definitions(text, [("string.len", 0, 0, want), ("string)", 0, 0, want[:2] + ("string (int len", 0))],
                     cwd=ROOT, env=dict(os.environ, STACK_HOME="."))
-        want = (file_uri(os.path.join(ROOT, "lib", "stdlib.stack")),) + want[1:]
+        want = (file_uri(os.path.join(ROOT, "lib", "std", "string.stack")),) + want[1:]
         definitions(text, [("string.len", 0, 0, want)], cwd=tmp, env=dict(os.environ, STACK_HOME=ROOT))
 
 

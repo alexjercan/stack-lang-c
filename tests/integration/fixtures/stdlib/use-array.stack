@@ -1,0 +1,30 @@
+@import "std/array"
+
+func case (int, bool, int) (int) in
+    match first ok n in first 0 = if ok if 0 else n fi else first fi end
+end
+
+func main () (int) in
+    0
+    int.sizeof array.init.with_sz match xs in
+        xs 3 int.& array.append
+        xs 1 int.& array.append and
+        xs 0 2 int.& array.insert and 1 case
+        xs array.sort<int>
+        xs 0 array.get unwrap int.* 1 = xs 2 array.get unwrap int.* 3 = and 2 case
+        xs array.copy match ys ok in
+            ok xs ys array.= and 3 case
+            ys ys array.extend ys array.count 6 = and 4 case
+            ys 0 array.delete ys array.pop and ys array.count 4 = and 5 case
+            ys 0 9 int.& array.set ys array.last unwrap int.* 2 = and 6 case
+            xs 0 2 array.swap xs 0 array.get unwrap int.* 3 = 7 case
+            xs 1 ys array.insert_many 8 case
+        end
+    end
+    string.sizeof array.init.with_sz match ss in
+        ss "a" string.& array.append unwrap
+        ss "b" string.& array.append unwrap
+        ss array.string.show "a, b" string.= 9 case
+        ss ss array.copy unwrap array.string.= 10 case
+    end
+end

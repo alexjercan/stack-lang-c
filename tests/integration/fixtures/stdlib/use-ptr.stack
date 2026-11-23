@@ -1,0 +1,19 @@
+@import "std/ptr"
+
+func case (int, bool, int) (int) in
+    match first ok n in first 0 = if ok if 0 else n fi else first fi end
+end
+
+func main () (int) in
+    0
+    ptr.null ptr.null ptr.= 1 case
+    16 ptr.alloc match p in
+        p 7 int.& 8 ptr.@ pop
+        p 8 16 ptr.realloc match q in
+            q int.* 7 = 2 case
+            q 7 int.& 1 ptr.memcmp 0 = 3 case
+            q ptr.strlen 1 = 4 case
+            q ptr.free
+        end
+    end
+end

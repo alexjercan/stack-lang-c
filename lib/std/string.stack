@@ -1,0 +1,140 @@
+@import "std/core"
+@import "std/byte"
+@import "std/ptr"
+
+-- The string data type and its operations.
+
+-- DATA STRING
+data string (int len, ptr str)
+
+-- compute how much memory you need to allocate for the string ptr
+-- taking into account memory alignment by 8
+func string.memory-needed (int) (int) in -- sz
+    8 + 8 / 8 *
+end
+
+-- convert a c string (ptr) to a stack string
+func string.init.cstr (ptr) (string) in
+    dup ptr.strlen -- ptr, int
+    swp string.init
+end
+
+-- concatenate two strings
+func string.concat (string, string) (string) in -- s1, s2
+    match s1 s2 in
+        s1 string.len s2 string.len + -- L
+        dup string.memory-needed ptr.alloc -- L, ptr
+        s1 string.str s1 string.len ptr.@ -- L, ptr
+        dup s1 string.len ptr.+ -- L, ptr, ptr+L1
+        s2 string.str s2 string.len ptr.@ -- L, ptr, ptr+L1
+        pop -- L, ptr
+        string.init
+    end
+end
+
+-- create a substring given the start and length
+func string.substr (string, int, int) (string) in -- s, i, n
+    match s1 i n in
+        n string.memory-needed ptr.alloc -- ptr
+        s1 string.str i ptr.+ -- ptr, str+i
+        n -- ptr, str+i, n
+        ptr.@ -- ptr
+        n swp string.init
+    end
+end
+
+-- repeat a string n times
+func string.repeat (string, int) (string) in -- s, n
+    match s n in
+        "" 0 while -- result, i
+            dup n < loop -- result, i
+            match r i in
+                r s string.concat
+                i 1 +
+            end
+        pool -- result, i
+        pop
+    end
+end
+
+-- index a string into a byte
+func string.!! (string, int) (int) in
+    match s i in s string.str i ptr.+ byte.init end
+end
+
+-- check if two strings are equal
+func string.= (string, string) (bool) in
+    match s1 s2 in
+        s1 string.len s2 string.len = if
+            s1 string.str s2 string.str s1 string.len ptr.memcmp 0 =
+        else
+            false
+        fi
+    end
+end
+
+-- check if a string starts with another string
+func string.starts_with (string, string) (bool) in
+    match s pre in
+        pre string.len s string.len > if
+            false
+        else
+            s string.str pre string.str pre string.len ptr.memcmp 0 =
+        fi
+    end
+end
+
+-- split a string at the given index
+func string.split_at (string, int) (string, string) in
+    match s i in
+        i s string.len > if
+            s ""
+        else
+            s 0 i string.substr s i s string.len i - string.substr
+        fi
+    end
+end
+
+-- check if string contains another string and return the index of the first occurence
+func string.index (string, string) (int, bool) in -- haystack, needle
+    match s sep in
+        0 true while -- i, run
+            match i ok in i ok i s string.len < ok and end loop -- i, run
+            match i ok in
+                i sep string.len + s string.len <= if
+                    s string.str i ptr.+ sep string.str sep string.len ptr.memcmp 0 =
+                else
+                    false
+                fi
+                if i false else i 1 + true fi
+            end
+        pool -- i, run
+        not -- i, found
+    end
+end
+
+-- split a string with a separator, returns first occurence only
+func string.split (string, string) (string, string) in -- string, sep
+    string.cut pop
+end
+
+-- same as split, but it also returns a bool if it failed or not
+func string.cut (string, string) (string, string, bool) in
+    match s sep in
+        s sep string.index not if
+            pop s "" false
+        else
+            s swp string.split_at
+            sep string.len
+            string.split_at
+            swp pop
+            true
+        fi
+    end
+end
+
+func byte.chr (int) (string) in -- chr
+    match x in
+        1 string.memory-needed ptr.alloc x int.& 1 ptr.@ 1 swp string.init
+    end
+end

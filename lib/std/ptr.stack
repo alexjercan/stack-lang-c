@@ -1,0 +1,49 @@
+@import "std/core"
+@import "std/byte"
+
+-- Memory operations on ptr values.
+
+-- DATA PTR
+
+const ptr.null 0 int.& ptr.*
+
+func ptr.= (ptr, ptr) (bool) in
+    match p1 p2 in p1 ptr.& int.* p2 ptr.& int.* = end
+end
+
+func ptr.realloc (ptr, int, int) (ptr) in
+    match src old_size new_size in
+        new_size ptr.alloc
+        match dst in
+            dst src
+            old_size new_size < if old_size else new_size fi
+            ptr.@
+            src ptr.free
+        end
+    end
+end
+
+func ptr.memcmp (ptr, ptr, int) (int) in -- s1, s2, n
+    0 rot4' while -- acc, s1, s2, n
+        dup 0 > loop -- acc, s1, s2, n
+        match _acc s1 s2 n in
+            s1 byte.init s2 byte.init - -- b1-b2
+            dup 0 = if
+                s1 1 ptr.+
+                s2 1 ptr.+
+                n 1 -
+            else
+                s1 s2 0
+            fi -- acc, s1, s2, n
+        end
+    pool -- acc, s1, s2, n
+    pop3
+end
+
+func ptr.strlen (ptr) (int) in
+    0 swp while -- n, ptr
+        dup byte.init BYTE_NULL = not loop -- n, ptr
+        1 ptr.+ swp 1 + swp
+    pool -- n, ptr
+    pop
+end

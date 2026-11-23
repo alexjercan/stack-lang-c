@@ -1,0 +1,13 @@
+@import "std/byte"
+
+func case (int, bool, int) (int) in
+    match first ok n in first 0 = if ok if 0 else n fi else first fi end
+end
+
+func main () (int) in
+    0
+    BYTE_A int.& byte.init BYTE_A = 1 case
+    BYTE_0 byte.isdigit BYTE_a byte.isdigit not and 2 case
+    BYTE_\N byte.isspace 3 case
+    BYTE_! byte.isname BYTE_z byte.isalnum and BYTE_Z byte.isupper and 4 case
+end

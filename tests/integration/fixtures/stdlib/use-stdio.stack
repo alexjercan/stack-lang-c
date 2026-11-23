@@ -1,0 +1,7 @@
+@import "std/stdio"
+
+func main () (int) in
+    string.stdin "|" string.concat string.stdout
+    "err\n" string.stderr
+    0
+end

@@ -501,19 +501,6 @@ func stack_context.showf (stack_context, stack_ast_node, string) () in -- ctx, n
     end
 end
 
--- The strings joined with ", ".
-func array.string.show (array) (string) in -- array<string>
-    match items in
-        "" 0 while dup items array.count < loop
-            match text i in
-                text i 0 > if ", " string.concat fi
-                items i array.get unwrap string.* string.concat
-                i 1 +
-            end
-        pool pop
-    end
-end
-
 -- The function T.& (T) (ptr) of the data type T.
 func stack_context_func.init.data_ref (string) (stack_context_func) in -- name
     match name in
@@ -797,25 +784,6 @@ func stack_context.typecheck.expr.cond.has_boolean.showf (stack_context, stack_a
     swp -- ctx, str, cond
     stack_ast_cond.cond swp -- ctx, node, str
     stack_context.showf -- ()
-end
-
-func array.string.= (array, array) (bool) in -- array<string>, array<string>
-    match xs ys in
-        xs array.count ys array.count = if
-            0 while
-                dup xs array.count < if
-                    dup xs swp array.get unwrap string.*
-                    over ys swp array.get unwrap string.*
-                    string.=
-                else
-                    false
-                fi
-            loop 1 + pool -- i
-            xs array.count =
-        else
-            false
-        fi -- bool
-    end
 end
 
 func stack_context.typecheck.expr.cond (stack_context, array, stack_ast_cond) () in -- ctx, stack, cond

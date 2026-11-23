@@ -1,0 +1,4 @@
+@import "std/string"
+
+-- std/string does not give int.show.
+func main () (int) in 1 int.show pop 0 end

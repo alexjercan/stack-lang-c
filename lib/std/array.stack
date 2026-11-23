@@ -1,0 +1,230 @@
+@import "std/core"
+@import "std/ptr"
+@import "std/string"
+@import "std/panic"
+
+-- The array data type: a growable block of items of the same size.
+
+-- DATA ARRAY
+data array (int capacity, int count, int sz, ptr items)
+
+const array.SIZE 32
+
+func array.init.with_sz (int) (array) in -- sz
+    match sz in 0 0 sz ptr.null array.init end
+end
+
+func array.get (array, int) (ptr, bool) in -- a, i
+    match xs i in
+        xs array.count i <= if
+            ptr.null false
+        else
+            xs array.items -- ptr
+            xs array.sz -- ptr, sz
+            i * -- ptr, i*sz
+            ptr.+ -- ptr+i*sz
+            true
+        fi -- ptr, ok
+    end
+end
+
+func array.set (array, int, ptr) (bool) in -- array, index, item
+    match xs i item in
+        i 0 >= i xs array.count < and if
+            xs array.items i xs array.sz * ptr.+
+            item xs array.sz ptr.@ pop
+            true
+        else
+            false
+        fi
+    end
+end
+
+func array.copy (array) (array, bool) in -- a
+    match xs in xs array.sz array.init.with_sz dup xs array.extend end
+end
+
+func array.last (array) (ptr, bool) in -- a
+    match xs in
+        xs array.count 0 <= if
+            0 int.& false
+        else
+            xs xs array.count 1 - array.get
+        fi
+    end
+end
+
+func array.pop (array) (bool) in -- a
+    match xs in
+        xs array.count 0 <= if
+            false
+        else
+            xs xs array.count 1 - array.delete
+        fi
+    end
+end
+
+func array.= (array, array) (bool) in -- xs, ys
+    match xs ys in
+        xs array.count ys array.count = if
+            xs array.items -- xs.items
+            ys array.items -- xs.items, ys.items
+            xs array.count -- xs.items, ys.items, L
+            ptr.memcmp 0 = -- ok
+        else
+            false
+        fi
+    end
+end
+
+-- Make room for n items. The items move to a new block and the old block is
+-- freed.
+func array.reserve' (array, int) () in
+    match xs n in
+        n xs array.capacity > if
+            xs array.capacity 2 * dup 0 <= if pop array.SIZE fi
+            dup n < if pop n fi 0 +
+            match cap in
+                xs array.items
+                xs array.capacity xs array.sz *
+                cap xs array.sz *
+                ptr.realloc
+                xs swp array.items.set
+                xs cap array.capacity.set
+            end
+        fi
+    end
+end
+
+-- Insert n items from p at index i. p can point into the items of xs.
+func array.insert' (array, int, ptr, int) () in
+    match xs i' p n' in
+        i' 0 + n' 0 + xs array.count 0 + xs array.sz 0 + match i n L sz in
+            n L i - + sz * ptr.alloc match tmp in
+                tmp p n sz * ptr.@
+                n sz * ptr.+ xs array.items i sz * ptr.+ L i - sz * ptr.@ pop
+                xs L n + array.reserve'
+                xs array.items i sz * ptr.+ tmp n L i - + sz * ptr.@ pop
+                tmp ptr.free
+            end
+            xs L n + array.count.set
+        end
+    end
+end
+
+func array.insert (array, int, ptr) (bool) in -- dst, i, item
+    match xs i item in
+        i xs array.count <= if xs i item 1 array.insert' true else false fi
+    end
+end
+
+func array.insert_many (array, int, array) (bool) in
+    match dst i src in
+        i dst array.count <= if
+            dst i src array.items src array.count array.insert' true
+        else
+            false
+        fi
+    end
+end
+
+func array.delete (array, int) (bool) in -- a, i
+    match xs i in
+        i xs array.count < if
+            xs array.items i xs array.sz * ptr.+ -- ptr+i*sz
+            xs array.items i 1 + xs array.sz * ptr.+ -- ptr+i*sz, ptr+(i+1)*sz
+            xs array.count i - 1 - xs array.sz *  -- ptr+i*sz, ptr+(i+1)*sz (L-i-1)*sz
+            ptr.@ pop -- ()
+
+            xs array.count 1 - -- L-1
+            xs swp array.count.set -- ()
+
+            true
+        else false fi
+    end
+end
+
+func array.extend (array, array) (bool) in -- xs, xs'
+    match dst src in dst dst array.count src array.insert_many end
+end
+
+func array.append (array, ptr) (bool) in -- a, ptr
+    match xs item in
+        xs array.count xs array.capacity < if
+            xs array.items xs array.count xs array.sz * ptr.+ item xs array.sz ptr.@ pop
+            xs xs array.count 1 + array.count.set
+        else
+            xs xs array.count item 1 array.insert'
+        fi
+        true
+    end
+end
+
+func array.swap (array, int, int) () in
+    match xs i j in
+        xs array.sz ptr.alloc match tmp in
+            xs i array.get unwrap match fst in
+                tmp fst xs array.sz ptr.@ pop
+                xs j array.get unwrap match snd in
+                    fst snd xs array.sz ptr.@ pop
+                    snd tmp xs array.sz ptr.@ pop
+                end
+            end
+            tmp ptr.free
+        end
+    end
+end
+
+func array.sort<int> (array) () in
+    match xs in
+        0 while -- i
+            dup xs array.count < loop -- i
+
+            dup 1 + while -- i, j
+            dup xs array.count < loop -- i, j
+                match i j in
+                    xs i array.get unwrap int.* -- x
+                    xs j array.get unwrap int.* -- y
+                    - 0 > if xs i j array.swap fi
+                    i j 1 +
+                end
+            pool -- i, j
+
+            pop 1 +
+        pool -- i
+
+        pop
+    end
+end
+
+-- The strings joined with ", ".
+func array.string.show (array) (string) in -- array<string>
+    match items in
+        "" 0 while dup items array.count < loop
+            match text i in
+                text i 0 > if ", " string.concat fi
+                items i array.get unwrap string.* string.concat
+                i 1 +
+            end
+        pool pop
+    end
+end
+
+func array.string.= (array, array) (bool) in -- array<string>, array<string>
+    match xs ys in
+        xs array.count ys array.count = if
+            0 while
+                dup xs array.count < if
+                    dup xs swp array.get unwrap string.*
+                    over ys swp array.get unwrap string.*
+                    string.=
+                else
+                    false
+                fi
+            loop 1 + pool -- i
+            xs array.count =
+        else
+            false
+        fi -- bool
+    end
+end

@@ -1,0 +1,77 @@
+@import "std/core"
+@import "std/byte"
+@import "std/string"
+
+-- Integer arithmetic and the conversions between int and string.
+
+-- DATA INT
+
+func min (int, int) (int) in
+    match a b in a b < if a else b fi end
+end
+
+
+func abs (int) (int) in
+    dup 0 < if 0 swp - fi
+end
+
+func mod (int, int) (int) in
+    match x m in
+        x m % match r in r 0 < if r m + else r fi end
+    end
+end
+
+func digit.show (int) (string) in
+    dup 0 = if pop "0" else
+    dup 1 = if pop "1" else
+    dup 2 = if pop "2" else
+    dup 3 = if pop "3" else
+    dup 4 = if pop "4" else
+    dup 5 = if pop "5" else
+    dup 6 = if pop "6" else
+    dup 7 = if pop "7" else
+    dup 8 = if pop "8" else
+    dup 9 = if pop "9" else pop ""
+    fi fi fi fi fi fi fi fi fi fi
+end
+
+func int.show (int) (string) in
+    dup 0 = if pop "0"
+    else
+        dup 0 < if abs "-" else "" fi -- int, str
+
+        "" rot while -- str, int
+            dup 0 > loop -- str, int
+            match s n in
+                n 10 mod digit.show s string.concat  -- str
+                n 10 / -- str, int
+            end
+        pool -- str, int
+        pop string.concat
+    fi
+end
+
+func int.read (string) (int, bool) in
+    -- TODO: parse negative numbers
+    match s in
+        s string.len 0 <= if
+            0 true
+        else
+            0 0 true while -- i, ok
+                match i ok in
+                    i ok i s string.len < ok and
+                end loop -- i, ok
+                match r i ok in
+                    s i string.!!
+                    dup byte.isdigit if
+                        BYTE_0 -  r 10 * + i 1 + ok
+                    else
+                        i 1 + false
+                    fi
+                end
+            pool -- i, ok
+
+            swp pop
+        fi
+    end
+end

@@ -1,0 +1,48 @@
+@import "std/core"
+@import "std/byte"
+@import "std/ptr"
+@import "std/string"
+@import "std/panic"
+@import "std/array"
+
+-- C strings for system calls: NUL terminated copies of strings.
+
+-- A new C string with the bytes of s and a NUL byte. The bool is false when
+-- s contains a NUL byte, because C cannot see the bytes after it.
+func cstr.from (string) (ptr, bool) in -- s
+    match s in
+        s string.len 1 + ptr.alloc match p in
+            p s string.str s string.len ptr.@
+        end
+        true 0 while dup s string.len < loop -- ok, i
+            match ok i in ok s i string.!! BYTE_NULL = not and i 1 + end
+        pool pop
+    end
+end
+
+-- A NULL terminated array of new C strings for xs (array<string>).
+func cstr.array (array) (ptr, bool) in -- xs
+    match xs in
+        xs array.count 1 + ptr.sizeof * ptr.alloc match argv in
+            true 0 while dup xs array.count < loop -- ok, i
+                match ok i in
+                    xs i array.get unwrap string.* cstr.from match p p_ok in
+                        argv i ptr.sizeof * ptr.+ p ptr.& ptr.sizeof ptr.@ pop
+                        ok p_ok and i 1 +
+                    end
+                end
+            pool pop
+            argv swp
+        end
+    end
+end
+
+-- Free the C strings of cstr.array and the array.
+func cstr.array.free (ptr) () in -- argv
+    match argv in
+        argv while dup ptr.* ptr.null ptr.= not loop
+            dup ptr.* ptr.free ptr.sizeof ptr.+
+        pool pop
+        argv ptr.free
+    end
+end

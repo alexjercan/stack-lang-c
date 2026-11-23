@@ -1,0 +1,3 @@
+@import "std/error"
+
+func main () (int) in "bad" error.fail error.unwrap 0 end

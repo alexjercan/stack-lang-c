@@ -1,0 +1,19 @@
+@import "std/io"
+@import "std/panic"
+
+-- Strings on the standard streams. A failed read or write panics.
+
+func string.stdin () (string) in -- ()
+    STDIN stdlib.fread.<eof> -- s, ok
+    unwrap -- s
+end
+
+func string.stdout (string) () in -- s
+    STDOUT swp stdlib.fwrite -- bool
+    unwrap
+end
+
+func string.stderr (string) () in -- s
+    STDERR swp stdlib.fwrite -- bool
+    unwrap
+end

@@ -1,0 +1,16 @@
+@import "std/os"
+@import "stdlib"
+@import "std/string"
+@import "process"
+@import "std/core"
+@import "stdlib"
+
+-- The umbrella and single modules together load each file one time. stdlib
+-- gives the names of all modules.
+func main () (int) in
+    "a" "b" string.concat "2" int.read pop pop pop
+    "x" cstr.from pop ptr.free
+    1 os.random.hex pop pop
+    "ok\n" string.stdout
+    "sh" process.which swp pop if 0 else 1 fi
+end

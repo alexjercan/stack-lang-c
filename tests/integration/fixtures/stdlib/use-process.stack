@@ -1,0 +1,16 @@
+@import "process"
+
+func main () (int) in
+    "sh" process.which match path found in
+        found if
+            string.sizeof array.init.with_sz match args in
+                args "sh" string.& array.append pop
+                args "-c" string.& array.append pop
+                args "exit 7" string.& array.append pop
+                path args STDOUT process.run match status ok in
+                    ok status process.status.exited and if status process.status.code else 2 fi
+                end
+            end
+        else 1 fi
+    end
+end

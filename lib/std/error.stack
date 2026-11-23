@@ -1,0 +1,28 @@
+@import "std/core"
+@import "std/string"
+@import "std/panic"
+@import "std/stdio"
+
+-- The error data type: ok, or a message.
+
+-- DATA ERROR
+
+data error
+    ( bool ok
+    , string message
+    )
+
+func error.fail (string) (error) in
+    false swp error.init
+end
+
+func error.nil () (error) in
+    true "" error.init
+end
+
+func error.unwrap (error) () in
+    dup error.ok not if
+        error.message "\n" string.concat string.stderr
+        panic
+    else pop fi
+end
