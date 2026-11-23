@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Tests nixvimModules.default with Nixvim.
 #
-#   tests/nixvim/run.sh [eval|headless|all]
+#   tests/nixvim/run.sh [eval|headless|syntax|all]
 #
 #   eval      evaluate the module in some configurations; builds nothing
+#   syntax    check syntax/stack.vim with the nvim of PATH (or NVIM_BIN);
+#             builds nothing
 #   headless  build Neovim with the module and check filetype, syntax and
 #             hover with stackls; builds the default package
 #
@@ -44,15 +46,24 @@ run_headless() {
   echo "nixvim headless: ok"
 }
 
+run_syntax() {
+  timeout 60 "${NVIM_BIN:-nvim}" --clean --headless -n -i NONE \
+    --cmd "set runtimepath^=$repo/editors/neovim" \
+    -c "luafile $here/syntax.lua"
+  echo "syntax: ok"
+}
+
 case $mode in
 eval) run_eval ;;
 headless) run_headless ;;
+syntax) run_syntax ;;
 all)
   run_eval
+  run_syntax
   run_headless
   ;;
 *)
-  echo "usage: $0 [eval|headless|all]" >&2
+  echo "usage: $0 [eval|headless|syntax|all]" >&2
   exit 2
   ;;
 esac

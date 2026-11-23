@@ -96,11 +96,14 @@ Hover (`textDocument/hover`):
   first known kind in `capabilities.textDocument.hover.contentFormat` is
   `markdown`, else plain text.
 - These names get a result: builtin functions and data types, the `func`,
-  `data` and `const` definitions of the file and of its imports, the type
-  names in signatures and fields, `T.&` and `T.*`, and the generated constants
-  `T.init`, `T.sizeof`, `T.f`, `T.f.set` and `T.f.offset` with their stack
-  effect. A `const` shows its original text.
-- The `--` lines just above a `func`, `data` or `const` are its description.
+  `data`, `const` and `extern` definitions of the file and of its imports,
+  the type names in signatures and fields, `T.&` and `T.*`, and the generated
+  constants `T.init`, `T.sizeof`, `T.f`, `T.f.set` and `T.f.offset` with
+  their stack effect. A `const` shows its original text. An `extern` shows
+  its signature and its C symbol, for example
+  `extern c.add (int, int) (int) "add"`.
+- The `--` lines just above a `func`, `data`, `const` or `extern` are its
+  description.
   It is raw Markdown, so write `array<...>` in backticks.
 - A match binding and the names that it binds in a `func` show
   `name: type` from the type checker of `slc`. They get `null` when the
@@ -120,9 +123,10 @@ Go to definition (`textDocument/definition`) has the same positions, params,
 imports and errors as hover. The result is a `Location` with the range of the
 name of the definition, or `null`:
 
-- A `func`, `data`, `const`, field or match binding is its own definition. A
-  name uses the definition that `slc` uses: the data helpers, then the
-  constants, then the builtins, then the first `func` or `data`.
+- A `func`, `extern`, `data`, `const`, field or match binding is its own
+  definition. A name uses the definition that `slc` uses: the data helpers,
+  then the constants, then the builtins, then the first `func`, `extern` or
+  `data`. An `extern` goes to its name in the `Stack` file, not to C code.
 - A bound name goes to the binding of the innermost `match`. It does not
   need a type.
 - `T.f`, `T.f.set` and `T.f.offset` go to the field `f`. `T.init`,
@@ -140,12 +144,12 @@ imports as hover. The result is a `CompletionList` that is complete:
   name, also the part after the cursor. A name can have dots and operator
   characters, as in `ptr.+`.
 - In a body: data helpers, constants, builtin functions, the match bindings
-  in scope, and `func` definitions with `T.&` and `T.*`. In a signature or a
-  data field: data types. A label is there one time, from the definition that
+  in scope, and `func` and `extern` definitions with `T.&` and `T.*`. In a
+  signature or a data field: data types. A label is there one time, from the definition that
   `slc` uses. `detail` is the signature or the type, when it is known.
 - The scan of the tokens finds the bindings in scope, so code that is not
-  complete works. The names of `func`, `data` and `const` definitions after a
-  syntax error are also there, without `detail`.
+  complete works. The names of `func`, `data`, `const` and `extern`
+  definitions after a syntax error are also there, without `detail`.
 - No items in comments, strings, numbers, or the name of a new definition,
   field or binding. There are no keywords and no snippets.
 

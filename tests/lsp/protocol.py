@@ -1725,8 +1725,8 @@ def completion_names():
         ("(int) in\n", 0, 7, []),
         ("pair, ptr", 0, 2, {"only": {"pair"}, "has": {"pair": (STRUCT, "data pair (int a, bool f)")}}),
         ("ptr) (int", 0, 1, {"only": {"ptr", "pair"}, "has": {"ptr": (STRUCT, "data ptr")}}),
-        ("(pair, ptr", 0, 1, {"only": {"int", "ptr", "bool", "pair"}}),
-        ("(a)", 0, 1, {"only": {"int", "ptr", "bool", "pair"}}),
+        ("(pair, ptr", 0, 1, {"only": {"int", "ptr", "bool", "float", "pair"}}),
+        ("(a)", 0, 1, {"only": {"int", "ptr", "bool", "float", "pair"}}),
         ("(a) (a)", 0, 3, []),
         ("int a", 0, 1, {"only": {"int"}}),
         ("bool f", 0, 2, {"only": {"bool"}}),
@@ -1909,7 +1909,9 @@ def completion_errors():
     match(got[:-3], [ok(1, INIT_RESULT)] + [err(10 + i, -32602) for i in range(len(bad))] +
           [ok(2, None), ok(3, None)])
     assert got[-1] == ok(6, None) and [g["id"] for g in got[-3:-1]] == [4, 5], got[-3:]
-    check_items(got[-3]["result"], text, len(text), {"only": {"f"}})
+    floats = {"float.&", "float.*", "float.+", "float.-", "float.mul", "float./", "float.>", "float.<", "float.=",
+              "float.to_int", "float.sizeof"}
+    check_items(got[-3]["result"], text, len(text), {"only": {"f"} | floats})
     # The func is not complete, so its name comes from the scan, without detail.
     check_items(got[-2]["result"], text, 16, {"has": {"f": (FUNC, None)}})
     expect([frame(completion(1, pos(0, 0)))], [err(1, -32002)])
@@ -1925,6 +1927,171 @@ def completion_errors():
         for g in got[1:-1]:
             r = g["result"]
             assert r is not None and len({it["label"] for it in r["items"]}) == len(r["items"]), (text[:40], g)
+
+
+EXT = ('data box (int v)\n'
+       '-- Add two integers in C.\n'
+       '--\n'
+       '-- Uses `int64_t`.\n'
+       'extern c.add (int, int) (int) "add"\n'
+       '\n'
+       '-- detached\n'
+       '\n'
+       'extern c.box (box, float) (ptr) "make_box"\n'
+       'const Z 1 -- not a doc\n'
+       'extern c.quote () () "a\\"b\\\\c"\n'
+       'func main () (int) in\n'
+       '    40 2 c.add match n in n end\n'
+       'end\n'
+       'func g () () in 1 box.init 1.5 c.box match p in p pop end c.quote end\n')
+EXT_ADD = ('extern c.add (int, int) (int) "add"', "Add two integers in C.\n\nUses `int64_t`.")
+EXT_BOX = ('extern c.box (box, float) (ptr) "make_box"', "")
+EXT_QUOTE = ('extern c.quote () () "a\\"b\\\\c"', "")
+
+
+@test
+def hover_externs():
+    """An extern shows its signature, its C symbol and its doc."""
+    for caps in [PLAINTEXT, MARKDOWN]:
+        hovers(EXT, [
+            ("c.add (", 0, 0, EXT_ADD),
+            ("c.add match", 0, 0, EXT_ADD),
+            ("c.add match", 0, 4, EXT_ADD),
+            ("c.box (", 0, 0, EXT_BOX),
+            ("c.box match", 0, 0, EXT_BOX),
+            ("c.quote ()", 0, 0, EXT_QUOTE),
+            ("c.quote end", 0, 0, EXT_QUOTE),
+            ("int, int", 0, 0, ("data int", BUILTIN_DATA)),
+            ("box, float", 0, 0, ("data box (int v)", "")),
+            ("float)", 0, 0, ("data float", BUILTIN_DATA)),
+            ("ptr)", 0, 0, ("data ptr", BUILTIN_DATA)),
+            ('"add"', 0, 1, None),
+            ("extern c.add", 0, 0, None),
+            ("n in", 0, 0, bind("n", "int")),
+            ("n end", 0, 0, bind("n", "int")),
+            ("p in", 0, 0, bind("p", "ptr")),
+        ], caps=caps)
+
+
+@test
+def definition_externs():
+    """An extern goes to its name in the Stack file, not to C code."""
+    definitions(EXT, [
+        ("c.add (", 0, 0, ("c.add (", 0)),
+        ("c.add match", 0, 0, ("c.add (", 0)),
+        ("c.add match", 0, 3, ("c.add (", 0)),
+        ("c.box match", 0, 0, ("c.box (", 0)),
+        ("c.quote end", 0, 0, ("c.quote ()", 0)),
+        ("box, float", 0, 0, ("box (", 0)),
+        ("int, int", 0, 0, None),
+        ('"add"', 0, 1, None),
+        ("extern c.add", 0, 0, None),
+    ])
+
+
+@test
+def completion_externs():
+    completions(EXT, [
+        ("c.add match", 0, 2, {"only": {"c.add", "c.box", "c.quote"},
+                               "has": {"c.add": (FUNC, EXT_ADD[0]), "c.quote": (FUNC, EXT_QUOTE[0])}}),
+        ("c.quote end", 0, 3, {"only": {"c.quote"}, "has": {"c.quote": (FUNC, EXT_QUOTE[0])}}),
+        ("c.add (", 0, 2, []),
+        ("int, int", 0, 1, {"only": {"int"}}),
+        ("box, float", 0, 2, {"only": {"box", "bool"}}),
+        ("ptr)", 0, 1, {"only": {"ptr"}}),
+        ('"add"', 0, 2, []),
+        ('"make_box"', 0, 9, []),
+        ("extern c.box", 0, 3, []),
+    ])
+    # The scan finds an extern after a syntax error. A string ends the
+    # extern, so the next line is not a signature.
+    text = ('func f () () in c. end\n'
+            'func broken (\n'
+            'extern c.late (int) () "late"\n'
+            '(pt\n')
+    completions(text, [("c. end", 0, 2, {"only": {"c.late"}, "has": {"c.late": (FUNC, None)}}),
+                       ("c.late (", 0, 3, []), ("int)", 0, 1, {"only": {"int"}}), ('"late"', 0, 2, []),
+                       ("(pt\n", 0, 3, [])])
+
+
+@test
+def extern_precedence():
+    """A name uses the definition that slc uses: data helpers, constants,
+    builtins, then the first func or extern."""
+    text = ('data box (int v)\n'
+            'const k.c 1\n'
+            'extern dup (int) (int) "dup"\n'
+            'extern box.v (int) (int) "v"\n'
+            'extern k.c () () "c"\n'
+            'extern twice () () "first"\n'
+            'func twice (int) () in end\n'
+            'func once () () in end\n'
+            'extern once (int) () "second"\n'
+            'func f (box) () in dup box.v k.c twice once end\n')
+    hovers(text, [
+        ("dup (int)", 0, 0, ('extern dup (int) (int) "dup"', "")),
+        ("dup box", 0, 0, builtin("dup")),
+        ("box.v k", 0, 0, ("box.v (box) (int)", "box.v getter")),
+        ("k.c twice", 0, 0, ("const k.c 1", "")),
+        ("twice once", 0, 0, ('extern twice () () "first"', "")),
+        ("once end", 0, 0, ("func once () ()", "")),
+    ])
+    definitions(text, [
+        ("dup (int)", 0, 0, ("dup (int)", 0)),
+        ("dup box", 0, 0, None),
+        ("box.v k", 0, 0, ("v)", 0)),
+        ("k.c twice", 0, 0, ("k.c 1", 0)),
+        ("twice once", 0, 0, ("twice ()", 0)),
+        ("once end", 0, 0, ("once ()", 0)),
+    ])
+    completions(text, [
+        ("dup box", 0, 2, {"has": {"dup": (FUNC, "func dup (a) (a, a)")}}),
+        ("box.v k", 0, 5, {"has": {"box.v": (FIELD, "box.v (box) (int)")}}),
+        ("k.c twice", 0, 2, {"only": {"k.c"}, "has": {"k.c": (CONST, None)}}),
+        ("twice once", 0, 2, {"only": {"twice"}, "has": {"twice": (FUNC, 'extern twice () () "first"')}}),
+        ("once end", 0, 2, {"only": {"once"}, "has": {"once": (FUNC, "func once () ()")}}),
+    ])
+
+
+@test
+def extern_imports():
+    """Externs of imports, on disk and open with unsaved text."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = os.path.realpath(tmp)
+        path = os.path.join(tmp, "dep.stack")
+        disk = '-- Disk doc.\nextern dep.c (int) (int) "dep_c"\n'
+        with open(path, "w") as f:
+            f.write(disk)
+        dep = file_uri(path)
+        uri = file_uri(os.path.join(tmp, "main.stack"))
+        text = '@import "dep"\nfunc main () (int) in 1 dep.c match r in r end end\n'
+        hovers(text, [("dep.c", 0, 0, ('extern dep.c (int) (int) "dep_c"', "Disk doc.")),
+                      ("r in", 0, 0, bind("r", "int"))], uri=uri, cwd=tmp)
+        definitions(text, [("dep.c", 0, 0, (dep, disk, "dep.c", 0))], uri=uri, cwd=tmp)
+        completions(text, [("dep.c", 0, 4, {"only": {"dep.c"},
+                                            "has": {"dep.c": (FUNC, 'extern dep.c (int) (int) "dep_c"')}})],
+                    uri=uri, cwd=tmp)
+        unsaved = '\n-- Open doc.\nextern dep.c (ptr) () "open_c"\n'
+        before = [did_open(unsaved, dep)]
+        hovers(text, [("dep.c", 0, 0, ('extern dep.c (ptr) () "open_c"', "Open doc.")), ("r in", 0, 0, None)],
+               uri=uri, before=before, cwd=tmp)
+        definitions(text, [("dep.c", 0, 0, (dep, unsaved, "dep.c", 0))], uri=uri, before=before, cwd=tmp)
+        completions(text, [("dep.c", 0, 4, {"has": {"dep.c": (FUNC, 'extern dep.c (ptr) () "open_c"')}})],
+                    uri=uri, before=before, cwd=tmp)
+
+
+@test
+def extern_symbols():
+    """The symbol shows the escapes of the source. A backtick in it gets a
+    longer code fence in Markdown."""
+    ctl = 'extern c.ctl () () "a\\tb\\nc\\rd\\be\\ff\\\\g\\"h"'
+    tick = 'extern c.tick () () "`x` ```y"'
+    text = ctl + "\n" + tick + "\nfunc f () () in c.ctl c.tick end\n"
+    for caps in [PLAINTEXT, MARKDOWN]:
+        hovers(text, [("c.ctl ()", 0, 0, (ctl, "")), ("c.ctl c", 0, 0, (ctl, "")),
+                      ("c.tick ()", 0, 0, (tick, "")), ("c.tick end", 0, 0, (tick, ""))], caps=caps)
+    completions(text, [("c.tick end", 0, 2, {"only": {"c.ctl", "c.tick"},
+                                            "has": {"c.ctl": (FUNC, ctl), "c.tick": (FUNC, tick)}})])
 
 
 def main():

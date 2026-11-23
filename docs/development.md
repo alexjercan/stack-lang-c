@@ -30,6 +30,13 @@ env NIXVIM=github:nix-community/nixvim/<rev> tests/nixvim/run.sh headless
 The tests use `path:` of the repository, so untracked files are included.
 Set `STACK` to use another reference of this flake.
 
+`syntax` checks only `syntax/stack.vim` with the `nvim` of `PATH` (or
+`NVIM_BIN`). It builds nothing:
+
+```fish
+tests/nixvim/run.sh syntax
+```
+
 ## Build programs
 
 By default, `slc` compiles a program to an executable. The default output is

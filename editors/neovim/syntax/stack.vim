@@ -12,7 +12,7 @@ endif
 syn iskeyword 33,35-39,42-43,45-126
 
 syn keyword     stackStatement      data nextgroup=stackDataType skipwhite
-syn keyword     stackStatement      const func in end match
+syn keyword     stackStatement      const func in end match extern
 syn keyword     stackConditional    if else fi
 syn keyword     stackRepeat         while loop pool
 syn keyword     stackBoolean        true false

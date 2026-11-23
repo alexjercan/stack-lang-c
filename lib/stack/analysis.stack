@@ -17,10 +17,12 @@ const STACK_REF_FUNC 4    -- the name of a func
 const STACK_REF_DATA 5    -- the name of a data type
 const STACK_REF_FIELD 6   -- the name of a data field
 const STACK_REF_CONST 7   -- the name of a const
+const STACK_REF_EXTERN 8  -- the name of an extern
 
 -- The bytes [start, stop) of a name. decl is the stack_ast_func of
 -- STACK_REF_FUNC, the stack_ast_data of STACK_REF_DATA, the stack_ast_const
--- of STACK_REF_CONST and the stack_ast_func of the body of STACK_REF_BOUND and
+-- of STACK_REF_CONST, the stack_ast_extern of STACK_REF_EXTERN and the
+-- stack_ast_func of the body of STACK_REF_BOUND and
 -- STACK_REF_BINDING in a func, else ptr.null. bind is the position of the
 -- binding of STACK_REF_BOUND and STACK_REF_BINDING, else -1.
 data stack_ref (int kind, int start, int stop, string name, ptr decl, int bind)
@@ -30,8 +32,10 @@ const STACK_DECL_DATA 0
 const STACK_DECL_FUNC 1
 const STACK_DECL_REF 2   -- T.& of a data type
 const STACK_DECL_DEREF 3 -- T.* of a data type
+const STACK_DECL_EXTERN 4
 
--- decl is the stack_ast_func of STACK_DECL_FUNC, else the stack_ast_data.
+-- decl is the stack_ast_func of STACK_DECL_FUNC, the stack_ast_extern of
+-- STACK_DECL_EXTERN, else the stack_ast_data.
 data stack_decl (int kind, string name, ptr decl)
 
 -- refs: array<stack_ref> of the file. decls: array<stack_decl> of the file and
@@ -188,7 +192,13 @@ func stack_analysis.names (stack_ast) (array) in
                                     refs STACK_REF_CONST c stack_ast_const.name p stack_ref.add
                                     refs scope ptr.null c stack_ast_const.exprs stack_analysis.names.exprs
                                 end end
-                            fi fi fi
+                            else kind STACK_AST_FEATURE_EXTERN = if
+                                feat stack_ast_feature.feature match p in p stack_ast_extern.* match x in
+                                    refs STACK_REF_EXTERN x stack_ast_extern.name p stack_ref.add
+                                    refs STACK_REF_TYPE x stack_ast_extern.args stack_analysis.names.nodes
+                                    refs STACK_REF_TYPE x stack_ast_extern.rets stack_analysis.names.nodes
+                                end end
+                            fi fi fi fi
                         end
                     end
                     i 1 +
@@ -208,9 +218,10 @@ func stack_decl.add (array, int, string, ptr) () in -- array<stack_decl>, kind, 
 end
 
 -- The definitions of the files in the order of the type checker: the data
--- types with T.& and T.*, then the functions. The type checker uses the
--- first symbol with a name, after the builtins, and rejects later ones, so
--- the first definition with a name is the one that it uses.
+-- types with T.& and T.*, then the functions and the externs in the order
+-- of the files. The type checker uses the first symbol with a name, after
+-- the builtins, and rejects later ones, so the first definition with a name
+-- is the one that it uses.
 func stack_analysis.defines (stack_ast) (array) in
     stack_ast.features match features in
         stack_decl.sizeof array.init.with_sz match decls in
@@ -238,7 +249,12 @@ func stack_analysis.defines (stack_ast) (array) in
                                 decls STACK_DECL_FUNC p stack_ast_func.* stack_ast_func.name stack_ast_node.value p
                                 stack_decl.add
                             end
-                        fi
+                        else feat stack_ast_feature.kind STACK_AST_FEATURE_EXTERN = if
+                            feat stack_ast_feature.feature match p in
+                                decls STACK_DECL_EXTERN p stack_ast_extern.* stack_ast_extern.name stack_ast_node.value p
+                                stack_decl.add
+                            end
+                        fi fi
                     end
                     i 1 +
                 end
@@ -428,6 +444,39 @@ func stack_ast_func.text (stack_ast_func) (string) in
         "func " f stack_ast_func.name stack_ast_node.value
         f stack_ast_func.args stack_params.node_to_string f stack_ast_func.rets stack_params.node_to_string
         stack_signature.text string.concat
+    end
+end
+
+-- A string literal with the bytes of s. A quote and a backslash get a
+-- backslash, and the bytes that the lexer reads from an escape get it back.
+func stack_string.quote (string) (string) in -- s
+    match s in
+        "\"" 0 while dup s string.len < loop
+            match out i in
+                s i string.!! match c in
+                    c BYTE_QUOTE = if "\\\""
+                    else c BYTE_\ = if "\\\\"
+                    else c BYTE_\N = if "\\n"
+                    else c BYTE_\T = if "\\t"
+                    else c 13 = if "\\r"
+                    else c 8 = if "\\b"
+                    else c 12 = if "\\f"
+                    else s i 1 string.substr fi fi fi fi fi fi fi
+                end
+                out swp string.concat i 1 +
+            end
+        pool pop
+        "\"" string.concat
+    end
+end
+
+-- The extern with its signature and its C symbol.
+func stack_ast_extern.text (stack_ast_extern) (string) in
+    match x in
+        "extern " x stack_ast_extern.name stack_ast_node.value
+        x stack_ast_extern.args stack_params.node_to_string x stack_ast_extern.rets stack_params.node_to_string
+        stack_signature.text string.concat
+        " " string.concat x stack_ast_extern.symbol stack_ast_node.value stack_string.quote string.concat
     end
 end
 
@@ -680,7 +729,7 @@ func stack_doc_scan.step (stack_doc_scan, array, stack_file_id, string, int, int
                         fi fi
                     fi
                 end
-                k STACK_TOKEN_FUNC = k STACK_TOKEN_DATA = or k STACK_TOKEN_CONST = or if
+                k STACK_TOKEN_FUNC = k STACK_TOKEN_DATA = or k STACK_TOKEN_CONST = or k STACK_TOKEN_EXTERN = or if
                     s k stack_doc_scan.kind.set
                     s text p s stack_doc_scan.q 0 + stack_doc.of stack_doc_scan.doc.set
                     s p stack_doc_scan.start.set
@@ -796,8 +845,8 @@ data stack_types
     , stack_ast base
     )
 
-const STACK_NAME_BASE 4  -- a builtin symbol
-const STACK_NAME_CONST 5 -- a constant
+const STACK_NAME_BASE 5  -- a builtin symbol
+const STACK_NAME_CONST 6 -- a constant
 
 func stack_types.new (array, stack_ast) (ptr) in -- array<stack_decl>, base
     match decls base in
@@ -1136,11 +1185,20 @@ func stack_types.need (stack_types, array, int, array) (bool) in -- types, names
                                                 sigs xs array.extend unwrap xs array.items ptr.free
                                             end
                                         end
+                                    else kind STACK_DECL_EXTERN = if
+                                        types id stack_types.decl stack_decl.decl stack_ast_extern.* match x in
+                                            x stack_ast_extern.args stack_params.node_to_string match xs in
+                                                sigs xs array.extend unwrap xs array.items ptr.free
+                                            end
+                                            x stack_ast_extern.rets stack_params.node_to_string match xs in
+                                                sigs xs array.extend unwrap xs array.items ptr.free
+                                            end
+                                        end
                                     else kind STACK_DECL_DATA = not if
                                         sigs types id stack_types.decl stack_decl.decl stack_ast_data.* stack_ast_data.name
                                         stack_ast_node.value string.& array.append unwrap
                                         sigs STACK_DATA_PTR string.& array.append unwrap
-                                    fi fi fi
+                                    fi fi fi fi
                                 end
                             fi
                             true
@@ -1164,13 +1222,20 @@ func stack_types.decl.symbol (stack_types, int) (int, ptr) in -- types, id
                         d stack_decl.name fn stack_ast_func.args stack_params.node_to_string
                         fn stack_ast_func.rets stack_params.node_to_string stack_context_func.init stack_context_func.&
                     end
+                else kind STACK_DECL_EXTERN = if
+                    -- The type checker adds an extern as a func.
+                    d stack_decl.decl stack_ast_extern.* match x in
+                        STACK_CONTEXT_SYMBOL_FUNC
+                        d stack_decl.name x stack_ast_extern.args stack_params.node_to_string
+                        x stack_ast_extern.rets stack_params.node_to_string stack_context_func.init stack_context_func.&
+                    end
                 else kind STACK_DECL_DATA = if
                     STACK_CONTEXT_SYMBOL_DATA d stack_decl.name stack_context_data.init stack_context_data.&
                 else
                     STACK_CONTEXT_SYMBOL_FUNC d stack_decl.decl stack_ast_data.* stack_ast_data.name stack_ast_node.value
                     kind STACK_DECL_REF = if stack_context_func.init.data_ref else stack_context_func.init.data_deref fi
                     stack_context_func.&
-                fi fi
+                fi fi fi
             end
         end
     end
@@ -1234,7 +1299,9 @@ func stack_types.symbols.free (stack_types, array, array) () in -- types, symbol
                                 p stack_context_func.* match fn in
                                     fn stack_context_func.args array.items ptr.free
                                     fn stack_context_func.rets array.items ptr.free
-                                    kind STACK_DECL_FUNC = not if fn stack_context_func.name string.str ptr.free fi
+                                    kind STACK_DECL_REF = kind STACK_DECL_DEREF = or if
+                                        fn stack_context_func.name string.str ptr.free
+                                    fi
                                 end
                             fi
                         end
@@ -1382,6 +1449,10 @@ func stack_analysis.hover.data (stack_analysis, stack_ast_data) (bool, string, s
     match an d in true d stack_ast_data.text "" an d stack_ast_data.name stack_analysis.doc pop end
 end
 
+func stack_analysis.hover.extern (stack_analysis, stack_ast_extern) (bool, string, string, string) in -- an, x
+    match an x in true x stack_ast_extern.text "" an x stack_ast_extern.name stack_analysis.doc pop end
+end
+
 func stack_analysis.hover.const (stack_analysis, stack_ast_const) (bool, string, string, string) in -- an, c
     match an c in
         an c stack_ast_const.name stack_analysis.doc match doc code in
@@ -1414,6 +1485,8 @@ func stack_analysis.hover.decl (stack_analysis, stack_decl) (bool, string, strin
                 d stack_decl.decl stack_ast_func.* match f in
                     true f stack_ast_func.text "" an f stack_ast_func.name stack_analysis.doc pop
                 end
+            else kind STACK_DECL_EXTERN = if
+                an d stack_decl.decl stack_ast_extern.* stack_analysis.hover.extern
             else kind STACK_DECL_DATA = if
                 false "" "" ""
             else
@@ -1423,7 +1496,7 @@ func stack_analysis.hover.decl (stack_analysis, stack_decl) (bool, string, strin
                     stack_analysis.func.text
                     owner kind STACK_DECL_REF = if " reference" else " dereference" fi string.concat ""
                 end
-            fi fi
+            fi fi fi
         end
     end
 end
@@ -1490,6 +1563,8 @@ func stack_analysis.hover (stack_analysis, int) (bool, int, int, string, string,
                     an r stack_ref.decl stack_ast_data.* stack_analysis.hover.data
                 else kind STACK_REF_CONST = if
                     an r stack_ref.decl stack_ast_const.* stack_analysis.hover.const
+                else kind STACK_REF_EXTERN = if
+                    an r stack_ref.decl stack_ast_extern.* stack_analysis.hover.extern
                 else kind STACK_REF_TYPE = if
                     an r stack_ref.name stack_analysis.hover.type
                 else kind STACK_REF_CALL = if
@@ -1501,7 +1576,7 @@ func stack_analysis.hover (stack_analysis, int) (bool, int, int, string, string,
                     an r stack_analysis.hover.bind
                 else
                     false "" "" ""
-                fi fi fi fi fi fi fi
+                fi fi fi fi fi fi fi fi
             end fi
             match ok code note doc in ok r stack_ref.start 0 + r stack_ref.stop 0 + code note doc end
         end
@@ -1541,14 +1616,16 @@ func stack_definition.helper (stack_helper) (bool, ptr, int, int) in -- h
     end
 end
 
--- A func, a data type, or the data type of T.& and T.*.
+-- A func, an extern, a data type, or the data type of T.& and T.*.
 func stack_definition.decl (stack_decl) (bool, ptr, int, int) in -- d
     match d in
         d stack_decl.kind STACK_DECL_FUNC = if
             d stack_decl.decl stack_ast_func.* stack_ast_func.name
+        else d stack_decl.kind STACK_DECL_EXTERN = if
+            d stack_decl.decl stack_ast_extern.* stack_ast_extern.name
         else
             d stack_decl.decl stack_ast_data.* stack_ast_data.name
-        fi
+        fi fi
         dup stack_ast_node.value stack_definition.node
     end
 end
@@ -1596,7 +1673,7 @@ func stack_analysis.definition (stack_analysis, int) (bool, ptr, int, int) in --
                 stack_definition.none
             else r stack_ref.kind r stack_ref.name match kind name in
                 kind STACK_REF_FUNC = kind STACK_REF_DATA = or kind STACK_REF_FIELD = or
-                kind STACK_REF_CONST = or kind STACK_REF_BINDING = or if
+                kind STACK_REF_CONST = or kind STACK_REF_BINDING = or kind STACK_REF_EXTERN = or if
                     true ptr.null r stack_ref.start 0 + r stack_ref.stop 0 +
                 else kind STACK_REF_TYPE = if
                     an name stack_analysis.definition.type
@@ -1638,13 +1715,14 @@ data stack_item (string label, int kind, string detail)
 
 -- A name that the scan finds: a match binding (STACK_TOKEN_MATCH) or the
 -- name of a definition (STACK_TOKEN_FUNC, STACK_TOKEN_CONST or
--- STACK_TOKEN_DATA), and its position.
+-- STACK_TOKEN_DATA), and its position. An extern is a STACK_TOKEN_FUNC, as
+-- in the type checker.
 data stack_scan_name (int kind, string name, int pos)
 
 -- States of the scan.
 const STACK_SCAN_TOP 0
-const STACK_SCAN_NAME 1   -- after func, data or const
-const STACK_SCAN_SIG 2    -- the signature of a func
+const STACK_SCAN_NAME 1   -- after func, data, const or extern
+const STACK_SCAN_SIG 2    -- the signature of a func or an extern
 const STACK_SCAN_DATA 3   -- the fields of a data type
 const STACK_SCAN_BODY 4   -- the body of a func or a const
 const STACK_SCAN_BINDS 5  -- the bindings of a match, before in
@@ -1736,7 +1814,7 @@ end
 func stack_scan.step (stack_scan, int, string, int) () in -- s, kind, value, pos
     match s kind value pos in
         s stack_scan.state 0 + match state in
-            kind STACK_TOKEN_FUNC = kind STACK_TOKEN_DATA = or kind STACK_TOKEN_CONST = or if
+            kind STACK_TOKEN_FUNC = kind STACK_TOKEN_DATA = or kind STACK_TOKEN_CONST = or kind STACK_TOKEN_EXTERN = or if
                 s stack_scan.reset
                 s STACK_SCAN_NAME stack_scan.state.set
                 s kind stack_scan.decl.set
@@ -1746,8 +1824,9 @@ func stack_scan.step (stack_scan, int, string, int) () in -- s, kind, value, pos
             else state STACK_SCAN_NAME = if
                 kind STACK_TOKEN_NAME = if
                     s stack_scan.decl 0 + match decl in
-                        s stack_scan.names decl value pos stack_scan_names.add
-                        s decl STACK_TOKEN_FUNC = if STACK_SCAN_SIG
+                        s stack_scan.names decl STACK_TOKEN_EXTERN = if STACK_TOKEN_FUNC else decl fi value pos
+                        stack_scan_names.add
+                        s decl STACK_TOKEN_FUNC = decl STACK_TOKEN_EXTERN = or if STACK_SCAN_SIG
                         else decl STACK_TOKEN_DATA = if STACK_SCAN_DATA else STACK_SCAN_BODY fi fi
                         stack_scan.state.set
                     end
@@ -1760,10 +1839,13 @@ func stack_scan.step (stack_scan, int, string, int) () in -- s, kind, value, pos
                     s true stack_scan.paren.set
                 else kind STACK_TOKEN_RPAREN = if
                     s false stack_scan.paren.set
-                else kind STACK_TOKEN_IN = if
+                else kind STACK_TOKEN_IN = s stack_scan.decl STACK_TOKEN_FUNC = and if
                     s STACK_SCAN_BODY stack_scan.state.set
                     s STACK_TOKEN_FUNC 0 stack_scan.push
-                fi fi fi
+                else kind STACK_TOKEN_STRING = s stack_scan.decl STACK_TOKEN_EXTERN = and if
+                    -- The symbol ends an extern.
+                    s STACK_SCAN_TOP stack_scan.state.set
+                fi fi fi fi
             else state STACK_SCAN_DATA = if
                 kind STACK_TOKEN_LPAREN = if
                     s true stack_scan.paren.set
@@ -1827,6 +1909,7 @@ func stack_token.word (int) (bool) in -- kind
     match k in
         k STACK_TOKEN_BOOLEAN = k STACK_TOKEN_NAME >= k STACK_TOKEN_POOL <= and
         k STACK_TOKEN_LPAREN = not and k STACK_TOKEN_RPAREN = not and k STACK_TOKEN_COMMA = not and or
+        k STACK_TOKEN_EXTERN = or
     end
 end
 
@@ -2108,11 +2191,13 @@ func stack_analysis.complete.values (stack_analysis, array, array, string, array
                                 items label STACK_ITEM_FUNCTION
                                 kind STACK_DECL_FUNC = if
                                     d stack_decl.decl stack_ast_func.* stack_ast_func.text
+                                else kind STACK_DECL_EXTERN = if
+                                    d stack_decl.decl stack_ast_extern.* stack_ast_extern.text
                                 else
                                     d stack_decl.decl stack_ast_data.* stack_ast_data.name stack_ast_node.value
                                     kind STACK_DECL_REF = if stack_context_func.init.data_ref else stack_context_func.init.data_deref fi
                                     stack_analysis.func.text
-                                fi
+                                fi fi
                                 stack_items.add
                             fi
                         end
