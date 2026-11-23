@@ -33,7 +33,13 @@
 
           nativeBuildInputs = with pkgs; [
             fasm
+            makeWrapper
           ];
+
+          postFixup = ''
+            wrapProgram "$out/bin/slc" \
+              --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.fasm pkgs.stdenv.cc]}
+          '';
 
           src = ./.;
         };
@@ -59,6 +65,12 @@
           name = "checker";
           text = builtins.readFile ./scripts/checker.sh;
         };
+        checks.slc-runtime = pkgs.runCommand "slc-runtime-dependencies" {} ''
+          echo 'func main () (int) in 0 end' > main.stack
+          PATH=/no-tools ${config.packages.slc}/bin/slc main.stack -o main
+          ./main
+          touch $out
+        '';
         checks.lsp = pkgs.runCommand "stackls-protocol" {nativeBuildInputs = [pkgs.python3];} ''
           python3 ${./tests/lsp/protocol.py} ${config.packages.default}/bin/stackls
           touch $out
