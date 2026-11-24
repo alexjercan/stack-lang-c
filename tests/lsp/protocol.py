@@ -1255,16 +1255,23 @@ def file_uri(path):
                                "".join("%%%02X" % b for b in c.encode()) for c in path)
 
 
+def file_start(uri):
+    return {"uri": uri, "range": {"start": pos(0, 0), "end": pos(0, 0)}}
+
+
 def definitions(text, cases, uri=URI, before=(), after=(), **kw):
     """Open text and ask the definition of each case (needle, n, offset,
     want) at offset characters into the n-th needle. want is None for null,
-    (needle, n) for a name in text, or (uri, text, needle, n) for a name in
-    another file."""
+    (needle, n) for a name in text, (uri, text, needle, n) for a name in
+    another file, or a uri for the start of a file."""
     chunks = [init()] + [frame(m) for m in before] + [frame(did_open(text, uri))] + [frame(m) for m in after]
     want = [ok(1, INIT_RESULT)]
     for k, (needle, n, off, w) in enumerate(cases):
         i = find(text, needle, n)
         chunks.append(frame(definition(10 + k, position(text, i + off), uri)))
+        if isinstance(w, str):
+            want.append(ok(10 + k, file_start(w)))
+            continue
         if w is not None and len(w) == 2:
             w = (uri, text) + w
         want.append(ok(10 + k, None if w is None else location(w[0], w[1], find(w[1], w[2], w[3]))))
@@ -1448,7 +1455,7 @@ def definition_imports():
             ("cell.v", 0, 0, (luri, local, "v)", 0)),
             ("shared.g", 0, 0, (suri, shared, "shared.g", 0)),
             ("local.K", 0, 0, (luri, local, "local.K", 0)),
-            ('"shared"', 0, 1, None),
+            ('"shared"', 0, 1, suri),
         ]
         for h in [home, os.path.relpath(home, tmp), ".//" + os.path.relpath(home, tmp) + "/./"]:
             definitions(text, cases, cwd=tmp, env=dict(os.environ, STACK_HOME=h))
@@ -1530,6 +1537,99 @@ def definition_import_changes():
         srv.send(definition(21, position(text2, find(text2, "main end")), uri))
         assert srv.read() == ok(21, location(uri, text2, find(text2, "main ()")))
         srv.close()
+
+
+@test
+def definition_import_strings():
+    """An import string goes to the start of the file that slc imports: the
+    current directory, then $STACK_HOME/lib. Not relative to the file."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = os.path.realpath(tmp)
+        home = os.path.join(tmp, "home")
+        os.makedirs(os.path.join(home, "lib", "pkg"))
+        os.makedirs(os.path.join(tmp, "sub"))
+        files = {"local.stack": "func local.f () () in end\n",
+                 "both.stack": "func both.cwd () () in end\n",
+                 "home/lib/both.stack": "func both.home () () in end\n",
+                 "home/lib/only.stack": "func only.f () () in end\n",
+                 "home/lib/pkg/mod.stack": "func pkg.f () () in end\n",
+                 "sub/near.stack": "func near.f () () in end\n",
+                 'q"x.stack': "func q.f () () in end\n",
+                 "sp ace.stack": "func sp.f () () in end\n"}
+        for name, src in files.items():
+            with open(os.path.join(tmp, name), "w") as f:
+                f.write(src)
+
+        def at(name):
+            return file_uri(os.path.join(tmp, name))
+
+        env = dict(os.environ, STACK_HOME=home)
+        # Positions: the first quote to the last quote. Not the keyword, the
+        # space before the string or the byte after it.
+        text = '@import "local"\nfunc main () () in end\n'
+        definitions(text, [('"local"', 0, 0, at("local.stack")), ('"local"', 0, 1, at("local.stack")),
+                           ('"local"', 0, 6, at("local.stack")), ('"local"', 0, 7, None),
+                           ("@import", 0, 0, None), ("@import", 0, 3, None), (' "local"', 0, 0, None)],
+                    cwd=tmp, env=env)
+        # UTF-16 positions, and a string that is not an import before it.
+        text = 'const E "\U0001F600" @import "local"\n'
+        definitions(text, [('"local"', 0, 1, at("local.stack")), ('"\U0001F600"', 0, 1, None)], cwd=tmp, env=env)
+        # Local, $STACK_HOME/lib, nested, the current directory first, missing,
+        # not relative to the importing file, duplicated, "." parts, import
+        # without @, and a comment between the keyword and the string.
+        text = ('@import "local"\n@import "only"\n@import "pkg/mod"\n@import "both"\n'
+                '@import "missing"\n@import "near"\n@import "sub/near"\n@import "local"\n'
+                '@import "./local"\nimport "only"\n@import -- c\n"local"\nfunc main () () in end\n')
+        cases = [('"local"', 0, 1, at("local.stack")), ('"only"', 0, 1, at("home/lib/only.stack")),
+                 ('"pkg/mod"', 0, 1, at("home/lib/pkg/mod.stack")), ('"both"', 0, 1, at("both.stack")),
+                 ('"missing"', 0, 1, None), ('"near"', 0, 1, None), ('"sub/near"', 0, 1, at("sub/near.stack")),
+                 ('"local"', 1, 1, at("local.stack")), ('"./local"', 0, 1, at("local.stack")),
+                 ('"only"', 1, 1, at("home/lib/only.stack")), ('"local"', 2, 1, at("local.stack"))]
+        uri = file_uri(os.path.join(tmp, "sub", "main.stack"))
+        definitions(text, cases, uri=uri, cwd=tmp, env=env)
+        definitions(text, cases[:1] + [('"only"', 0, 1, None)], uri=uri, cwd=tmp,
+                    env=dict(os.environ, STACK_HOME=os.path.join(tmp, "none")))
+        # A relative $STACK_HOME starts at the current directory.
+        definitions(text, [('"only"', 0, 1, at("home/lib/only.stack"))], cwd=tmp,
+                    env=dict(os.environ, STACK_HOME="./home/."))
+        # stdlib of the repository.
+        text = '@import "stdlib"\n@import "stack/service"\n'
+        root = os.path.realpath(ROOT)
+        definitions(text, [('"stdlib"', 0, 3, file_uri(os.path.join(root, "lib", "stdlib.stack"))),
+                           ('"stack/service"', 0, 1, file_uri(os.path.join(root, "lib", "stack", "service.stack")))],
+                    cwd=ROOT, env=dict(os.environ, STACK_HOME="."))
+        definitions(text, [('"stdlib"', 0, 1, file_uri(os.path.join(ROOT, "lib", "stdlib.stack")))],
+                    cwd=tmp, env=dict(os.environ, STACK_HOME=ROOT))
+        # Escapes of the string as the parser reads them (\x is x), and
+        # percent escapes in the URI.
+        text = '@import "q\\"x"\n@import "sp ace"\n@import "sp\\x61ce"\n'
+        assert at('q"x.stack').endswith("/q%22x.stack") and at("sp ace.stack").endswith("/sp%20ace.stack")
+        definitions(text, [('"q', 0, 1, at('q"x.stack')), ('"q', 0, 4, at('q"x.stack')),
+                           ('"sp ace"', 0, 1, at("sp ace.stack")), ('"sp\\', 0, 1, None)], cwd=tmp, env=env)
+        # Strings that are not imports, and an import in a comment.
+        text = ('-- @import "local"\nconst K "local"\nextern c.f () () "local"\n'
+                'func main () () in "local" pop K pop end\n')
+        definitions(text, [('"local"', k, 1, None) for k in range(4)], cwd=tmp, env=env)
+        # Open documents: the URI of an open file stays as the client sent it,
+        # also with unsaved text. A closed file gets its file URI. An open
+        # document that is not on disk cannot be imported.
+        spelled = at("local.stack").replace("local.stack", "%6Cocal.stack")
+        text = '@import "local"\n@import "new"\nfunc main () () in end\n'
+        before = [did_open("func local.g () () in end\n", spelled),
+                  did_open("func new.f () () in end\n", at("new.stack"))]
+        definitions(text, [('"local"', 0, 1, spelled), ('"new"', 0, 1, None)], before=before, cwd=tmp, env=env)
+        definitions(text, [('"local"', 0, 1, at("local.stack"))], before=before + [did_close(spelled)],
+                    cwd=tmp, env=env)
+        # The unsaved text of the main document is used, not the file.
+        disk = os.path.join(tmp, "main.stack")
+        with open(disk, "w") as f:
+            f.write("func main () () in end\n")
+        text = '\n\n   @import "local"\n'
+        definitions(text, [('"local"', 0, 1, at("local.stack")), ('"local"', 0, 7, None)],
+                    uri=file_uri(disk), cwd=tmp, env=env)
+        # A document that is not a file.
+        definitions('@import "local"\n', [('"local"', 0, 1, at("local.stack"))], uri="untitled:Untitled-1",
+                    cwd=tmp, env=env)
 
 
 @test

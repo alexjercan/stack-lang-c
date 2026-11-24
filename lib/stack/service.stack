@@ -344,11 +344,42 @@ func stack_service.uri (stack_service, lsp.server, string) (string, bool) in -- 
     end
 end
 
+-- The definition of the import string at offset is the file that slc imports,
+-- with the lookup of the preprocessor: the current directory, then
+-- $STACK_HOME/lib. The reply is a Location at the start of the file, or null
+-- when no file opens. False when offset is not in the string of an import;
+-- then there is no reply.
+func stack_service.import (stack_service, lsp.server, json_object, lsp.document, int) (bool) in -- svc, srv, msg, doc, offset
+    match svc srv msg doc offset in
+        doc lsp.document.text offset stack_analysis.import.at match name found in
+            found if
+                "" "" stack_lexer.init.with_buffer stack_parser.init.with_lexer name 0 stack_ast_node.init
+                stack_preprocessor.run.import.open match path fd in
+                    fd 0 < if
+                        msg json.null lsp.reply
+                    else
+                        fd stdlib.fclose pop
+                        svc srv path stack_service.uri match uri owned in
+                            json.map match range in
+                                range "start" 0 0 lsp.position.json json_object.put
+                                range "end" 0 0 lsp.position.json json_object.put
+                                msg uri range lsp.location lsp.reply
+                            end
+                            owned if uri string.str ptr.free fi
+                        end
+                    fi
+                end
+            fi
+            found
+        end
+    end
+end
+
 -- A Location of the definition of the name at the position, or null.
 func stack_service.definition (stack_service, lsp.server, json_object) () in -- svc, srv, msg
     match svc srv msg in
         srv msg stack_service.at match doc offset ok in
-            ok if
+            ok if svc srv msg doc offset stack_service.import not else false fi if
                 svc srv doc stack_service.analysis offset stack_analysis.definition match found lexer start stop in
                     found not if
                         msg json.null lsp.reply

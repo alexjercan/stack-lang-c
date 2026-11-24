@@ -1695,6 +1695,33 @@ func stack_analysis.definition (stack_analysis, int) (bool, ptr, int, int) in --
     end
 end
 
+-- The name of the import at the byte cursor, as the parser reads it: a
+-- string token just after the import keyword, with its escapes. The cursor
+-- is on a byte of the string, from the first quote to the last quote. found
+-- is false for other positions.
+func stack_analysis.import.at (string, int) (string, bool) in -- text, cursor
+    match text cursor in
+        text "" stack_lexer.init.with_buffer match lexer in
+            STACK_TOKEN_EOF "" false false while dup2 or not loop -- prev, name, found, done
+                match prev _name _found _done in
+                    lexer stack_lexer.next match tok in
+                        tok stack_token.kind 0 + tok stack_token.pos 0 + lexer stack_lexer.pos 0 + match kind pos e in
+                            kind STACK_TOKEN_STRING = prev STACK_TOKEN_IMPORT = and pos cursor <= and cursor e < and
+                            match hit in
+                                kind
+                                hit if tok stack_token.value stack_string.interpret else "" fi
+                                hit
+                                kind STACK_TOKEN_EOF = pos cursor > or
+                            end
+                        end
+                    end
+                end
+            pool
+            match _prev name found _done in name found end
+        end
+    end
+end
+
 -- COMPLETION
 
 -- What can replace the name at the cursor.

@@ -131,6 +131,12 @@ name of the definition, or `null`:
   need a type.
 - `T.f`, `T.f.set` and `T.f.offset` go to the field `f`. `T.init`,
   `T.sizeof`, `T.&` and `T.*` go to the name of `T`.
+- The string of an import goes to the start of the file that `slc` imports
+  (line 0, character 0). The position can be on any byte of the string, from
+  the first quote to the last quote. The lookup is the lookup of `slc`, not
+  relative to the file: `name.stack` relative to the directory where the
+  server runs, then `$STACK_HOME/lib/name.stack`. An import that `slc`
+  cannot open gets `null`. Other strings and the import keyword get `null`.
 - Builtins, special names, literals and names that do not resolve get `null`.
 - The URI of an open document stays as the client sent it. Other files get a
   `file://` URI of the absolute path, with percent escapes. `..` parts stay
